@@ -5,7 +5,7 @@ import '../../../services/auth_service.dart';
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
 
-  final String adminUrl = 'http://10.245.104.167:8000/admin/';
+  final String adminUrl = 'http://10.245.104.167:8000/';
 
   Future<void> _launchAdminPortal(BuildContext context) async {
     final Uri url = Uri.parse(adminUrl);
