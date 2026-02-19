@@ -13,12 +13,13 @@
 
 # # --- APPS CONFIGURATION ---
 # INSTALLED_APPS = [
+#     'jazzmin',           # ✅ ADDED: Must be above admin
 #     'django.contrib.admin',
 #     'django.contrib.auth',
 #     'django.contrib.contenttypes',
 #     'django.contrib.sessions',
 #     'django.contrib.messages',
-#     'django.contrib.staticfiles', # Required for Admin CSS
+#     'django.contrib.staticfiles', 
     
 #     # 3rd Party
 #     'rest_framework',
@@ -34,7 +35,7 @@
 # MIDDLEWARE = [
 #     'corsheaders.middleware.CorsMiddleware',
 #     'django.middleware.security.SecurityMiddleware',
-#     'whitenoise.middleware.WhiteNoiseMiddleware', # ✅ ADDED for serving Admin UI on Render
+#     'whitenoise.middleware.WhiteNoiseMiddleware', 
 #     'django.contrib.sessions.middleware.SessionMiddleware',
 #     'django.middleware.common.CommonMiddleware',
 #     'django.middleware.csrf.CsrfViewMiddleware',
@@ -73,7 +74,7 @@
 # REST_FRAMEWORK = {
 #     'DEFAULT_AUTHENTICATION_CLASSES': [
 #         'rest_framework.authentication.TokenAuthentication',
-#         'rest_framework.authentication.SessionAuthentication', # Required for Admin login
+#         'rest_framework.authentication.SessionAuthentication', 
 #     ],
 # }
 
@@ -93,7 +94,6 @@
 # USE_TZ = True
 
 # # --- CELERY & REDIS CONFIGURATION ---
-# # Note: On Render, use your Redis Instance URL here
 # CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 # CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 # CELERY_ACCEPT_CONTENT = ['json']
@@ -115,18 +115,66 @@
 # CSRF_TRUSTED_ORIGINS = [
 #     "http://localhost", 
 #     "http://127.0.0.1", 
-#     "https://farmaid-backend.onrender.com" # ✅ Added for Admin portal access
+#     "https://farmaid-backend.onrender.com" 
 # ]
 
 # # --- STATIC & MEDIA STORAGE ---
 # STATIC_URL = 'static/'
-# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') # ✅ Required for WhiteNoise
+# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
 # STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # MEDIA_URL = '/media/'
 # MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# # --- JAZZMIN SETTINGS (UI POLISH) ---
+# JAZZMIN_SETTINGS = {
+#     "site_title": "FarmAid Admin",
+#     "site_header": "FarmAid",
+#     "site_brand": "FarmAid Management",
+#     "welcome_sign": "Welcome to the FarmAid Admin Portal",
+#     "copyright": "FarmAid Lesotho",
+#     "user_avatar": None,
+#     "topmenu_links": [
+#         {"name": "Home",  "url": "admin:index", "permissions": ["auth.view_user"]},
+#         {"model": "api.Farmer"},
+#     ],
+#     "show_sidebar": True,
+#     "navigation_expanded": True,
+#     "icons": {
+#         "auth": "fas fa-users-cog",
+#         "auth.user": "fas fa-user",
+#         "api.Farmer": "fas fa-seedling",
+#         "api.Plant": "fas fa-leaf",
+#         "api.Alert": "fas fa-bell",
+#     },
+# }
+
+# JAZZMIN_UI_TWEAKS = {
+#     "navbar_small_text": False,
+#     "footer_small_text": False,
+#     "body_small_text": False,
+#     "brand_small_text": False,
+#     "brand_colour": "navbar-success",
+#     "accent": "accent-teal",
+#     "navbar": "navbar-dark",
+#     "no_navbar_border": False,
+#     "navbar_fixed": False,
+#     "layout_boxed": False,
+#     "footer_fixed": False,
+#     "sidebar_fixed": False,
+#     "sidebar": "sidebar-dark-success",
+#     "sidebar_nav_small_text": False,
+#     "sidebar_disable_expand": False,
+#     "sidebar_nav_child_indent": False,
+#     "sidebar_nav_compact_style": False,
+#     "sidebar_nav_legacy_style": False,
+#     "sidebar_nav_flat_style": False,
+#     "theme": "default",
+#     "dark_mode_theme": None,
+# }
+
 
 import dj_database_url
 import os
@@ -143,7 +191,7 @@ ALLOWED_HOSTS = ['farmaid-backend.onrender.com', 'localhost', '127.0.0.1', '*']
 
 # --- APPS CONFIGURATION ---
 INSTALLED_APPS = [
-    'jazzmin',           # ✅ ADDED: Must be above admin
+    'jazzmin',           
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -258,27 +306,40 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- JAZZMIN SETTINGS (UI POLISH) ---
+# --- 🌟 ENHANCED JAZZMIN SETTINGS (Professional & Simplified) ---
 JAZZMIN_SETTINGS = {
     "site_title": "FarmAid Admin",
-    "site_header": "FarmAid",
-    "site_brand": "FarmAid Management",
-    "welcome_sign": "Welcome to the FarmAid Admin Portal",
-    "copyright": "FarmAid Lesotho",
+    "site_header": "FarmAid Management",
+    "site_brand": "FarmAid Lesotho",
+    "welcome_sign": "FarmAid System Management Portal",
+    "copyright": "FarmAid Lesotho 2026",
     "user_avatar": None,
+    
+    # --- Top Menu (Simplified Navigation) ---
     "topmenu_links": [
         {"name": "Home",  "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"name": "View Live App", "url": "https://farmaid-backend.onrender.com/api/", "new_window": True},
         {"model": "api.Farmer"},
     ],
+
+    # --- Sidebar (Organized by Function) ---
     "show_sidebar": True,
     "navigation_expanded": True,
+    "order_with_respect_to": ["api", "api.Farmer", "api.Plant", "api.Alert", "auth"],
+    
+    # --- Icons (FontAwesome 5) ---
     "icons": {
         "auth": "fas fa-users-cog",
-        "auth.user": "fas fa-user",
-        "api.Farmer": "fas fa-seedling",
-        "api.Plant": "fas fa-leaf",
-        "api.Alert": "fas fa-bell",
+        "auth.user": "fas fa-user-shield",
+        "api.Farmer": "fas fa-id-card",
+        "api.Plant": "fas fa-seedling",
+        "api.Alert": "fas fa-exclamation-triangle",
+        "api.Weather": "fas fa-cloud-sun",
     },
+
+    # --- UI Polish ---
+    "changeform_format": "horizontal_tabs", # Makes editing data look cleaner
+    "show_ui_builder": False, # Hide for final professional look
 }
 
 JAZZMIN_UI_TWEAKS = {
@@ -287,20 +348,28 @@ JAZZMIN_UI_TWEAKS = {
     "body_small_text": False,
     "brand_small_text": False,
     "brand_colour": "navbar-success",
-    "accent": "accent-teal",
+    "accent": "accent-success",
     "navbar": "navbar-dark",
     "no_navbar_border": False,
-    "navbar_fixed": False,
+    "navbar_fixed": True, # Keep navigation accessible while scrolling
     "layout_boxed": False,
     "footer_fixed": False,
-    "sidebar_fixed": False,
+    "sidebar_fixed": True, # Keep sidebar accessible while scrolling
     "sidebar": "sidebar-dark-success",
     "sidebar_nav_small_text": False,
     "sidebar_disable_expand": False,
-    "sidebar_nav_child_indent": False,
+    "sidebar_nav_child_indent": True,
     "sidebar_nav_compact_style": False,
     "sidebar_nav_legacy_style": False,
-    "sidebar_nav_flat_style": False,
-    "theme": "default",
+    "sidebar_nav_flat_style": True,
+    "theme": "flatly", # Use a clean, modern Bootstrap theme
     "dark_mode_theme": None,
+    "button_classes": {
+        "primary": "btn-success",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success"
+    }
 }
