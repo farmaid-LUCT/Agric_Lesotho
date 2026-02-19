@@ -242,7 +242,6 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost", 
     "http://127.0.0.1", 
-    "http://10.58.154.10",
     "https://farmaid-backend.onrender.com" # ✅ Added for Admin portal access
 ]
 
