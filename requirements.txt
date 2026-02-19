@@ -4,7 +4,8 @@ gunicorn==23.0.0
 django-cors-headers==4.7.0
 asgiref==3.8.1
 sqlparse==0.5.3
-whitenoise==6.7.0  # ✅ ADDED: Required for Admin UI static files
+whitenoise==6.7.0
+django-jazzmin==3.0.2  # ✅ ADDED: Modern Bootstrap 5 UI for Admin
 
 # --- API & REST FRAMEWORK ---
 djangorestframework==3.15.2
@@ -24,6 +25,6 @@ requests==2.32.3
 urllib3==2.2.3
 certifi==2024.12.14
 celery==5.4.0
-redis==5.0.1       # ✅ ADDED: Required for Celery/Redis connection
+redis==5.0.1
 django-celery-beat==2.7.0
 django-timezone-field==7.1
