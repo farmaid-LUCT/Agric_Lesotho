@@ -383,7 +383,7 @@ LOGOUT_ON_GET = True
 
 # --- AUTHENTICATION REDIRECTS ---
 # This forces the "Sign Out" button to go back to the login screen
-LOGOUT_REDIRECT_URL = '/admin/login/'
+LOGOUT_REDIRECT_URL = '/login/'
 
 # (Optional) If you want them to go to the dashboard after logging in
 LOGIN_REDIRECT_URL = '/admin/'
