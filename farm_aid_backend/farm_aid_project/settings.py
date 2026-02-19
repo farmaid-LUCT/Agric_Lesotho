@@ -1,5 +1,3 @@
-
-
 # import dj_database_url
 # import os
 # from pathlib import Path
@@ -15,7 +13,7 @@
 
 # # --- APPS CONFIGURATION ---
 # INSTALLED_APPS = [
-#     'jazzmin',           # ✅ Must be above admin
+#     'jazzmin',           
 #     'django.contrib.admin',
 #     'django.contrib.auth',
 #     'django.contrib.contenttypes',
@@ -130,25 +128,34 @@
 
 # DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# # --- JAZZMIN SETTINGS (UI POLISH) ---
+# # --- JAZZMIN SETTINGS (Professional Dashboard with Activity Log) ---
 # JAZZMIN_SETTINGS = {
 #     "site_title": "FarmAid Admin",
 #     "site_header": "FarmAid",
 #     "site_brand": "FarmAid Management",
-#     "welcome_sign": "Welcome to the FarmAid Admin Portal",
+#     "welcome_sign": "FarmAid Management System",
 #     "copyright": "FarmAid Lesotho",
 #     "user_avatar": None,
 #     "topmenu_links": [
 #         {"name": "Home",  "url": "admin:index", "permissions": ["auth.view_user"]},
-#         {"model": "api.Farmer"},
+#         {"name": "Activity Log", "model": "admin.LogEntry"}, # Quick link to Admin Actions
 #     ],
-#     # ✅ Adds Logout inside the User Icon (Top Right)
 #     "usermenu_links": [
 #         {"name": "Log out", "url": "admin:logout", "icon": "fas fa-sign-out-alt"},
 #     ],
 #     "show_sidebar": True,
 #     "navigation_expanded": True,
+    
+#     # ✅ Grouping: Admin Actions (LogEntry) appear first
+#     "order_with_respect_to": [
+#         "admin.LogEntry", 
+#         "api.Farmer", 
+#         "api.Diagnosis", 
+#         "api.Alert"
+#     ],
+    
 #     "icons": {
+#         "admin.LogEntry": "fas fa-history", # Icon for Admin Actions
 #         "auth": "fas fa-users-cog",
 #         "auth.user": "fas fa-user",
 #         "api.Farmer": "fas fa-seedling",
@@ -181,9 +188,7 @@
 #     "dark_mode_theme": None,
 # }
 
-# # ✅ Required for Django 5.1 to allow logout from the dropdown link
 # LOGOUT_ON_GET = True
-
 
 
 
@@ -318,7 +323,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# --- JAZZMIN SETTINGS (Professional Dashboard with Activity Log) ---
+# --- JAZZMIN SETTINGS ---
 JAZZMIN_SETTINGS = {
     "site_title": "FarmAid Admin",
     "site_header": "FarmAid",
@@ -326,28 +331,30 @@ JAZZMIN_SETTINGS = {
     "welcome_sign": "FarmAid Management System",
     "copyright": "FarmAid Lesotho",
     "user_avatar": None,
+    
+    # 1. Force Logout into the TOP MENU BAR
     "topmenu_links": [
         {"name": "Home",  "url": "admin:index", "permissions": ["auth.view_user"]},
-        {"name": "Activity Log", "model": "admin.LogEntry"}, # Quick link to Admin Actions
+        {"name": "Activity Log", "model": "admin.LogEntry"},
+        {"name": "Sign Out", "url": "/admin/logout/", "icon": "fas fa-sign-out-alt"}, # Visible logout link
     ],
+
+    # 2. Add Logout inside the USER DROPDOWN (Top Right Icon)
     "usermenu_links": [
         {"name": "Log out", "url": "admin:logout", "icon": "fas fa-sign-out-alt"},
     ],
+
     "show_sidebar": True,
     "navigation_expanded": True,
-    
-    # ✅ Grouping: Admin Actions (LogEntry) appear first
     "order_with_respect_to": [
         "admin.LogEntry", 
         "api.Farmer", 
         "api.Diagnosis", 
         "api.Alert"
     ],
-    
     "icons": {
-        "admin.LogEntry": "fas fa-history", # Icon for Admin Actions
+        "admin.LogEntry": "fas fa-history",
         "auth": "fas fa-users-cog",
-        "auth.user": "fas fa-user",
         "api.Farmer": "fas fa-seedling",
         "api.Plant": "fas fa-leaf",
         "api.Alert": "fas fa-bell",
@@ -364,18 +371,12 @@ JAZZMIN_UI_TWEAKS = {
     "navbar": "navbar-dark",
     "no_navbar_border": False,
     "navbar_fixed": True,
-    "layout_boxed": False,
-    "footer_fixed": False,
     "sidebar_fixed": True,
     "sidebar": "sidebar-dark-success",
-    "sidebar_nav_small_text": False,
-    "sidebar_disable_expand": False,
     "sidebar_nav_child_indent": True,
-    "sidebar_nav_compact_style": False,
-    "sidebar_nav_legacy_style": False,
     "sidebar_nav_flat_style": True,
     "theme": "default",
-    "dark_mode_theme": None,
 }
 
+# 3. CRITICAL: Allow logout via a simple click for Django 5.1 compatibility
 LOGOUT_ON_GET = True
