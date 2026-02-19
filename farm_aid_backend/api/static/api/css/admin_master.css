@@ -1,0 +1,67 @@
+/* --- 1. GLOBAL LAYOUT (SATISFYING & CLEAN) --- */
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    background-color: #f8fafc !important;
+}
+
+/* --- 2. THE DASHBOARD CARDS (RESPONSIVE & UNIFORM) --- */
+/* This ensures cards are the same height and width across all screen sizes */
+.content-wrapper .row:first-of-type {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px; /* Consistent spacing between cards */
+    margin-bottom: 20px;
+}
+
+/* Force cards into a responsive grid */
+.content-wrapper .row:first-of-type > [class*="col-"] {
+    flex: 1 1 calc(25% - 15px); /* 4 cards on desktop */
+    min-width: 250px; /* Forces wrap to 2x2 on tablet or 1x1 on mobile */
+    max-width: 100%;
+    display: flex;
+}
+
+.small-box {
+    width: 100% !important;
+    height: 140px !important; /* FIXED HEIGHT */
+    border-radius: 16px !important;
+    border: none !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: transform 0.2s ease;
+}
+
+.small-box:hover {
+    transform: translateY(-5px);
+}
+
+/* --- 3. THE "RECENT ACTIONS" / EVENTS CARD --- */
+/* Clean, well-placed, and matches the theme */
+.card-outline.card-primary {
+    border-top: 4px solid #2e7d32 !important; /* FarmAid Green */
+    border-radius: 16px !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* --- 4. LIST VIEWS & TABLES (ENHANCED) --- */
+.table thead th {
+    background-color: #f1f5f9 !important;
+    border: none !important;
+    color: #475569 !important;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    padding: 12px !important;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(46, 125, 50, 0.03) !important;
+}
+
+/* --- 5. BUTTONS & FORMS --- */
+.btn-success, .btn-primary {
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+}
