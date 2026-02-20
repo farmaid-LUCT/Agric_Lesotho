@@ -173,7 +173,6 @@
 #         return Response({'status': 'success'})
 
 # # --- 4. AI SCAN & REPORTS ---
-
 # class SaveScanView(APIView):
 #     permission_classes = [IsAuthenticated]
 
@@ -200,12 +199,15 @@
 #         try:
 #             # 1. Capture Data
 #             raw_label = request.data.get('diseaseName') or request.data.get('DiseaseName') or "Healthy"
+#             # clean_label turns "Cabbage_Alternaria_Leaf_Spot" into "Cabbage Alternaria Leaf Spot"
 #             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
+            
 #             image_url = request.data.get('imageUrl') or request.data.get('image_url') or request.data.get('ImageFile')
 #             confidence = request.data.get('confidence') or request.data.get('ConfidenceLevel') or 0.0
 #             profile_id = request.data.get('profileId') or request.data.get('ProfileID')
-#             is_personalized = request.data.get('RequestPersonalized', False)
-#             lang = request.user.language_preferences  # Get farmer's preferred language
+            
+#             is_personalized = request.data.get('RequestPersonalized', False) or (profile_id is not None)
+#             lang = request.user.language_preferences
 
 #             if not image_url:
 #                 return Response({'error': 'Supabase image URL is missing'}, status=400)
@@ -218,31 +220,56 @@
 #             new_plant = Plant.objects.create(FarmerID=request.user, CropProfile=target_profile, ImageFile=image_url)
 #             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-#             # 3. PULL RECOMMENDATIONS
-#             treatment_query = Q(DiseaseName__iexact=raw_label) | Q(DiseaseName__iexact=clean_label)
+#             # 3. UPDATED: Broadened Query to match Neon Underscores
+#             # This matches "Cabbage_Alternaria_Leaf_Spot" OR "Cabbage Alternaria Leaf Spot"
+#             treatment_query = (
+#                 Q(DiseaseName__iexact=raw_label) | 
+#                 Q(DiseaseName__iexact=clean_label) |
+#                 Q(DiseaseName__iexact=clean_label.replace(' ', '_'))
+#             )
+            
 #             treat = Treatment.objects.filter(treatment_query).first()
 #             kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
 
-#             # Initial values in English
 #             res_disease = clean_label
 #             res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
 #             res_dosage = treat.Dosage if treat else "N/A"
 #             res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
 
-#             # 4. TRANSLATION LOGIC (Switch Everything)
+#             # 4. TRANSLATION LOGIC
 #             if lang == 'st':
 #                 res_disease = self._get_sesotho_translation(res_disease)
 #                 res_pesticide = self._get_sesotho_translation(res_pesticide)
 #                 res_steps = self._get_sesotho_translation(res_steps)
 
-#             # 5. Personalized Logic
+#             # 5. UPDATED: Personalized Logic with Soil Fallback
 #             personalized_data = []
 #             if is_personalized and target_profile and target_profile.PlantingDate:
+#                 # days_old is 0 if planted today
 #                 days_old = (date.today() - target_profile.PlantingDate).days
-#                 rules = PersonalizedRule.objects.filter(treatment_query, MinDaysSincePlanting__lte=days_old, MaxDaysSincePlanting__gte=days_old)
+                
+#                 # Filter rules by Disease Name and Growth Stage (Age)
+#                 rules = PersonalizedRule.objects.filter(
+#                     treatment_query, 
+#                     MinDaysSincePlanting__lte=days_old, 
+#                     MaxDaysSincePlanting__gte=days_old
+#                 )
+                
+#                 # Check Soil: 
+#                 # If specific soil rules exist, use them. Otherwise, use rules with NULL/Empty soil.
+#                 if target_profile.SoilEnvironment:
+#                     soil_specific = rules.filter(TriggerSoilType__iexact=target_profile.SoilEnvironment)
+#                     if soil_specific.exists():
+#                         rules = soil_specific
+#                     else:
+#                         rules = rules.filter(Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType=""))
+#                 else:
+#                     rules = rules.filter(Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType=""))
+
 #                 for r in rules:
 #                     advice = r.ExpertAdvice
-#                     if lang == 'st': advice = self._get_sesotho_translation(advice)
+#                     if lang == 'st': 
+#                         advice = self._get_sesotho_translation(advice)
 #                     personalized_data.append({"ExpertAdvice": advice})
 
 #             return Response({
@@ -255,6 +282,7 @@
 #                 },
 #                 'personalized_rules': personalized_data,
 #             })
+            
 #         except Exception as e:
 #             return Response({'error': str(e)}, status=400)
 
@@ -490,7 +518,6 @@ class SaveScanView(APIView):
         try:
             # 1. Capture Data
             raw_label = request.data.get('diseaseName') or request.data.get('DiseaseName') or "Healthy"
-            # clean_label turns "Cabbage_Alternaria_Leaf_Spot" into "Cabbage Alternaria Leaf Spot"
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
             
             image_url = request.data.get('imageUrl') or request.data.get('image_url') or request.data.get('ImageFile')
@@ -511,8 +538,7 @@ class SaveScanView(APIView):
             new_plant = Plant.objects.create(FarmerID=request.user, CropProfile=target_profile, ImageFile=image_url)
             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-            # 3. UPDATED: Broadened Query to match Neon Underscores
-            # This matches "Cabbage_Alternaria_Leaf_Spot" OR "Cabbage Alternaria Leaf Spot"
+            # 3. TREATMENT QUERY
             treatment_query = (
                 Q(DiseaseName__iexact=raw_label) | 
                 Q(DiseaseName__iexact=clean_label) |
@@ -533,27 +559,25 @@ class SaveScanView(APIView):
                 res_pesticide = self._get_sesotho_translation(res_pesticide)
                 res_steps = self._get_sesotho_translation(res_steps)
 
-            # 5. UPDATED: Personalized Logic with Soil Fallback
+            # 5. PERSONALIZED LOGIC (FIXED FOR SOIL MATCHING)
             personalized_data = []
             if is_personalized and target_profile and target_profile.PlantingDate:
-                # days_old is 0 if planted today
                 days_old = (date.today() - target_profile.PlantingDate).days
                 
-                # Filter rules by Disease Name and Growth Stage (Age)
+                # Fetch rules matching Disease and Age
                 rules = PersonalizedRule.objects.filter(
                     treatment_query, 
                     MinDaysSincePlanting__lte=days_old, 
                     MaxDaysSincePlanting__gte=days_old
                 )
                 
-                # Check Soil: 
-                # If specific soil rules exist, use them. Otherwise, use rules with NULL/Empty soil.
+                # Apply Soil Filter with fallback to "Any Soil" (Empty/Null)
                 if target_profile.SoilEnvironment:
-                    soil_specific = rules.filter(TriggerSoilType__iexact=target_profile.SoilEnvironment)
-                    if soil_specific.exists():
-                        rules = soil_specific
-                    else:
-                        rules = rules.filter(Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType=""))
+                    rules = rules.filter(
+                        Q(TriggerSoilType__iexact=target_profile.SoilEnvironment) | 
+                        Q(TriggerSoilType__isnull=True) | 
+                        Q(TriggerSoilType="")
+                    )
                 else:
                     rules = rules.filter(Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType=""))
 
