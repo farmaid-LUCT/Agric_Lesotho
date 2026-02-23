@@ -499,7 +499,7 @@ class SaveScanView(APIView):
             return cached.sesotho_text
         
         try:
-            url = "https://translate.terraprint.co/translate"
+            url = "https://translate.argosopentech.com/translate"
             res = requests.post(url, json={"q": text, "source": "en", "target": "st", "format": "text"}, timeout=10)
             if res.status_code == 200:
                 translated = res.json().get('translatedText', text)
