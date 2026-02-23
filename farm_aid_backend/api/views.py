@@ -491,64 +491,45 @@ class SaveScanView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_sesotho_translation(self, text):
-        """Helper to check cache or call LibreTranslate"""
         if not text or text == "N/A": return text
         t_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
         
-        # 1. Check database first
         cached = TranslationCache.objects.filter(text_hash=t_hash).first()
         if cached:
-            print(f"DEBUG: Found cached translation for {text[:15]}")
             return cached.sesotho_text
         
-        # 2. If not cached, call LibreTranslate
         try:
-            print(f"DEBUG: Calling Translation API for: {text[:20]}...")
             url = "https://translate.terraprint.co/translate"
-            res = requests.post(url, json={
-                "q": text, 
-                "source": "en", 
-                "target": "st", 
-                "format": "text"
-            }, timeout=15) # Increased timeout
-            
+            res = requests.post(url, json={"q": text, "source": "en", "target": "st", "format": "text"}, timeout=10)
             if res.status_code == 200:
                 translated = res.json().get('translatedText', text)
-                # 3. SAVE TO CACHE TABLE
-                TranslationCache.objects.create(
-                    text_hash=t_hash, 
-                    english_text=text, 
-                    sesotho_text=translated
-                )
-                print(f"DEBUG: Successfully saved to TranslationCache")
+                TranslationCache.objects.create(text_hash=t_hash, english_text=text, sesotho_text=translated)
                 return translated
-            else:
-                print(f"DEBUG: API Error Code {res.status_code}")
-        except Exception as e:
-            print(f"DEBUG: Translation Connection Failed: {e}")
-            
+        except:
+            pass
         return text
 
     def post(self, request):
         try:
             user = request.user
-            # FORCE SYNC: If Flutter sends 'lang' in the body, update the DB immediately
-            input_lang = request.data.get('language') or request.data.get('lang')
-            if input_lang in ['st', 'en']:
-                user.language_preferences = input_lang
+            
+            # --- FORCE SYNC: Listen to Flutter's current language ---
+            # If the app sends 'language': 'st' in the POST body, update the database
+            incoming_lang = request.data.get('language') or request.data.get('lang')
+            if incoming_lang in ['st', 'en']:
+                user.language_preferences = incoming_lang
                 user.save(update_fields=['language_preferences'])
             
-            current_lang = user.language_preferences
-            print(f"DEBUG: Processing scan. User Lang in DB: {current_lang}")
+            lang = user.language_preferences
 
             # 1. Capture Data
             raw_label = request.data.get('diseaseName') or request.data.get('DiseaseName') or "Healthy"
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
-            image_url = request.data.get('imageUrl') or request.data.get('image_url')
+            image_url = request.data.get('imageUrl') or request.data.get('image_url') or request.data.get('ImageFile')
             confidence = request.data.get('confidence') or 0.0
             profile_id = request.data.get('profileId')
 
-            # 2. Database Save (Neon)
+            # 2. Database Save
             target_profile = None
             if profile_id and str(profile_id).lower() != "null":
                 target_profile = CropProfile.objects.filter(pk=profile_id, FarmerID=user).first()
@@ -556,23 +537,21 @@ class SaveScanView(APIView):
             new_plant = Plant.objects.create(FarmerID=user, CropProfile=target_profile, ImageFile=image_url)
             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-            # 3. Get Treatment
+            # 3. Treatment Query
             treatment_query = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
             treat = Treatment.objects.filter(treatment_query).first()
-            
+            kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
+
             res_disease = clean_label
             res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
-            res_steps = treat.ApplicationSteps if treat else "Isolate plant."
             res_dosage = treat.Dosage if treat else "N/A"
+            res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
 
-            # 4. TRANSLATION TRIGGER
-            if current_lang == 'st':
-                print("DEBUG: Translation logic STARTING...")
+            # 4. TRANSLATION (Triggered if DB says 'st')
+            if lang == 'st':
                 res_disease = self._get_sesotho_translation(res_disease)
                 res_pesticide = self._get_sesotho_translation(res_pesticide)
                 res_steps = self._get_sesotho_translation(res_steps)
-            else:
-                print(f"DEBUG: Translation SKIPPED. Lang is {current_lang}")
 
             return Response({
                 'status': 'success',
@@ -583,8 +562,8 @@ class SaveScanView(APIView):
                     'steps': res_steps
                 }
             })
+            
         except Exception as e:
-            print(f"DEBUG: Critical View Error: {e}")
             return Response({'error': str(e)}, status=400)
 
 class FarmerHistoryView(APIView):
