@@ -199,7 +199,6 @@
 #         try:
 #             # 1. Capture Data
 #             raw_label = request.data.get('diseaseName') or request.data.get('DiseaseName') or "Healthy"
-#             # clean_label turns "Cabbage_Alternaria_Leaf_Spot" into "Cabbage Alternaria Leaf Spot"
 #             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
             
 #             image_url = request.data.get('imageUrl') or request.data.get('image_url') or request.data.get('ImageFile')
@@ -220,8 +219,7 @@
 #             new_plant = Plant.objects.create(FarmerID=request.user, CropProfile=target_profile, ImageFile=image_url)
 #             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-#             # 3. UPDATED: Broadened Query to match Neon Underscores
-#             # This matches "Cabbage_Alternaria_Leaf_Spot" OR "Cabbage Alternaria Leaf Spot"
+#             # 3. TREATMENT QUERY
 #             treatment_query = (
 #                 Q(DiseaseName__iexact=raw_label) | 
 #                 Q(DiseaseName__iexact=clean_label) |
@@ -242,27 +240,25 @@
 #                 res_pesticide = self._get_sesotho_translation(res_pesticide)
 #                 res_steps = self._get_sesotho_translation(res_steps)
 
-#             # 5. UPDATED: Personalized Logic with Soil Fallback
+#             # 5. PERSONALIZED LOGIC (FIXED FOR SOIL MATCHING)
 #             personalized_data = []
 #             if is_personalized and target_profile and target_profile.PlantingDate:
-#                 # days_old is 0 if planted today
 #                 days_old = (date.today() - target_profile.PlantingDate).days
                 
-#                 # Filter rules by Disease Name and Growth Stage (Age)
+#                 # Fetch rules matching Disease and Age
 #                 rules = PersonalizedRule.objects.filter(
 #                     treatment_query, 
 #                     MinDaysSincePlanting__lte=days_old, 
 #                     MaxDaysSincePlanting__gte=days_old
 #                 )
                 
-#                 # Check Soil: 
-#                 # If specific soil rules exist, use them. Otherwise, use rules with NULL/Empty soil.
+#                 # Apply Soil Filter with fallback to "Any Soil" (Empty/Null)
 #                 if target_profile.SoilEnvironment:
-#                     soil_specific = rules.filter(TriggerSoilType__iexact=target_profile.SoilEnvironment)
-#                     if soil_specific.exists():
-#                         rules = soil_specific
-#                     else:
-#                         rules = rules.filter(Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType=""))
+#                     rules = rules.filter(
+#                         Q(TriggerSoilType__iexact=target_profile.SoilEnvironment) | 
+#                         Q(TriggerSoilType__isnull=True) | 
+#                         Q(TriggerSoilType="")
+#                     )
 #                 else:
 #                     rules = rules.filter(Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType=""))
 
@@ -499,13 +495,16 @@ class SaveScanView(APIView):
         """Helper to check cache or call LibreTranslate"""
         if not text: return text
         t_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
+        
+        # Check database first
         cached = TranslationCache.objects.filter(text_hash=t_hash).first()
         if cached:
             return cached.sesotho_text
         
+        # If not cached, call LibreTranslate
         try:
             url = "https://translate.terraprint.co/translate"
-            res = requests.post(url, json={"q": text, "source": "en", "target": "st", "format": "text"})
+            res = requests.post(url, json={"q": text, "source": "en", "target": "st", "format": "text"}, timeout=5)
             if res.status_code == 200:
                 translated = res.json().get('translatedText', text)
                 TranslationCache.objects.create(text_hash=t_hash, english_text=text, sesotho_text=translated)
@@ -553,13 +552,13 @@ class SaveScanView(APIView):
             res_dosage = treat.Dosage if treat else "N/A"
             res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
 
-            # 4. TRANSLATION LOGIC
+            # 4. DYNAMIC TRANSLATION (Treatment focus)
             if lang == 'st':
                 res_disease = self._get_sesotho_translation(res_disease)
                 res_pesticide = self._get_sesotho_translation(res_pesticide)
                 res_steps = self._get_sesotho_translation(res_steps)
 
-            # 5. PERSONALIZED LOGIC (FIXED FOR SOIL MATCHING)
+            # 5. PERSONALIZED LOGIC (Expert Advice translation)
             personalized_data = []
             if is_personalized and target_profile and target_profile.PlantingDate:
                 days_old = (date.today() - target_profile.PlantingDate).days
@@ -571,7 +570,7 @@ class SaveScanView(APIView):
                     MaxDaysSincePlanting__gte=days_old
                 )
                 
-                # Apply Soil Filter with fallback to "Any Soil" (Empty/Null)
+                # Apply Soil Filter
                 if target_profile.SoilEnvironment:
                     rules = rules.filter(
                         Q(TriggerSoilType__iexact=target_profile.SoilEnvironment) | 
