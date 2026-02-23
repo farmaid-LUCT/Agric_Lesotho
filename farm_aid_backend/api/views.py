@@ -312,7 +312,6 @@
 #         return Response(report_data)
 
 
-
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -493,18 +492,16 @@ class SaveScanView(APIView):
 
     def _get_sesotho_translation(self, text):
         """Helper to check cache or call LibreTranslate"""
-        if not text: return text
+        if not text or text == "N/A": return text
         t_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
         
-        # Check database first
         cached = TranslationCache.objects.filter(text_hash=t_hash).first()
         if cached:
             return cached.sesotho_text
         
-        # If not cached, call LibreTranslate
         try:
             url = "https://translate.terraprint.co/translate"
-            res = requests.post(url, json={"q": text, "source": "en", "target": "st", "format": "text"}, timeout=5)
+            res = requests.post(url, json={"q": text, "source": "en", "target": "st", "format": "text"}, timeout=10)
             if res.status_code == 200:
                 translated = res.json().get('translatedText', text)
                 TranslationCache.objects.create(text_hash=t_hash, english_text=text, sesotho_text=translated)
@@ -515,6 +512,17 @@ class SaveScanView(APIView):
 
     def post(self, request):
         try:
+            # --- FIX: ENSURE LANGUAGE IS UPDATED IN DB ---
+            user = request.user
+            # Check if Flutter sent a preferred language in the request body
+            requested_lang = request.data.get('language') or request.data.get('lang')
+            if requested_lang and requested_lang in ['en', 'st']:
+                if user.language_preferences != requested_lang:
+                    user.language_preferences = requested_lang
+                    user.save(update_fields=['language_preferences'])
+            
+            lang = user.language_preferences
+
             # 1. Capture Data
             raw_label = request.data.get('diseaseName') or request.data.get('DiseaseName') or "Healthy"
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
@@ -524,17 +532,16 @@ class SaveScanView(APIView):
             profile_id = request.data.get('profileId') or request.data.get('ProfileID')
             
             is_personalized = request.data.get('RequestPersonalized', False) or (profile_id is not None)
-            lang = request.user.language_preferences
 
             if not image_url:
                 return Response({'error': 'Supabase image URL is missing'}, status=400)
 
             target_profile = None
             if profile_id and str(profile_id).lower() != "null":
-                target_profile = CropProfile.objects.filter(pk=profile_id, FarmerID=request.user).first()
+                target_profile = CropProfile.objects.filter(pk=profile_id, FarmerID=user).first()
 
             # 2. SAVE TO NEON
-            new_plant = Plant.objects.create(FarmerID=request.user, CropProfile=target_profile, ImageFile=image_url)
+            new_plant = Plant.objects.create(FarmerID=user, CropProfile=target_profile, ImageFile=image_url)
             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
             # 3. TREATMENT QUERY
@@ -552,31 +559,20 @@ class SaveScanView(APIView):
             res_dosage = treat.Dosage if treat else "N/A"
             res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
 
-            # 4. DYNAMIC TRANSLATION (Treatment focus)
+            # 4. DYNAMIC TRANSLATION (Triggered if DB is set to 'st')
             if lang == 'st':
                 res_disease = self._get_sesotho_translation(res_disease)
                 res_pesticide = self._get_sesotho_translation(res_pesticide)
                 res_steps = self._get_sesotho_translation(res_steps)
 
-            # 5. PERSONALIZED LOGIC (Expert Advice translation)
+            # 5. PERSONALIZED LOGIC
             personalized_data = []
             if is_personalized and target_profile and target_profile.PlantingDate:
                 days_old = (date.today() - target_profile.PlantingDate).days
+                rules = PersonalizedRule.objects.filter(treatment_query, MinDaysSincePlanting__lte=days_old, MaxDaysSincePlanting__gte=days_old)
                 
-                # Fetch rules matching Disease and Age
-                rules = PersonalizedRule.objects.filter(
-                    treatment_query, 
-                    MinDaysSincePlanting__lte=days_old, 
-                    MaxDaysSincePlanting__gte=days_old
-                )
-                
-                # Apply Soil Filter
                 if target_profile.SoilEnvironment:
-                    rules = rules.filter(
-                        Q(TriggerSoilType__iexact=target_profile.SoilEnvironment) | 
-                        Q(TriggerSoilType__isnull=True) | 
-                        Q(TriggerSoilType="")
-                    )
+                    rules = rules.filter(Q(TriggerSoilType__iexact=target_profile.SoilEnvironment) | Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType=""))
                 else:
                     rules = rules.filter(Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType=""))
 
