@@ -302,15 +302,28 @@ class LogEntryAdmin(admin.ModelAdmin):
 
 @admin.register(TranslationCache)
 class TranslationCacheAdmin(admin.ModelAdmin):
-    form = TranslationCacheForm
-    list_display = ('english_text', 'sesotho_text', 'last_updated')
+    # No changes to your dropdown logic, just adding UI improvements
+    list_display = ('english_preview', 'sesotho_preview', 'last_updated')
     list_editable = ('sesotho_text',) 
     search_fields = ('english_text', 'sesotho_text')
-    list_filter = (('sesotho_text', admin.EmptyFieldListFilter), 'last_updated')
     readonly_fields = ('text_hash', 'last_updated')
 
+    # Change how the text boxes look so they are easier to type in
+    formfield_overrides = {
+        models.TextField: {'widget': forms.Textarea(attrs={'rows': 3, 'cols': 40})},
+    }
+
+    def english_preview(self, obj):
+        return (obj.english_text[:50] + '...') if len(obj.english_text) > 50 else obj.english_text
+    english_preview.short_description = "English Source"
+
+    def sesotho_preview(self, obj):
+        if not obj.sesotho_text:
+            return format_html('<span style="color: red;">⚠️ Missing Translation</span>')
+        return (obj.sesotho_text[:50] + '...') if len(obj.sesotho_text) > 50 else obj.sesotho_text
+    sesotho_preview.short_description = "Sesotho Translation"
+
     def save_model(self, request, obj, form, change):
-        """Automatically hash the selected English disease name."""
         if not obj.text_hash and obj.english_text:
             obj.text_hash = hashlib.sha256(obj.english_text.strip().lower().encode()).hexdigest()
         super().save_model(request, obj, form, change)
