@@ -56,25 +56,33 @@
 
 
 from rest_framework import serializers
-from .models import Diagnosis, Plant, CropProfile, AppAlert, WeatherData # Added WeatherData
+from .models import (
+    Diagnosis, Plant, CropProfile, AppAlert, 
+    WeatherData, PersonalizedRule, Farmer # Added Farmer
+)
 
-# --- 1. WEATHER DATA SERIALIZER (New: The Real Thing) ---
+# --- 1. FARMER SERIALIZER (Crucial for Language & Profile) ---
+class FarmerSerializer(serializers.ModelSerializer):
+    """Handles updating farmer profile and language preferences."""
+    class Meta:
+        model = Farmer
+        fields = [
+            'id', 'first_name', 'last_name', 'email', 
+            'phone_number', 'location', 'language_preferences'
+        ]
+        read_only_fields = ['id', 'email'] # Email shouldn't change via profile update
+
+# --- 2. WEATHER DATA SERIALIZER ---
 class WeatherDataSerializer(serializers.ModelSerializer):
-    """Serializes live weather fetched by Celery from OpenWeatherMap."""
     class Meta:
         model = WeatherData
         fields = [
-            'WeatherID', 
-            'Temperature', 
-            'Humidity', 
-            'Rainfall', 
-            'AlertMessage', 
-            'Timestamp'
+            'WeatherID', 'Temperature', 'Humidity', 
+            'Rainfall', 'AlertMessage', 'Timestamp'
         ]
 
-# --- 2. CROP PROFILE SERIALIZER ---
+# --- 3. CROP PROFILE SERIALIZER ---
 class CropProfileSerializer(serializers.ModelSerializer):
-    """Handles the optional form data for personalization."""
     class Meta:
         model = CropProfile
         fields = [
@@ -84,9 +92,8 @@ class CropProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['FarmerID']
 
-# --- 3. PLANT SERIALIZER ---
+# --- 4. PLANT SERIALIZER ---
 class PlantSerializer(serializers.ModelSerializer):
-    """Serializes the leaf scans with the Supabase bucket URL."""
     class Meta:
         model = Plant
         fields = [
@@ -95,42 +102,27 @@ class PlantSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['FarmerID']
 
-# --- 4. DIAGNOSIS SERIALIZER ---
+# --- 5. DIAGNOSIS SERIALIZER ---
 class DiagnosisSerializer(serializers.ModelSerializer):
     PlantID = serializers.PrimaryKeyRelatedField(queryset=Plant.objects.all())
-
     class Meta:
         model = Diagnosis
         fields = ['DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 'DateDiagnosed', 'PlantID']
 
-# --- 5. APP ALERT SERIALIZER ---
+# --- 6. APP ALERT SERIALIZER ---
 class AppAlertSerializer(serializers.ModelSerializer):
-    """Serializes personalized alerts for the Farmer."""
     class Meta:
         model = AppAlert
         fields = [
-            'AlertID', 
-            'FarmerID', 
-            'Title', 
-            'Message', 
-            'alert_type', 
-            'IsRead', 
-            'DateCreated', 
-            'RelatedCrop'
+            'AlertID', 'FarmerID', 'Title', 'Message', 
+            'alert_type', 'IsRead', 'DateCreated', 'RelatedCrop'
         ]
         read_only_fields = ['FarmerID', 'DateCreated']
-        
-        
-        # --- 6. PERSONALIZED RULE SERIALIZER ---
-from .models import PersonalizedRule
 
+# --- 7. PERSONALIZED RULE SERIALIZER ---
 class PersonalizedRuleSerializer(serializers.ModelSerializer):
-    """Serializes the Expert Advice triggers for the UI."""
     class Meta:
         model = PersonalizedRule
         fields = [
-            'RuleID', 
-            'DiseaseName', 
-            'ExpertAdvice', 
-            'RecommendationCategory'
+            'RuleID', 'DiseaseName', 'ExpertAdvice', 'RecommendationCategory'
         ]
