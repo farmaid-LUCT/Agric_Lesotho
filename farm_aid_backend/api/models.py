@@ -130,13 +130,12 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.conf import settings
-import hashlib
 
 # --- 1. FARMER TABLE ---
 class Farmer(AbstractUser):
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
-    language_preferences = models.CharField(max_length=10, default='en')
+    language_preferences = models.CharField(max_length=10, default='en') # 'en' or 'st'
 
     @property
     def role(self):
@@ -147,21 +146,30 @@ class Farmer(AbstractUser):
     def __str__(self):
         return f"{self.username} ({self.role})"
 
-# --- NEW: TRANSLATION CACHE (As agreed for LibreTranslate) ---
+# --- REFACTORED: TRANSLATION CACHE (Structured for Agricultural Advice) ---
 class TranslationCache(models.Model):
-    text_hash = models.CharField(max_length=64, primary_key=True) 
-    english_text = models.TextField()
-    sesotho_text = models.TextField()
+    """
+    Acts as a Sesotho lookup for Disease Treatments.
+    Keyed by DiseaseName to match Gemini/AI output.
+    """
+    # We use the English Disease Name as the key (e.g., "Cabbage Alternaria Leaf Spot")
+    disease_name_en = models.CharField(max_length=255, primary_key=True)
+    
+    # Clearly labeled Sesotho fields for the Admin to fill
+    pesticide_st = models.CharField(max_length=255, verbose_name="Moriana (Sesotho)")
+    dosage_st = models.CharField(max_length=255, verbose_name="Tekanyetso (Sesotho)")
+    steps_st = models.TextField(verbose_name="Mekhoa ea Tšebeliso (Sesotho)")
+    
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Translation: {self.english_text[:30]}..."
+        return f"Sesotho Translation: {self.disease_name_en}"
 
 # --- 2. CROP PROFILE (Vegetable focused) ---
 class CropProfile(models.Model):
     ProfileID = models.AutoField(primary_key=True)
     FarmerID = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name="crop_profiles")
-    VegetableType = models.CharField(max_length=100) # e.g., "Tomato"
+    VegetableType = models.CharField(max_length=100) 
     SoilEnvironment = models.CharField(max_length=100, blank=True, null=True)
     FarmLocation = models.CharField(max_length=255, blank=True, null=True)
     PlantingDate = models.DateField(blank=True, null=True)
@@ -177,7 +185,7 @@ class Plant(models.Model):
     FarmerID = models.ForeignKey(Farmer, on_delete=models.CASCADE, related_name="plants")
     CropProfile = models.ForeignKey(CropProfile, on_delete=models.SET_NULL, null=True, blank=True)
     CropType = models.CharField(max_length=100, default='Vegetable')
-    ImageFile = models.CharField(max_length=255) # Stores Supabase Image URL
+    ImageFile = models.CharField(max_length=255) # Supabase Image URL
     DateCaptured = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -187,14 +195,14 @@ class Plant(models.Model):
 class Diagnosis(models.Model):
     DiagnosisID = models.AutoField(primary_key=True)
     PlantID = models.ForeignKey(Plant, on_delete=models.CASCADE, related_name="diagnoses")
-    DiseaseName = models.CharField(max_length=255) # Gemini disease name (or "Healthy")
+    DiseaseName = models.CharField(max_length=255) 
     ConfidenceLevel = models.FloatField()
     DateDiagnosed = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.DiseaseName} - {self.DateDiagnosed.date()}"
 
-# --- 5. TREATMENT TABLE ---
+# --- 5. TREATMENT TABLE (The English Baseline) ---
 class Treatment(models.Model):
     TreatmentID = models.AutoField(primary_key=True)
     DiseaseName = models.CharField(max_length=255, null=True, blank=True, unique=True)
@@ -203,7 +211,7 @@ class Treatment(models.Model):
     ApplicationSteps = models.TextField()
 
     def __str__(self):
-        return f"Treatment for {self.DiseaseName}"
+        return f"English Treatment for {self.DiseaseName}"
 
 # --- 6. APP ALERT ---
 class AppAlert(models.Model):
@@ -212,7 +220,7 @@ class AppAlert(models.Model):
     RelatedCrop = models.ForeignKey(CropProfile, on_delete=models.CASCADE, null=True, blank=True)
     Title = models.CharField(max_length=255)
     Message = models.TextField()
-    alert_type = models.CharField(max_length=50, default="weather") # 'weather' or 'disease'
+    alert_type = models.CharField(max_length=50, default="weather") 
     IsRead = models.BooleanField(default=False)
     DateCreated = models.DateTimeField(auto_now_add=True)
 
@@ -236,29 +244,25 @@ class KnowledgeBase(models.Model):
     TreatmentInfo = models.TextField()
     LastUpdated = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return self.DiseaseName
+
 class AIModel(models.Model):
     ModelID = models.AutoField(primary_key=True)
     Version = models.CharField(max_length=50)
     AccuracyRate = models.FloatField()
     LastTrainedDate = models.DateTimeField()
     
-# --- 9. EXPERT SYSTEM RULES (UPDATED) ---
+# --- 9. EXPERT SYSTEM RULES ---
 class PersonalizedRule(models.Model):
     RuleID = models.AutoField(primary_key=True)
-    # The condition from Gemini/AI
     DiseaseName = models.CharField(max_length=255) 
-    
-    # Triggers from CropProfile
-    TriggerSoilType = models.CharField(max_length=100, blank=True, null=True, help_text="e.g., Sandy, Clayey")
-    TriggerLocation = models.CharField(max_length=100, blank=True, null=True, help_text="e.g., Maseru, Leribe")
-    
-    # New: Growth Stage triggers (calculated from PlantingDate)
+    TriggerSoilType = models.CharField(max_length=100, blank=True, null=True)
+    TriggerLocation = models.CharField(max_length=100, blank=True, null=True)
     MinDaysSincePlanting = models.IntegerField(default=0)
     MaxDaysSincePlanting = models.IntegerField(default=999)
-    
-    # The Expert Output
     ExpertAdvice = models.TextField()
-    RecommendationCategory = models.CharField(max_length=50, default="General", help_text="e.g., Irrigation, Nutrition")
+    RecommendationCategory = models.CharField(max_length=50, default="General")
 
     def __str__(self):
-        return f"Rule: {self.DiseaseName} ({self.TriggerSoilType or 'Any Soil'})"
+        return f"Rule: {self.DiseaseName}"
