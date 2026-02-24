@@ -247,6 +247,7 @@
 
 
 import hashlib
+from django.db import models
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
