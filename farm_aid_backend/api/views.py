@@ -502,7 +502,7 @@ class SaveScanView(APIView):
         Looks up Sesotho translation in the database.
         If not found, creates an entry for the Admin to translate later.
         """
-        if not text or text == "N/A": return text
+        if not text or text == "N/A" or text == "Consult local expert": return text
         
         # Create a unique hash for this specific piece of text
         t_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
@@ -556,19 +556,26 @@ class SaveScanView(APIView):
             treat = Treatment.objects.filter(treatment_query).first()
             kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
 
-            # Default English Values
+            # --- Default English Values ---
             res_disease = clean_label
             res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
             res_dosage = treat.Dosage if treat else "N/A"
-            res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
+            
+            # Get steps from Treatment table, fallback to KnowledgeBase, fallback to generic advice
+            if treat and treat.ApplicationSteps:
+                res_steps = treat.ApplicationSteps
+            elif kb_entry and kb_entry.TreatmentInfo:
+                res_steps = kb_entry.TreatmentInfo
+            else:
+                res_steps = "Isolate plant immediately."
 
             # 4. APPLY MANUAL TRANSLATION (If user prefers Sesotho)
+            # This is where we process every field through our lookup table
             if lang == 'st':
                 res_disease = self._get_manual_sesotho(res_disease)
                 res_pesticide = self._get_manual_sesotho(res_pesticide)
-                res_steps = self._get_manual_sesotho(res_steps)
-                # Dosage usually stays in units (e.g., 5ml), but can be translated if needed
                 res_dosage = self._get_manual_sesotho(res_dosage)
+                res_steps = self._get_manual_sesotho(res_steps)
 
             return Response({
                 'status': 'success',
