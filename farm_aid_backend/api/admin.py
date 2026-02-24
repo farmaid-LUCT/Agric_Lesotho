@@ -244,7 +244,6 @@
 #     def short_advice(self, obj):
 #         return (obj.ExpertAdvice[:75] + '...') if len(obj.ExpertAdvice) > 75 else obj.ExpertAdvice
 #     short_advice.short_description = 'Expert Advice'
-
 import hashlib
 from django.db import models
 from django import forms
@@ -268,26 +267,33 @@ class MonitorOnlyAdmin(admin.ModelAdmin):
 # --- CUSTOM FORM: TRANSLATION CACHE ---
 class TranslationCacheForm(forms.ModelForm):
     """
-    Handles translation for both fixed Disease Names (Dropdown) 
-    and dynamic text like Dosage/Steps (Manual entry).
+    Structured form for the Admin to easily translate:
+    1. Disease Names (via Dropdown)
+    2. Dosage, Pesticides, and Steps (via Manual Type)
     """
-    # We use a CharField with a DataList (HTML5) so you can EITHER pick a disease 
-    # OR type/paste a dosage/application step.
-    english_text = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 3, 'placeholder': 'Type/Paste English text or select a disease below...'}),
-        help_text="Provide the English text (Disease, Dosage, or Step) to be translated."
+    disease_dropdown = forms.ChoiceField(
+        choices=[], 
+        required=False, 
+        label="1. SELECT DISEASE NAME (From KnowledgeBase)",
+        help_text="Use this if you are translating a specific disease name."
+    )
+
+    manual_text_input = forms.CharField(
+        widget=forms.Textarea(attrs={'rows': 2, 'placeholder': 'Type Dosage, Pesticide, or Steps here...'}),
+        required=False,
+        label="2. OR TYPE MANUALLY (Dosage/Pesticide/Steps)",
+        help_text="Use this to translate treatment advice that is not a disease name."
     )
 
     class Meta:
         model = TranslationCache
-        fields = ['english_text', 'sesotho_text']
+        fields = ['sesotho_text'] # English text is handled by logic below
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # We fetch disease names to help the admin, but don't force a ChoiceField
-        # so that dosages and steps can still be saved.
-        diseases = list(KnowledgeBase.objects.values_list('DiseaseName', flat=True).distinct())
-        self.fields['english_text'].help_text = f"Common Diseases: {', '.join(diseases[:5])}..."
+        # Populate the dropdown with diseases from KnowledgeBase
+        diseases = [('', '--- Select a Disease ---')] + list(KnowledgeBase.objects.values_list('DiseaseName', 'DiseaseName').distinct())
+        self.fields['disease_dropdown'].choices = diseases
 
 # --- 1. ADMIN ACTIVITY LOG ---
 @admin.register(LogEntry)
@@ -295,7 +301,6 @@ class LogEntryAdmin(admin.ModelAdmin):
     list_display = ('action_time', 'user', 'content_type', 'object_repr', 'action_flag_tag')
     list_filter = ('action_flag', 'user', 'content_type')
     search_fields = ('object_repr', 'change_message')
-    
     def has_add_permission(self, request): return False
     def has_delete_permission(self, request, obj=None): return True
 
@@ -312,64 +317,51 @@ class LogEntryAdmin(admin.ModelAdmin):
 @admin.register(TranslationCache)
 class TranslationCacheAdmin(admin.ModelAdmin):
     form = TranslationCacheForm
-    # We show previews because Dosage and Steps can be very long
     list_display = ('english_preview', 'sesotho_preview', 'last_updated')
     list_editable = ('sesotho_text',) 
     search_fields = ('english_text', 'sesotho_text')
-    list_filter = (('sesotho_text', admin.EmptyFieldListFilter), 'last_updated')
-    readonly_fields = ('text_hash', 'last_updated')
-
-    formfield_overrides = {
-        models.TextField: {'widget': forms.Textarea(attrs={'rows': 3, 'cols': 60})},
-    }
+    readonly_fields = ('text_hash', 'last_updated', 'english_text')
 
     def english_preview(self, obj):
         return (obj.english_text[:60] + '...') if len(obj.english_text) > 60 else obj.english_text
-    english_preview.short_description = "English (Disease/Dosage/Step)"
+    english_preview.short_description = "English Original"
 
     def sesotho_preview(self, obj):
         if not obj.sesotho_text:
-            return format_html('<b style="color: #dc3545;">❌ Needs Sesotho</b>')
+            return format_html('<b style="color: #dc3545;">⚠️ Needs Sesotho</b>')
         return (obj.sesotho_text[:60] + '...') if len(obj.sesotho_text) > 60 else obj.sesotho_text
     sesotho_preview.short_description = "Sesotho Translation"
 
     def save_model(self, request, obj, form, change):
-        if not obj.text_hash and obj.english_text:
-            obj.text_hash = hashlib.sha256(obj.english_text.strip().lower().encode()).hexdigest()
+        """Logic to decide whether to save the Dropdown value or the Manual text."""
+        dropdown_val = form.cleaned_data.get('disease_dropdown')
+        manual_val = form.cleaned_data.get('manual_text_input')
+
+        # Prioritize manual text if provided, otherwise use dropdown
+        final_english = manual_val if manual_val else dropdown_val
+
+        if final_english and not obj.english_text:
+            obj.english_text = final_english
+            obj.text_hash = hashlib.sha256(final_english.strip().lower().encode()).hexdigest()
+        
         super().save_model(request, obj, form, change)
 
 @admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
     list_display = ('Version', 'accuracy_rate_bar', 'LastTrainedDate')
-    
     def accuracy_rate_bar(self, obj):
         return format_html(
             '<div style="width:100px;background:#f1f1f1;border-radius:5px;display:inline-block;vertical-align:middle;">'
             '<div style="width:{}%;background:#2e7d32;height:10px;border-radius:5px;"></div></div>'
-            '<span style="margin-left:5px;">{}%</span>', 
-            obj.AccuracyRate, obj.AccuracyRate
-        )
+            '<span style="margin-left:5px;">{}%</span>', obj.AccuracyRate, obj.AccuracyRate)
     accuracy_rate_bar.short_description = 'Accuracy'
 
 @admin.register(Treatment)
 class TreatmentAdmin(admin.ModelAdmin):
     list_display = ('DiseaseName', 'pesticide_tag', 'Dosage')
     search_fields = ('DiseaseName', 'RecommendedPesticide')
-
     def pesticide_tag(self, obj):
         return format_html('<code style="color: #c7254e; background: #f9f2f4; padding: 2px 4px;">{}</code>', obj.RecommendedPesticide)
-
-@admin.register(PersonalizedRule)
-class PersonalizedRuleAdmin(admin.ModelAdmin):
-    list_display = ('DiseaseName', 'category_label', 'short_advice')
-    list_filter = ('RecommendationCategory',)
-    
-    def category_label(self, obj):
-        is_organic = "Organic" in obj.RecommendationCategory
-        color, bg = ("#155724", "#d4edda") if is_organic else ("#004085", "#cce5ff")
-        return format_html('<span style="color: {}; background: {}; padding: 2px 8px; border-radius: 5px; font-weight: bold;">{}</span>', color, bg, obj.RecommendationCategory)
-
-    def short_advice(self, obj): return (obj.ExpertAdvice[:75] + '...') if len(obj.ExpertAdvice) > 75 else obj.ExpertAdvice
 
 @admin.register(KnowledgeBase)
 class KnowledgeBaseAdmin(admin.ModelAdmin):
@@ -378,47 +370,38 @@ class KnowledgeBaseAdmin(admin.ModelAdmin):
 @admin.register(Farmer)
 class FarmerAdmin(UserAdmin):
     list_display = ('username', 'email', 'phone_number', 'location', 'lang_badge', 'account_status')
-    list_filter = ('language_preferences', 'is_active')
-    
+    fieldsets = UserAdmin.fieldsets + (('FarmAid Custom', {'fields': ('phone_number', 'location', 'language_preferences')}),)
     def lang_badge(self, obj):
         color = "#007bff" if obj.language_preferences == 'en' else "#6f42c1"
         return format_html('<span style="color: white; background: {}; padding: 2px 6px; border-radius: 4px;">{}</span>', color, obj.language_preferences.upper())
-
     def account_status(self, obj):
         color = "green" if obj.is_active else "red"
         return format_html('<b style="color: {};">{}</b>', color, "ACTIVE" if obj.is_active else "LOCKED")
 
-    fieldsets = UserAdmin.fieldsets + (('FarmAid Custom', {'fields': ('phone_number', 'location', 'language_preferences')}),)
-
-# --- 3. MONITOR ONLY TABLES (System Automated) ---
+# --- 3. MONITOR ONLY TABLES ---
 
 @admin.register(Plant)
 class PlantAdmin(MonitorOnlyAdmin):
     list_display = ('PlantID', 'FarmerID', 'CropType', 'DateCaptured', 'view_image_link')
-    
     def view_image_link(self, obj):
-        if obj.ImageFile:
-            return format_html('<a href="{}" target="_blank">View Photo</a>', obj.ImageFile)
-        return "No Image"
-
-@admin.register(WeatherData)
-class WeatherDataAdmin(MonitorOnlyAdmin):
-    list_display = ('DateUpdated', 'Temperature', 'Humidity', 'Rainfall', 'AlertMessage')
+        return format_html('<a href="{}" target="_blank">View Photo</a>', obj.ImageFile) if obj.ImageFile else "No Image"
 
 @admin.register(AppAlert)
 class AppAlertAdmin(MonitorOnlyAdmin):
     list_display = ('Title', 'FarmerID', 'alert_type', 'IsRead', 'DateCreated')
-    list_filter = ('alert_type',)
 
 @admin.register(Diagnosis)
 class DiagnosisAdmin(MonitorOnlyAdmin):
-    list_display = ('DiagnosisID', 'DiseaseName', 'confidence_badge', 'DateDiagnosed')
-    
-    def confidence_badge(self, obj):
-        conf = float(obj.ConfidenceLevel)
-        color = "#28a745" if conf >= 85 else "#ffc107" if conf >= 60 else "#dc3545"
-        return format_html('<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 10px;">{}%</span>', color, conf)
+    list_display = ('DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 'DateDiagnosed')
+
+@admin.register(WeatherData)
+class WeatherDataAdmin(MonitorOnlyAdmin):
+    list_display = ('DateUpdated', 'Temperature', 'Humidity', 'Rainfall')
 
 @admin.register(CropProfile)
 class CropProfileAdmin(MonitorOnlyAdmin):
     list_display = ('VegetableType', 'FarmerID', 'FarmLocation', 'IsActive')
+
+@admin.register(PersonalizedRule)
+class PersonalizedRuleAdmin(admin.ModelAdmin):
+    list_display = ('DiseaseName', 'RecommendationCategory', 'ExpertAdvice')
