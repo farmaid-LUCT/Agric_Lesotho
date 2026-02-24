@@ -311,7 +311,6 @@
 #                 })
 #         return Response(report_data)
 
-
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -320,7 +319,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.db.models import Q
-from django.db import transaction  # Added for safe DB operations
+from django.db import transaction
 from datetime import date
 import hashlib
 
@@ -493,21 +492,28 @@ class FarmerAlertsView(APIView):
         AppAlert.objects.filter(FarmerID=request.user, IsRead=False).update(IsRead=True)
         return Response({'status': 'success'})
 
-# --- 4. AI SCAN & REPORTS (MANUAL TRANSLATION LOGIC) ---
+# --- 4. AI SCAN & REPORTS (UPDATED MANUAL TRANSLATION) ---
 
 class SaveScanView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def _get_manual_sesotho(self, text):
-        if not text or text in ["N/A", "Consult local expert", "Healthy"]: return text
-        t_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
+    def _get_manual_sesotho(self, text, field_type):
+        """
+        Adjusted to match your actual TranslationCache fields: 
+        disease_name_en, pesticide_st, dosage_st, steps_st
+        """
+        if not text or text in ["N/A", "Consult local expert", "Healthy"]:
+            return text
         
-        # Using get_or_create to prevent duplicate entry errors
-        cached, created = TranslationCache.objects.get_or_create(
-            text_hash=t_hash,
-            defaults={'english_text': text, 'sesotho_text': ""}
-        )
-        return cached.sesotho_text if cached.sesotho_text else text
+        # Search by English Name (disease_name_en)
+        cached = TranslationCache.objects.filter(disease_name_en__iexact=text.strip()).first()
+        
+        if cached:
+            if field_type == "pesticide": return cached.pesticide_st or text
+            if field_type == "dosage": return cached.dosage_st or text
+            if field_type == "steps": return cached.steps_st or text
+        
+        return text
 
     def post(self, request):
         try:
@@ -523,18 +529,17 @@ class SaveScanView(APIView):
                 
                 lang = user.language_preferences
 
-                # 2. Extract and Clean Data
+                # 2. Clean Data
                 raw_label = data.get('diseaseName') or "Healthy"
                 clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
                 image_url = data.get('imageUrl') or data.get('ImageFile') or ""
                 
-                # Confidence conversion guard
                 try:
                     confidence = float(data.get('confidence', 0.0))
                 except:
                     confidence = 0.0
 
-                # Profile conversion guard
+                # Profile guard
                 profile_id = data.get('profileId')
                 target_profile = None
                 if profile_id and str(profile_id).lower() != "null":
@@ -543,7 +548,7 @@ class SaveScanView(APIView):
                     except:
                         target_profile = None
 
-                # 3. Save to Neon DB
+                # 3. Save to Neon
                 new_plant = Plant.objects.create(
                     FarmerID=user, 
                     CropProfile=target_profile, 
@@ -557,10 +562,9 @@ class SaveScanView(APIView):
                     ConfidenceLevel=confidence
                 )
 
-                # 4. Retrieval & Translation
-                treatment_query = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
-                treat = Treatment.objects.filter(treatment_query).first()
-                kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
+                # 4. Fetch Advice
+                treat = Treatment.objects.filter(DiseaseName__iexact=clean_label).first()
+                kb_entry = KnowledgeBase.objects.filter(DiseaseName__iexact=clean_label).first()
 
                 res_disease = clean_label
                 res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
@@ -573,11 +577,11 @@ class SaveScanView(APIView):
                 else:
                     res_steps = "Isolate plant immediately."
 
+                # 5. Sesotho Lookup (Manual Table)
                 if lang == 'st':
-                    res_disease = self._get_manual_sesotho(res_disease)
-                    res_pesticide = self._get_manual_sesotho(res_pesticide)
-                    res_dosage = self._get_manual_sesotho(res_dosage)
-                    res_steps = self._get_manual_sesotho(res_steps)
+                    res_pesticide = self._get_manual_sesotho(res_pesticide, "pesticide")
+                    res_dosage = self._get_manual_sesotho(res_dosage, "dosage")
+                    res_steps = self._get_manual_sesotho(res_steps, "steps")
 
                 return Response({
                     'status': 'success',
@@ -590,9 +594,10 @@ class SaveScanView(APIView):
                 })
 
         except Exception as e:
-            # THIS IS FOR YOUR RENDER LOGS
             print(f"!!! SYNC ERROR LOG: {str(e)}")
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# --- 5. HISTORY & REPORTS ---
 
 class FarmerHistoryView(APIView):
     permission_classes = [IsAuthenticated]
