@@ -311,6 +311,9 @@
 #                 })
 #         return Response(report_data)
 
+
+
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -443,10 +446,22 @@ class ProfileView(APIView):
 
     def patch(self, request):
         user = request.user
+        # --- FIX: Explicitly handle language preference updates ---
+        new_lang = request.data.get('language_preferences')
+        if new_lang in ['en', 'st']:
+            user.language_preferences = new_lang
+
         for attr, value in request.data.items():
-            if hasattr(user, attr): setattr(user, attr, value)
+            # Skip language_preferences here as we handled it above
+            if hasattr(user, attr) and attr != 'language_preferences': 
+                setattr(user, attr, value)
+        
         user.save()
-        return Response({"status": "success", "farmerName": f"{user.first_name} {user.last_name}"})
+        return Response({
+            "status": "success", 
+            "language_preferences": user.language_preferences,
+            "farmerName": f"{user.first_name} {user.last_name}"
+        })
 
 class LatestWeatherView(APIView):
     permission_classes = [AllowAny] 
@@ -474,12 +489,8 @@ class SaveScanView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_manual_sesotho(self, disease_name_en, field_type, english_fallback):
-        """
-        Looks up Sesotho translation using the English Disease Name as key.
-        """
         if not disease_name_en: return english_fallback
         
-        # Search TranslationCache by the English disease name
         cached = TranslationCache.objects.filter(disease_name_en__iexact=disease_name_en).first()
         
         if cached:
@@ -490,17 +501,22 @@ class SaveScanView(APIView):
             if field_type == 'steps' and cached.steps_st:
                 return cached.steps_st
         else:
-            # Auto-create entry for Admin to fill in later
             TranslationCache.objects.get_or_create(disease_name_en=disease_name_en)
         
         return english_fallback
 
     def post(self, request):
         try:
-            # Get the specific farmer making the request
             user = request.user 
             
-            # Check the language_preferences field for this farmer
+            # --- FIX: LIVE LANGUAGE SYNC ---
+            # If the scan request includes a language change, update the database now.
+            incoming_lang = request.data.get('language') or request.data.get('lang')
+            if incoming_lang in ['en', 'st']:
+                if user.language_preferences != incoming_lang:
+                    user.language_preferences = incoming_lang
+                    user.save(update_fields=['language_preferences'])
+            
             lang = user.language_preferences
 
             # 1. Capture Data from App
@@ -518,8 +534,7 @@ class SaveScanView(APIView):
             new_plant = Plant.objects.create(FarmerID=user, CropProfile=target_profile, ImageFile=image_url)
             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-            # 3. Standard English Retrieval (Baseline)
-            # Note: Treatment uses clean_label for direct matching
+            # 3. Standard English Retrieval
             treat = Treatment.objects.filter(DiseaseName__iexact=clean_label).first()
             kb_entry = KnowledgeBase.objects.filter(DiseaseName__iexact=clean_label).first()
 
@@ -528,7 +543,7 @@ class SaveScanView(APIView):
             res_dosage = treat.Dosage if treat else "N/A"
             res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
 
-            # 4. Translation Logic: Listen to Farmer's 'st' Preference
+            # 4. Translation Logic
             if lang == 'st':
                 res_pesticide = self._get_manual_sesotho(clean_label, 'pesticide', res_pesticide)
                 res_dosage = self._get_manual_sesotho(clean_label, 'dosage', res_dosage)
