@@ -244,6 +244,8 @@
 #     def short_advice(self, obj):
 #         return (obj.ExpertAdvice[:75] + '...') if len(obj.ExpertAdvice) > 75 else obj.ExpertAdvice
 #     short_advice.short_description = 'Expert Advice'
+
+
 import hashlib
 from django.db import models
 from django import forms
@@ -264,36 +266,34 @@ class MonitorOnlyAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None): return False
     def has_delete_permission(self, request, obj=None): return False
 
-# --- CUSTOM FORM: TRANSLATION CACHE ---
+# --- CUSTOM FORM: TRANSLATION CACHE (REFACTORED) ---
 class TranslationCacheForm(forms.ModelForm):
     """
-    Structured form for the Admin to easily translate:
-    1. Disease Names (via Dropdown)
-    2. Dosage, Pesticides, and Steps (via Manual Type)
+    Refactored form to allow Admin to select a Disease and 
+    provide specific Sesotho treatment details.
     """
-    disease_dropdown = forms.ChoiceField(
+    disease_name_en = forms.ChoiceField(
         choices=[], 
-        required=False, 
-        label="1. SELECT DISEASE NAME (From KnowledgeBase)",
-        help_text="Use this if you are translating a specific disease name."
-    )
-
-    manual_text_input = forms.CharField(
-        widget=forms.Textarea(attrs={'rows': 2, 'placeholder': 'Type Dosage, Pesticide, or Steps here...'}),
-        required=False,
-        label="2. OR TYPE MANUALLY (Dosage/Pesticide/Steps)",
-        help_text="Use this to translate treatment advice that is not a disease name."
+        label="SELECT DISEASE NAME (English Key)",
+        help_text="Choose the disease that needs Sesotho translation."
     )
 
     class Meta:
         model = TranslationCache
-        fields = ['sesotho_text'] # English text is handled by logic below
+        fields = ['disease_name_en', 'pesticide_st', 'dosage_st', 'steps_st']
+        widgets = {
+            'pesticide_st': forms.TextInput(attrs={'placeholder': 'Lebitso la moriana ka Sesotho...'}),
+            'dosage_st': forms.TextInput(attrs={'placeholder': 'Tekanyetso ka Sesotho...'}),
+            'steps_st': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Mehato ea tšebeliso ka Sesotho...'}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Populate the dropdown with diseases from KnowledgeBase
-        diseases = [('', '--- Select a Disease ---')] + list(KnowledgeBase.objects.values_list('DiseaseName', 'DiseaseName').distinct())
-        self.fields['disease_dropdown'].choices = diseases
+        # Pulling disease names from KnowledgeBase for the dropdown key
+        diseases = [('', '--- Select Disease ---')] + list(
+            KnowledgeBase.objects.values_list('DiseaseName', 'DiseaseName').distinct()
+        )
+        self.fields['disease_name_en'].choices = diseases
 
 # --- 1. ADMIN ACTIVITY LOG ---
 @admin.register(LogEntry)
@@ -317,34 +317,15 @@ class LogEntryAdmin(admin.ModelAdmin):
 @admin.register(TranslationCache)
 class TranslationCacheAdmin(admin.ModelAdmin):
     form = TranslationCacheForm
-    list_display = ('english_preview', 'sesotho_preview', 'last_updated')
-    list_editable = ('sesotho_text',) 
-    search_fields = ('english_text', 'sesotho_text')
-    readonly_fields = ('text_hash', 'last_updated', 'english_text')
+    list_display = ('disease_name_en', 'pesticide_st', 'dosage_st', 'last_updated', 'status_tag')
+    search_fields = ('disease_name_en', 'pesticide_st')
+    readonly_fields = ('last_updated',)
 
-    def english_preview(self, obj):
-        return (obj.english_text[:60] + '...') if len(obj.english_text) > 60 else obj.english_text
-    english_preview.short_description = "English Original"
-
-    def sesotho_preview(self, obj):
-        if not obj.sesotho_text:
-            return format_html('<b style="color: #dc3545;">⚠️ Needs Sesotho</b>')
-        return (obj.sesotho_text[:60] + '...') if len(obj.sesotho_text) > 60 else obj.sesotho_text
-    sesotho_preview.short_description = "Sesotho Translation"
-
-    def save_model(self, request, obj, form, change):
-        """Logic to decide whether to save the Dropdown value or the Manual text."""
-        dropdown_val = form.cleaned_data.get('disease_dropdown')
-        manual_val = form.cleaned_data.get('manual_text_input')
-
-        # Prioritize manual text if provided, otherwise use dropdown
-        final_english = manual_val if manual_val else dropdown_val
-
-        if final_english and not obj.english_text:
-            obj.english_text = final_english
-            obj.text_hash = hashlib.sha256(final_english.strip().lower().encode()).hexdigest()
-        
-        super().save_model(request, obj, form, change)
+    def status_tag(self, obj):
+        if not obj.pesticide_st or not obj.steps_st:
+            return format_html('<b style="color: #dc3545;">Incomplete</b>')
+        return format_html('<b style="color: #28a745;">Translated</b>')
+    status_tag.short_description = "Status"
 
 @admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
