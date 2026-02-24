@@ -312,7 +312,6 @@
 #         return Response(report_data)
 
 
-
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -422,7 +421,7 @@ def login_farmer(request):
         if not user.is_active:
             return Response({'error': 'unverified'}, status=403)
         token, _ = Token.objects.get_or_create(user=user)
-        # Added language and location here to prevent Flutter from loading indefinitely
+        # Fix: Added language and location so the app has initial state immediately
         return Response({
             'token': token.key,
             'farmerName': f"{user.first_name} {user.last_name}".strip(),
@@ -461,10 +460,8 @@ class ProfileView(APIView):
 
     def patch(self, request):
         user = request.user
-        # Logic to ensure the language update is saved
         for attr, value in request.data.items():
-            if hasattr(user, attr): 
-                setattr(user, attr, value)
+            if hasattr(user, attr): setattr(user, attr, value)
         user.save()
         return Response({
             "status": "success", 
@@ -527,7 +524,7 @@ class SaveScanView(APIView):
         try:
             user = request.user
             
-            # Auto-sync language if app sends it in the scan payload
+            # Sync user language preference
             incoming_lang = request.data.get('language') or request.data.get('lang')
             if incoming_lang in ['st', 'en']:
                 user.language_preferences = incoming_lang
@@ -542,19 +539,27 @@ class SaveScanView(APIView):
             confidence = request.data.get('confidence') or 0.0
             profile_id = request.data.get('profileId')
 
-            # 2. Database Save
+            # 2. Database Save (MATCHING MIGRATION 0002)
             target_profile = None
             if profile_id and str(profile_id).lower() != "null":
                 target_profile = CropProfile.objects.filter(pk=profile_id, FarmerID=user).first()
 
             new_plant = Plant.objects.create(FarmerID=user, CropProfile=target_profile, ImageFile=image_url)
-            Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
+            
+            # Fix: Migration 0002 requires 'Farmer' field in Diagnosis
+            Diagnosis.objects.create(
+                PlantID=new_plant, 
+                Farmer=user, 
+                DiseaseName=clean_label, 
+                ConfidenceLevel=float(confidence)
+            )
 
             # 3. Treatment & KnowledgeBase Retrieval
-            treatment_query = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
-            treat = Treatment.objects.filter(treatment_query).first()
-            kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
+            # Fix: Migration 0002 links Treatment to Diagnosis. We search via that relationship.
+            treat = Treatment.objects.filter(Diagnosis__DiseaseName__iexact=clean_label).first()
+            kb_entry = KnowledgeBase.objects.filter(DiseaseName__iexact=clean_label).first()
 
+            # --- Default English Values ---
             res_disease = clean_label
             res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
             res_dosage = treat.Dosage if treat else "N/A"
@@ -566,7 +571,7 @@ class SaveScanView(APIView):
             else:
                 res_steps = "Isolate plant immediately."
 
-            # 4. Apply Translation
+            # 4. APPLY MANUAL TRANSLATION
             if lang == 'st':
                 res_disease = self._get_manual_sesotho(res_disease)
                 res_pesticide = self._get_manual_sesotho(res_pesticide)
@@ -611,7 +616,8 @@ class FarmerReportsView(APIView):
         for p in plants:
             diag = Diagnosis.objects.filter(PlantID=p).first()
             if diag:
-                treat = Treatment.objects.filter(DiseaseName__iexact=diag.DiseaseName).first()
+                # Search treatment via the Diagnosis relationship
+                treat = Treatment.objects.filter(Diagnosis__DiseaseName__iexact=diag.DiseaseName).first()
                 report_data.append({
                     "FarmerID_id": request.user.id,
                     "ReportDate": p.DateCaptured.isoformat(),
