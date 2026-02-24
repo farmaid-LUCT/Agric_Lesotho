@@ -321,7 +321,6 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.db.models import Q
 from datetime import date
-import hashlib
 
 # Email Verification & Activation Imports
 from django.contrib.sites.shortcuts import get_current_site
@@ -492,43 +491,16 @@ class FarmerAlertsView(APIView):
         AppAlert.objects.filter(FarmerID=request.user, IsRead=False).update(IsRead=True)
         return Response({'status': 'success'})
 
-# --- 4. AI SCAN & REPORTS (MANUAL TRANSLATION LOGIC) ---
+# --- 4. AI SCAN & REPORTS (UPDATED REFACTORED LOGIC) ---
 
 class SaveScanView(APIView):
     permission_classes = [IsAuthenticated]
-
-    def _get_manual_sesotho(self, text):
-        """
-        Looks up Sesotho translation in the database.
-        If not found, creates an entry for the Admin to translate later.
-        """
-        if not text or text == "N/A" or text == "Consult local expert": return text
-        
-        # Create a unique hash for this specific piece of text
-        t_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
-        
-        cached = TranslationCache.objects.filter(text_hash=t_hash).first()
-        
-        # If the Admin has filled in the Sesotho text, return it
-        if cached and cached.sesotho_text:
-            return cached.sesotho_text
-        
-        # If record doesn't exist, create it so Admin can see it in the Django Admin panel
-        if not cached:
-            TranslationCache.objects.create(
-                text_hash=t_hash, 
-                english_text=text, 
-                sesotho_text="" # Leaves blank for Admin to fill
-            )
-        
-        # Return original English as fallback until Admin translates it
-        return text
 
     def post(self, request):
         try:
             user = request.user
             
-            # Sync user language preference from Flutter request
+            # Sync user language preference
             incoming_lang = request.data.get('language') or request.data.get('lang')
             if incoming_lang in ['st', 'en']:
                 user.language_preferences = incoming_lang
@@ -536,14 +508,14 @@ class SaveScanView(APIView):
             
             lang = user.language_preferences
 
-            # 1. Capture Data
+            # 1. Capture Data from AI/App
             raw_label = request.data.get('diseaseName') or "Healthy"
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
             image_url = request.data.get('imageUrl') or request.data.get('ImageFile')
             confidence = request.data.get('confidence') or 0.0
             profile_id = request.data.get('profileId')
 
-            # 2. Database Save (Plant & Diagnosis)
+            # 2. Database Save (History)
             target_profile = None
             if profile_id and str(profile_id).lower() != "null":
                 target_profile = CropProfile.objects.filter(pk=profile_id, FarmerID=user).first()
@@ -551,31 +523,34 @@ class SaveScanView(APIView):
             new_plant = Plant.objects.create(FarmerID=user, CropProfile=target_profile, ImageFile=image_url)
             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-            # 3. Treatment & KnowledgeBase Retrieval
-            treatment_query = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
-            treat = Treatment.objects.filter(treatment_query).first()
-            kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
-
-            # --- Default English Values ---
-            res_disease = clean_label
-            res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
-            res_dosage = treat.Dosage if treat else "N/A"
+            # 3. Get Baseline Treatment (English)
+            treat = Treatment.objects.filter(DiseaseName__iexact=clean_label).first()
             
-            # Get steps from Treatment table, fallback to KnowledgeBase, fallback to generic advice
-            if treat and treat.ApplicationSteps:
-                res_steps = treat.ApplicationSteps
-            elif kb_entry and kb_entry.TreatmentInfo:
-                res_steps = kb_entry.TreatmentInfo
-            else:
-                res_steps = "Isolate plant immediately."
-
-            # 4. APPLY MANUAL TRANSLATION (If user prefers Sesotho)
-            # This is where we process every field through our lookup table
+            # 4. Apply Language Logic
             if lang == 'st':
-                res_disease = self._get_manual_sesotho(res_disease)
-                res_pesticide = self._get_manual_sesotho(res_pesticide)
-                res_dosage = self._get_manual_sesotho(res_dosage)
-                res_steps = self._get_manual_sesotho(res_steps)
+                # Look up the structured Sesotho block for this specific disease
+                st_cache = TranslationCache.objects.filter(disease_name_en__iexact=clean_label).first()
+                
+                if st_cache:
+                    res_disease = clean_label # Keeping name standard, or use st_cache.disease_name_st if added later
+                    res_pesticide = st_cache.pesticide_st
+                    res_dosage = st_cache.dosage_st
+                    res_steps = st_cache.steps_st
+                else:
+                    # Fallback to English if Admin hasn't translated this specific disease yet
+                    res_disease = clean_label
+                    res_pesticide = treat.RecommendedPesticide if treat else "Bala ho setsebi"
+                    res_dosage = treat.Dosage if treat else "N/A"
+                    res_steps = treat.ApplicationSteps if treat else "Arola semela sena kapele."
+                    
+                    # Create empty entry so Admin knows translation is needed
+                    TranslationCache.objects.get_or_create(disease_name_en=clean_label)
+            else:
+                # Standard English Response
+                res_disease = clean_label
+                res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
+                res_dosage = treat.Dosage if treat else "N/A"
+                res_steps = treat.ApplicationSteps if treat else "Isolate plant immediately."
 
             return Response({
                 'status': 'success',
@@ -615,12 +590,20 @@ class FarmerReportsView(APIView):
         for p in plants:
             diag = Diagnosis.objects.filter(PlantID=p).first()
             if diag:
+                # Check user language for the report content
+                lang = request.user.language_preferences
                 treat = Treatment.objects.filter(DiseaseName__iexact=diag.DiseaseName).first()
+                steps = treat.ApplicationSteps if treat else "Isolate plant immediately."
+                
+                if lang == 'st':
+                    cache = TranslationCache.objects.filter(disease_name_en__iexact=diag.DiseaseName).first()
+                    if cache: steps = cache.steps_st
+
                 report_data.append({
                     "FarmerID_id": request.user.id,
                     "ReportDate": p.DateCaptured.isoformat(),
                     "DiagnosisSummary": diag.DiseaseName.replace('_', ' ').upper(),
-                    "TreatmentSummary": treat.ApplicationSteps if treat else "Isolate plant immediately.",
+                    "TreatmentSummary": steps,
                     "ImageURL": p.ImageFile
                 })
         return Response(report_data)
