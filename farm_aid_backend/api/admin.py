@@ -245,7 +245,6 @@
 #         return (obj.ExpertAdvice[:75] + '...') if len(obj.ExpertAdvice) > 75 else obj.ExpertAdvice
 #     short_advice.short_description = 'Expert Advice'
 
-
 import hashlib
 from django.db import models
 from django import forms
@@ -268,8 +267,16 @@ class MonitorOnlyAdmin(admin.ModelAdmin):
 
 # --- CUSTOM FORM: TRANSLATION CACHE ---
 class TranslationCacheForm(forms.ModelForm):
-    """Dropdown selection from KnowledgeBase to ensure data integrity."""
-    english_text = forms.ChoiceField(choices=[], required=True, help_text="Select a disease name to translate")
+    """
+    Handles translation for both fixed Disease Names (Dropdown) 
+    and dynamic text like Dosage/Steps (Manual entry).
+    """
+    # We use a CharField with a DataList (HTML5) so you can EITHER pick a disease 
+    # OR type/paste a dosage/application step.
+    english_text = forms.CharField(
+        widget=forms.Textarea(attrs={'rows': 3, 'placeholder': 'Type/Paste English text or select a disease below...'}),
+        help_text="Provide the English text (Disease, Dosage, or Step) to be translated."
+    )
 
     class Meta:
         model = TranslationCache
@@ -277,9 +284,10 @@ class TranslationCacheForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Pulling disease names from KnowledgeBase for the dropdown
-        diseases = KnowledgeBase.objects.values_list('DiseaseName', 'DiseaseName').distinct()
-        self.fields['english_text'].choices = diseases
+        # We fetch disease names to help the admin, but don't force a ChoiceField
+        # so that dosages and steps can still be saved.
+        diseases = list(KnowledgeBase.objects.values_list('DiseaseName', flat=True).distinct())
+        self.fields['english_text'].help_text = f"Common Diseases: {', '.join(diseases[:5])}..."
 
 # --- 1. ADMIN ACTIVITY LOG ---
 @admin.register(LogEntry)
@@ -303,25 +311,26 @@ class LogEntryAdmin(admin.ModelAdmin):
 
 @admin.register(TranslationCache)
 class TranslationCacheAdmin(admin.ModelAdmin):
-    # No changes to your dropdown logic, just adding UI improvements
+    form = TranslationCacheForm
+    # We show previews because Dosage and Steps can be very long
     list_display = ('english_preview', 'sesotho_preview', 'last_updated')
     list_editable = ('sesotho_text',) 
     search_fields = ('english_text', 'sesotho_text')
+    list_filter = (('sesotho_text', admin.EmptyFieldListFilter), 'last_updated')
     readonly_fields = ('text_hash', 'last_updated')
 
-    # Change how the text boxes look so they are easier to type in
     formfield_overrides = {
-        models.TextField: {'widget': forms.Textarea(attrs={'rows': 3, 'cols': 40})},
+        models.TextField: {'widget': forms.Textarea(attrs={'rows': 3, 'cols': 60})},
     }
 
     def english_preview(self, obj):
-        return (obj.english_text[:50] + '...') if len(obj.english_text) > 50 else obj.english_text
-    english_preview.short_description = "English Source"
+        return (obj.english_text[:60] + '...') if len(obj.english_text) > 60 else obj.english_text
+    english_preview.short_description = "English (Disease/Dosage/Step)"
 
     def sesotho_preview(self, obj):
         if not obj.sesotho_text:
-            return format_html('<span style="color: red;">⚠️ Missing Translation</span>')
-        return (obj.sesotho_text[:50] + '...') if len(obj.sesotho_text) > 50 else obj.sesotho_text
+            return format_html('<b style="color: #dc3545;">❌ Needs Sesotho</b>')
+        return (obj.sesotho_text[:60] + '...') if len(obj.sesotho_text) > 60 else obj.sesotho_text
     sesotho_preview.short_description = "Sesotho Translation"
 
     def save_model(self, request, obj, form, change):
@@ -331,7 +340,6 @@ class TranslationCacheAdmin(admin.ModelAdmin):
 
 @admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
-    """Full CRUD enabled for managing AI Model versions and accuracy."""
     list_display = ('Version', 'accuracy_rate_bar', 'LastTrainedDate')
     
     def accuracy_rate_bar(self, obj):
