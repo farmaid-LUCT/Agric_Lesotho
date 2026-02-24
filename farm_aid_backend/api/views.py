@@ -322,7 +322,6 @@ from django.contrib.auth import authenticate
 from django.db.models import Q
 from datetime import date
 import hashlib
-import requests  # Required for LibreTranslate API calls
 
 # Email Verification & Activation Imports
 from django.contrib.sites.shortcuts import get_current_site
@@ -447,7 +446,14 @@ class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         u = request.user
-        return Response({"first_name": u.first_name, "last_name": u.last_name, "email": u.email, "location": u.location, "phone_number": u.phone_number, "language_preferences": u.language_preferences})
+        return Response({
+            "first_name": u.first_name, 
+            "last_name": u.last_name, 
+            "email": u.email, 
+            "location": u.location, 
+            "phone_number": u.phone_number, 
+            "language_preferences": u.language_preferences
+        })
 
     def patch(self, request):
         user = request.user
@@ -486,35 +492,43 @@ class FarmerAlertsView(APIView):
         AppAlert.objects.filter(FarmerID=request.user, IsRead=False).update(IsRead=True)
         return Response({'status': 'success'})
 
-# --- 4. AI SCAN & REPORTS ---
+# --- 4. AI SCAN & REPORTS (MANUAL TRANSLATION LOGIC) ---
+
 class SaveScanView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def _get_sesotho_translation(self, text):
+    def _get_manual_sesotho(self, text):
+        """
+        Looks up Sesotho translation in the database.
+        If not found, creates an entry for the Admin to translate later.
+        """
         if not text or text == "N/A": return text
+        
+        # Create a unique hash for this specific piece of text
         t_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
         
         cached = TranslationCache.objects.filter(text_hash=t_hash).first()
-        if cached:
+        
+        # If the Admin has filled in the Sesotho text, return it
+        if cached and cached.sesotho_text:
             return cached.sesotho_text
         
-        try:
-            url = "https://libretranslate.de/translate"
-            res = requests.post(url, json={"q": text, "source": "en", "target": "st", "format": "text"}, timeout=10)
-            if res.status_code == 200:
-                translated = res.json().get('translatedText', text)
-                TranslationCache.objects.create(text_hash=t_hash, english_text=text, sesotho_text=translated)
-                return translated
-        except:
-            pass
+        # If record doesn't exist, create it so Admin can see it in the Django Admin panel
+        if not cached:
+            TranslationCache.objects.create(
+                text_hash=t_hash, 
+                english_text=text, 
+                sesotho_text="" # Leaves blank for Admin to fill
+            )
+        
+        # Return original English as fallback until Admin translates it
         return text
 
     def post(self, request):
         try:
             user = request.user
             
-            # --- FORCE SYNC: Listen to Flutter's current language ---
-            # If the app sends 'language': 'st' in the POST body, update the database
+            # Sync user language preference from Flutter request
             incoming_lang = request.data.get('language') or request.data.get('lang')
             if incoming_lang in ['st', 'en']:
                 user.language_preferences = incoming_lang
@@ -523,13 +537,13 @@ class SaveScanView(APIView):
             lang = user.language_preferences
 
             # 1. Capture Data
-            raw_label = request.data.get('diseaseName') or request.data.get('DiseaseName') or "Healthy"
+            raw_label = request.data.get('diseaseName') or "Healthy"
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
-            image_url = request.data.get('imageUrl') or request.data.get('image_url') or request.data.get('ImageFile')
+            image_url = request.data.get('imageUrl') or request.data.get('ImageFile')
             confidence = request.data.get('confidence') or 0.0
             profile_id = request.data.get('profileId')
 
-            # 2. Database Save
+            # 2. Database Save (Plant & Diagnosis)
             target_profile = None
             if profile_id and str(profile_id).lower() != "null":
                 target_profile = CropProfile.objects.filter(pk=profile_id, FarmerID=user).first()
@@ -537,21 +551,24 @@ class SaveScanView(APIView):
             new_plant = Plant.objects.create(FarmerID=user, CropProfile=target_profile, ImageFile=image_url)
             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-            # 3. Treatment Query
+            # 3. Treatment & KnowledgeBase Retrieval
             treatment_query = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
             treat = Treatment.objects.filter(treatment_query).first()
             kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
 
+            # Default English Values
             res_disease = clean_label
             res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
             res_dosage = treat.Dosage if treat else "N/A"
             res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
 
-            # 4. TRANSLATION (Triggered if DB says 'st')
+            # 4. APPLY MANUAL TRANSLATION (If user prefers Sesotho)
             if lang == 'st':
-                res_disease = self._get_sesotho_translation(res_disease)
-                res_pesticide = self._get_sesotho_translation(res_pesticide)
-                res_steps = self._get_sesotho_translation(res_steps)
+                res_disease = self._get_manual_sesotho(res_disease)
+                res_pesticide = self._get_manual_sesotho(res_pesticide)
+                res_steps = self._get_manual_sesotho(res_steps)
+                # Dosage usually stays in units (e.g., 5ml), but can be translated if needed
+                res_dosage = self._get_manual_sesotho(res_dosage)
 
             return Response({
                 'status': 'success',
@@ -564,7 +581,7 @@ class SaveScanView(APIView):
             })
             
         except Exception as e:
-            return Response({'error': str(e)}, status=400)
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class FarmerHistoryView(APIView):
     permission_classes = [IsAuthenticated]
@@ -574,7 +591,13 @@ class FarmerHistoryView(APIView):
         for p in plants:
             diag = Diagnosis.objects.filter(PlantID=p).first()
             if diag:
-                history.append({"plant_id": p.PlantID, "crop": p.CropType, "image": p.ImageFile, "disease": diag.DiseaseName, "date": p.DateCaptured.strftime("%d %b, %Y")})
+                history.append({
+                    "plant_id": p.PlantID, 
+                    "crop": p.CropType, 
+                    "image": p.ImageFile, 
+                    "disease": diag.DiseaseName, 
+                    "date": p.DateCaptured.strftime("%d %b, %Y")
+                })
         return Response(history)
 
 class FarmerReportsView(APIView):
