@@ -319,7 +319,6 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.db.models import Q
-from datetime import date
 import hashlib
 
 # Email Verification & Activation Imports
@@ -333,7 +332,7 @@ from django.http import HttpResponse
 
 from .models import (
     Farmer, Plant, Diagnosis, Treatment, 
-    CropProfile, AppAlert, WeatherData, PersonalizedRule, KnowledgeBase,
+    CropProfile, AppAlert, WeatherData, KnowledgeBase,
     TranslationCache
 )
 from .serializers import CropProfileSerializer, AppAlertSerializer, WeatherDataSerializer
@@ -427,18 +426,6 @@ def login_farmer(request):
         })
     return Response({'error': 'Invalid credentials'}, status=401)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def change_password(request):
-    user = request.user
-    old_pw = request.data.get("old_password")
-    new_pw = request.data.get("new_password")
-    if not user.check_password(old_pw):
-        return Response({"error": "Incorrect current password."}, status=400)
-    user.set_password(new_pw)
-    user.save()
-    return Response({"status": "success", "message": "Password updated!"})
-
 # --- 2. PROFILE & WEATHER ---
 
 class ProfileView(APIView):
@@ -467,7 +454,7 @@ class LatestWeatherView(APIView):
         latest = WeatherData.objects.order_by('-DateUpdated').first()
         return Response(WeatherDataSerializer(latest).data) if latest else Response({"error": "No data"}, status=404)
 
-# --- 3. CROP PROFILES & ALERTS ---
+# --- 3. CROP PROFILES ---
 
 class CropProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -481,33 +468,21 @@ class CropProfileView(APIView):
             return Response(ser.data, status=201)
         return Response(ser.errors, status=400)
 
-class FarmerAlertsView(APIView):
-    permission_classes = [IsAuthenticated]
-    def get(self, request):
-        user_dist = request.user.location or ""
-        alerts = AppAlert.objects.filter(Q(FarmerID=request.user) | Q(Message__icontains=user_dist)).order_by('-DateCreated')
-        return Response(AppAlertSerializer(alerts, many=True).data)
-    def post(self, request):
-        AppAlert.objects.filter(FarmerID=request.user, IsRead=False).update(IsRead=True)
-        return Response({'status': 'success'})
-
-# --- 4. AI SCAN & REPORTS (MANUAL TRANSLATION LOGIC) ---
+# --- 4. AI SCAN & REPORTS (WITH LANGUAGE CHECK) ---
 
 class SaveScanView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_manual_sesotho(self, disease_name_en, field_type, english_fallback):
         """
-        Looks up Sesotho translation in the database using the English Disease Name as key.
-        If not found, creates an entry for the Admin to translate later.
+        Looks up Sesotho translation using the English Disease Name as key.
         """
         if not disease_name_en: return english_fallback
         
-        # We search the TranslationCache using the English disease name we just detected
+        # Search TranslationCache by the English disease name
         cached = TranslationCache.objects.filter(disease_name_en__iexact=disease_name_en).first()
         
         if cached:
-            # Check which field the logic is asking for and return the Sesotho version if it exists
             if field_type == 'pesticide' and cached.pesticide_st:
                 return cached.pesticide_st
             if field_type == 'dosage' and cached.dosage_st:
@@ -515,25 +490,20 @@ class SaveScanView(APIView):
             if field_type == 'steps' and cached.steps_st:
                 return cached.steps_st
         else:
-            # If record doesn't exist, create it so Admin can see the English name in the panel
+            # Auto-create entry for Admin to fill in later
             TranslationCache.objects.get_or_create(disease_name_en=disease_name_en)
         
-        # Return original English if no Sesotho translation is found yet
         return english_fallback
 
     def post(self, request):
         try:
-            user = request.user
+            # Get the specific farmer making the request
+            user = request.user 
             
-            # Sync user language preference from Flutter request
-            incoming_lang = request.data.get('language') or request.data.get('lang')
-            if incoming_lang in ['st', 'en']:
-                user.language_preferences = incoming_lang
-                user.save(update_fields=['language_preferences'])
-            
+            # Check the language_preferences field for this farmer
             lang = user.language_preferences
 
-            # 1. Capture Data
+            # 1. Capture Data from App
             raw_label = request.data.get('diseaseName') or "Healthy"
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
             image_url = request.data.get('imageUrl') or request.data.get('ImageFile')
@@ -548,26 +518,18 @@ class SaveScanView(APIView):
             new_plant = Plant.objects.create(FarmerID=user, CropProfile=target_profile, ImageFile=image_url)
             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-            # 3. Treatment & KnowledgeBase Retrieval
-            treatment_query = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
-            treat = Treatment.objects.filter(treatment_query).first()
-            kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
+            # 3. Standard English Retrieval (Baseline)
+            # Note: Treatment uses clean_label for direct matching
+            treat = Treatment.objects.filter(DiseaseName__iexact=clean_label).first()
+            kb_entry = KnowledgeBase.objects.filter(DiseaseName__iexact=clean_label).first()
 
-            # --- Default English Values ---
             res_disease = clean_label
             res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
             res_dosage = treat.Dosage if treat else "N/A"
-            
-            if treat and treat.ApplicationSteps:
-                res_steps = treat.ApplicationSteps
-            elif kb_entry and kb_entry.TreatmentInfo:
-                res_steps = kb_entry.TreatmentInfo
-            else:
-                res_steps = "Isolate plant immediately."
+            res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
 
-            # 4. APPLY MANUAL TRANSLATION (If user prefers Sesotho)
+            # 4. Translation Logic: Listen to Farmer's 'st' Preference
             if lang == 'st':
-                # We look up the specific translated fields using the English name as the lookup key
                 res_pesticide = self._get_manual_sesotho(clean_label, 'pesticide', res_pesticide)
                 res_dosage = self._get_manual_sesotho(clean_label, 'dosage', res_dosage)
                 res_steps = self._get_manual_sesotho(clean_label, 'steps', res_steps)
@@ -584,38 +546,3 @@ class SaveScanView(APIView):
             
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-class FarmerHistoryView(APIView):
-    permission_classes = [IsAuthenticated]
-    def get(self, request):
-        plants = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
-        history = []
-        for p in plants:
-            diag = Diagnosis.objects.filter(PlantID=p).first()
-            if diag:
-                history.append({
-                    "plant_id": p.PlantID, 
-                    "crop": p.CropType, 
-                    "image": p.ImageFile, 
-                    "disease": diag.DiseaseName, 
-                    "date": p.DateCaptured.strftime("%d %b, %Y")
-                })
-        return Response(history)
-
-class FarmerReportsView(APIView):
-    permission_classes = [IsAuthenticated]
-    def get(self, request):
-        plants = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
-        report_data = []
-        for p in plants:
-            diag = Diagnosis.objects.filter(PlantID=p).first()
-            if diag:
-                treat = Treatment.objects.filter(DiseaseName__iexact=diag.DiseaseName).first()
-                report_data.append({
-                    "FarmerID_id": request.user.id,
-                    "ReportDate": p.DateCaptured.isoformat(),
-                    "DiagnosisSummary": diag.DiseaseName.replace('_', ' ').upper(),
-                    "TreatmentSummary": treat.ApplicationSteps if treat else "Isolate plant immediately.",
-                    "ImageURL": p.ImageFile
-                })
-        return Response(report_data)
