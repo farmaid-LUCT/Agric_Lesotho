@@ -843,17 +843,42 @@ class SaveScanView(APIView):
                 else:
                     res_steps = "Phetolelo ha e eo polokelong ea rona. (Translation missing in DB)"
 
-            # 5. PERSONALIZED LOGIC
+# --- Updated Section 5 inside SaveScanView.post ---
+
+            # 5. ENHANCED PERSONALIZED LOGIC
             personalized_data = []
             if target_profile and target_profile.PlantingDate:
+                # Calculate the exact age of the crop in days
                 days_old = (date.today() - target_profile.PlantingDate).days
+                
+                # Search for rules that match the disease AND the plant's current age
                 rules = PersonalizedRule.objects.filter(
-                    treatment_query, 
-                    MinDaysSincePlanting__lte=days_old, 
+                    Q(DiseaseName__iexact=clean_label),
+                    MinDaysSincePlanting__lte=days_old,
                     MaxDaysSincePlanting__gte=days_old
                 )
+
+                # Further filter by soil type if the profile has one specified
+                if target_profile.SoilEnvironment:
+                    rules = rules.filter(
+                        Q(TriggerSoilType__iexact=target_profile.SoilEnvironment) |
+                        Q(TriggerSoilType__isnull=True) |
+                        Q(TriggerSoilType="")
+                    )
+
                 for r in rules:
-                    personalized_data.append({"ExpertAdvice": r.ExpertAdvice})
+                    advice = r.ExpertAdvice
+                    # If user is in Sesotho mode, check for advice translation
+                    if lang == 'st':
+                        # We look up the advice text in the TranslationCache
+                        t_cache = TranslationCache.objects.filter(english_text__iexact=advice).first()
+                        if t_cache:
+                            advice = t_cache.sesotho_text
+
+                    personalized_data.append({
+                        "ExpertAdvice": advice,
+                        "RuleType": "Stage-Specific" if r.MinDaysSincePlanting > 0 else "General"
+                    })
 
             return Response({
                 'status': 'success',
@@ -864,6 +889,10 @@ class SaveScanView(APIView):
                     'steps': res_steps
                 },
                 'personalized_rules': personalized_data,
+                'crop_info': {
+                    'age_days': (date.today() - target_profile.PlantingDate).days if target_profile else None,
+                    'soil': target_profile.SoilEnvironment if target_profile else None
+                }
             })
             
         except Exception as e:
