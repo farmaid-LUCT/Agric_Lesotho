@@ -127,8 +127,72 @@
 # #             'RuleID', 'DiseaseName', 'ExpertAdvice', 'RecommendationCategory'
 # #         ]
 
+# from rest_framework import serializers
+# # Added WeatherData to the models import
+# from .models import Diagnosis, Plant, CropProfile, AppAlert, WeatherData 
+
+# # --- 1. CROP PROFILE SERIALIZER ---
+# class CropProfileSerializer(serializers.ModelSerializer):
+#     """Handles the optional form data for personalization."""
+#     class Meta:
+#         model = CropProfile
+#         fields = [
+#             'ProfileID', 'FarmerID', 'VegetableType', 
+#             'SoilEnvironment', 'FarmLocation', 'PlantingDate', 
+#             'IsActive', 'CreatedAt'
+#         ]
+#         read_only_fields = ['FarmerID']
+
+# # --- 2. PLANT SERIALIZER ---
+# class PlantSerializer(serializers.ModelSerializer):
+#     """Serializes the leaf scans."""
+#     class Meta:
+#         model = Plant
+#         fields = [
+#             'PlantID', 'FarmerID', 'CropProfile', 
+#             'CropType', 'ImageFile', 'DateCaptured'
+#         ]
+#         read_only_fields = ['FarmerID']
+
+# # --- 3. DIAGNOSIS SERIALIZER ---
+# class DiagnosisSerializer(serializers.ModelSerializer):
+#     PlantID = serializers.PrimaryKeyRelatedField(queryset=Plant.objects.all())
+
+#     class Meta:
+#         model = Diagnosis
+#         fields = ['DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 'DateDiagnosed', 'PlantID']
+
+# # --- 4. APP ALERT SERIALIZER ---
+# class AppAlertSerializer(serializers.ModelSerializer):
+#     """Serializes personalized alerts for the Farmer."""
+#     class Meta:
+#         model = AppAlert
+#         fields = [
+#             'AlertID', 
+#             'FarmerID', 
+#             'Title', 
+#             'Message', 
+#             'alert_type', 
+#             'is_read', 
+#             'DateCreated', 
+#             'RelatedCrop'
+#         ]
+#         read_only_fields = ['FarmerID', 'DateCreated']
+
+# # --- 5. WEATHER DATA SERIALIZER (NEW - FIXES THE IMPORT ERROR) ---
+# class WeatherDataSerializer(serializers.ModelSerializer):
+#     """Serializes the weather data for the Dashboard."""
+#     class Meta:
+#         model = WeatherData
+#         fields = [
+#             'Temperature', 
+#             'Humidity', 
+#             'RainfallChance', 
+#             'Condition', 
+#             'DateUpdated'
+#         ]
+
 from rest_framework import serializers
-# Added WeatherData to the models import
 from .models import Diagnosis, Plant, CropProfile, AppAlert, WeatherData 
 
 # --- 1. CROP PROFILE SERIALIZER ---
@@ -136,31 +200,37 @@ class CropProfileSerializer(serializers.ModelSerializer):
     """Handles the optional form data for personalization."""
     class Meta:
         model = CropProfile
+        # Use 'id' if that is your primary key in the Neon DB, 
+        # but keep 'ProfileID' if you explicitly named the field in models.py
         fields = [
-            'ProfileID', 'FarmerID', 'VegetableType', 
+            'id', 'ProfileID', 'FarmerID', 'VegetableType', 
             'SoilEnvironment', 'FarmLocation', 'PlantingDate', 
             'IsActive', 'CreatedAt'
         ]
-        read_only_fields = ['FarmerID']
+        read_only_fields = ['FarmerID', 'CreatedAt']
 
 # --- 2. PLANT SERIALIZER ---
 class PlantSerializer(serializers.ModelSerializer):
-    """Serializes the leaf scans."""
+    """Serializes the leaf scans and links them to a Profile."""
+    # This allows us to see the vegetable name in the history list easily
+    vegetable_name = serializers.ReadOnlyField(source='CropProfile.VegetableType')
+
     class Meta:
         model = Plant
         fields = [
-            'PlantID', 'FarmerID', 'CropProfile', 
-            'CropType', 'ImageFile', 'DateCaptured'
+            'id', 'PlantID', 'FarmerID', 'CropProfile', 
+            'CropType', 'ImageFile', 'DateCaptured', 'vegetable_name'
         ]
-        read_only_fields = ['FarmerID']
+        read_only_fields = ['FarmerID', 'DateCaptured']
 
 # --- 3. DIAGNOSIS SERIALIZER ---
 class DiagnosisSerializer(serializers.ModelSerializer):
+    # Use PrimaryKeyRelatedField so Flutter can just send the ID number
     PlantID = serializers.PrimaryKeyRelatedField(queryset=Plant.objects.all())
 
     class Meta:
         model = Diagnosis
-        fields = ['DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 'DateDiagnosed', 'PlantID']
+        fields = ['id', 'DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 'DateDiagnosed', 'PlantID']
 
 # --- 4. APP ALERT SERIALIZER ---
 class AppAlertSerializer(serializers.ModelSerializer):
@@ -168,7 +238,7 @@ class AppAlertSerializer(serializers.ModelSerializer):
     class Meta:
         model = AppAlert
         fields = [
-            'AlertID', 
+            'id', 'AlertID', 
             'FarmerID', 
             'Title', 
             'Message', 
@@ -179,9 +249,8 @@ class AppAlertSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['FarmerID', 'DateCreated']
 
-# --- 5. WEATHER DATA SERIALIZER (NEW - FIXES THE IMPORT ERROR) ---
+# --- 5. WEATHER DATA SERIALIZER ---
 class WeatherDataSerializer(serializers.ModelSerializer):
-    """Serializes the weather data for the Dashboard."""
     class Meta:
         model = WeatherData
         fields = [
