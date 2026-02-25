@@ -1083,19 +1083,19 @@ class CropProfileView(APIView):
     def get(self, request):
         profiles = CropProfile.objects.filter(FarmerID=request.user, IsActive=True)
         return Response(CropProfileSerializer(profiles, many=True).data)
-    
-    def post(self, request):
-        ser = CropProfileSerializer(data=request.data)
-        if ser.is_valid():
-            # Explicitly return the ProfileID so Flutter captures it correctly
-            profile = ser.save(FarmerID=request.user)
-            return Response({
-                "status": "success",
-                "ProfileID": profile.ProfileID,
-                "VegetableType": profile.VegetableType,
-                "PlantingDate": profile.PlantingDate
-            }, status=201)
-        return Response(ser.errors, status=400)
+
+def post(self, request):
+    ser = CropProfileSerializer(data=request.data)
+    if ser.is_valid():
+        profile = ser.save(FarmerID=request.user)
+        return Response({
+            "status": "success",
+            "id": profile.ProfileID,  # Standardize to 'id' for Flutter
+            "ProfileID": profile.ProfileID, # Keep this for backward compatibility
+            "VegetableType": profile.VegetableType,
+            "PlantingDate": profile.PlantingDate
+        }, status=201)
+    return Response(ser.errors, status=400)
 
 class FarmerAlertsView(APIView):
     permission_classes = [IsAuthenticated]
