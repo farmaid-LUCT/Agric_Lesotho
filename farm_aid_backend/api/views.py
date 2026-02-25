@@ -927,7 +927,6 @@
 #                 })
 #         return Response(report_data)
 
-
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -1080,14 +1079,22 @@ class LatestWeatherView(APIView):
 
 class CropProfileView(APIView):
     permission_classes = [IsAuthenticated]
+    
     def get(self, request):
         profiles = CropProfile.objects.filter(FarmerID=request.user, IsActive=True)
         return Response(CropProfileSerializer(profiles, many=True).data)
+    
     def post(self, request):
         ser = CropProfileSerializer(data=request.data)
         if ser.is_valid():
-            ser.save(FarmerID=request.user)
-            return Response(ser.data, status=201)
+            # Explicitly return the ProfileID so Flutter captures it correctly
+            profile = ser.save(FarmerID=request.user)
+            return Response({
+                "status": "success",
+                "ProfileID": profile.ProfileID,
+                "VegetableType": profile.VegetableType,
+                "PlantingDate": profile.PlantingDate
+            }, status=201)
         return Response(ser.errors, status=400)
 
 class FarmerAlertsView(APIView):
@@ -1096,17 +1103,17 @@ class FarmerAlertsView(APIView):
         user_dist = request.user.location or ""
         alerts = AppAlert.objects.filter(Q(FarmerID=request.user) | Q(Message__icontains=user_dist)).order_by('-DateCreated')
         return Response(AppAlertSerializer(alerts, many=True).data)
+    
     def post(self, request):
         AppAlert.objects.filter(FarmerID=request.user, IsRead=False).update(IsRead=True)
         return Response({'status': 'success'})
 
-# --- 4. AI SCAN & REPORTS (MANUAL TRANSLATION LOOKUP) ---
+# --- 4. AI SCAN & REPORTS (ENHANCED PERSONALIZATION) ---
 
 class SaveScanView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_manual_sesotho_lookup(self, english_disease_name):
-        """Direct database lookup for Sesotho translations."""
         try:
             cache = TranslationCache.objects.filter(disease_name_en__iexact=english_disease_name).first()
             if cache:
@@ -1115,99 +1122,75 @@ class SaveScanView(APIView):
                     'dosage': cache.dosage_st,
                     'steps': cache.steps_st
                 }
-        except Exception:
-            pass
+        except Exception: pass
         return None
-
-    def _get_translated_text(self, english_text):
-        """Helper to find any generic text translation in the cache."""
-        try:
-            cache = TranslationCache.objects.filter(english_text__iexact=english_text).first()
-            if cache:
-                return cache.sesotho_text
-        except Exception:
-            pass
-        return english_text
 
     def post(self, request):
         try:
-            # 1. Capture and Clean Data
+            # 1. Capture Data
             raw_label = request.data.get('diseaseName') or request.data.get('DiseaseName') or "Healthy"
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
-            
-            image_url = request.data.get('imageUrl') or request.data.get('image_url') or request.data.get('ImageFile')
-            confidence = request.data.get('confidence') or request.data.get('ConfidenceLevel') or 0.0
+            image_url = request.data.get('imageUrl') or request.data.get('image_url')
+            confidence = request.data.get('confidence') or 0.0
             profile_id = request.data.get('profileId') or request.data.get('ProfileID')
             lang = request.user.language_preferences
 
-            if not image_url:
-                return Response({'error': 'Image URL is missing'}, status=400)
-
-            # Safeguard against Flutter sending 'null' as a string
+            # 2. Get the specific Crop Profile (The link to personalization)
             target_profile = None
             if profile_id and str(profile_id).lower() not in ["null", "", "none"]:
-                target_profile = CropProfile.objects.filter(pk=profile_id, FarmerID=request.user).first()
+                target_profile = CropProfile.objects.filter(ProfileID=profile_id, FarmerID=request.user).first()
 
-            # 2. SAVE TO DATABASE
+            # 3. Save History
             new_plant = Plant.objects.create(FarmerID=request.user, CropProfile=target_profile, ImageFile=image_url)
             Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
 
-            # 3. TREATMENT QUERY (ENGLISH BASELINE)
-            treatment_query = Q(DiseaseName__iexact=clean_label)
-            treat = Treatment.objects.filter(treatment_query).first()
-            kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
+            # 4. Standard Treatment Info
+            treat = Treatment.objects.filter(DiseaseName__iexact=clean_label).first()
+            kb_entry = KnowledgeBase.objects.filter(DiseaseName__iexact=clean_label).first()
 
-            res_disease = clean_label
             res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
             res_dosage = treat.Dosage if treat else "N/A"
             res_steps = treat.ApplicationSteps if treat else (kb_entry.TreatmentInfo if kb_entry else "Isolate plant.")
 
-            # 4. MANUAL TRANSLATION LOOKUP
+            # Sesotho Lookup for main treatment
             if lang == 'st':
                 st_lookup = self._get_manual_sesotho_lookup(clean_label)
                 if st_lookup:
                     res_pesticide = st_lookup['pesticide'] or res_pesticide
                     res_dosage = st_lookup['dosage'] or res_dosage
                     res_steps = st_lookup['steps'] or res_steps
-                else:
-                    res_steps = f"Phetolelo ha e eo: {res_steps}"
 
-            # 5. ENHANCED PERSONALIZED LOGIC
+            # 5. PERSONALIZATION ENGINE
             personalized_data = []
             age_days = None
 
             if target_profile and target_profile.PlantingDate:
                 age_days = (date.today() - target_profile.PlantingDate).days
                 
-                # Search for rules that match the disease AND the plant's current age
+                # Fetch rules matching Disease + Age Window
                 rules = PersonalizedRule.objects.filter(
-                    Q(DiseaseName__iexact=clean_label),
+                    DiseaseName__iexact=clean_label,
                     MinDaysSincePlanting__lte=age_days,
                     MaxDaysSincePlanting__gte=age_days
                 )
 
-                # Further filter by soil type if specified
+                # Filter by soil type if rule specifies one
                 if target_profile.SoilEnvironment:
                     rules = rules.filter(
                         Q(TriggerSoilType__iexact=target_profile.SoilEnvironment) |
-                        Q(TriggerSoilType__isnull=True) |
-                        Q(TriggerSoilType="")
+                        Q(TriggerSoilType__isnull=True) | Q(TriggerSoilType="")
                     )
 
                 for r in rules:
-                    advice = r.ExpertAdvice
-                    if lang == 'st':
-                        advice = self._get_translated_text(advice)
-
                     personalized_data.append({
-                        "ExpertAdvice": advice,
+                        "ExpertAdvice": r.ExpertAdvice,
                         "RuleType": "Stage-Specific" if r.MinDaysSincePlanting > 0 else "General"
                     })
 
             return Response({
                 'status': 'success',
                 'results': {
-                    'disease': res_disease,
+                    'disease': clean_label,
                     'pesticide': res_pesticide,
                     'dosage': res_dosage,
                     'steps': res_steps
@@ -1215,7 +1198,7 @@ class SaveScanView(APIView):
                 'personalized_rules': personalized_data,
                 'crop_info': {
                     'age_days': age_days,
-                    'soil': target_profile.SoilEnvironment if target_profile else None
+                    'vegetable': target_profile.VegetableType if target_profile else None
                 }
             })
             
