@@ -336,290 +336,719 @@
 #         return Response(report_data)
 
 
-from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
-from django.utils.html import format_html
+import logging
+import hashlib
+from datetime import date
+
+from django.contrib.auth import authenticate
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.sites.shortcuts import get_current_site
+from django.core.mail import EmailMessage
+from django.db.models import Q, Count
+from django.http import HttpResponse
+from django.shortcuts import render
+from django.utils import timezone
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+
+from rest_framework import status
+from rest_framework.authtoken.models import Token
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 from .models import (
-    Farmer, KnowledgeBase, AIModel, Diagnosis,
-    Treatment, PersonalizedRule, TranslationCache,
-    CropProfile, Plant, AppAlert, WeatherData,
-    FarmerInsight, GrowthJournalEntry, MarketPrice,
+    AppAlert, CropProfile, Diagnosis, FarmerInsight,
+    Farmer, GrowthJournalEntry, KnowledgeBase, MarketPrice,
+    PersonalizedRule, Plant, TranslationCache, Treatment,
+    WeatherData, RuleMatchingService,
+)
+from .serializers import (
+    AppAlertSerializer, CropProfileSerializer,
+    WeatherDataSerializer, MarketPriceSerializer,
+    GrowthJournalSerializer, FarmerInsightSerializer,
 )
 
-
-# ============================================================
-# --- 1. FARMER ---
-# ============================================================
-@admin.register(Farmer)
-class FarmerAdmin(UserAdmin):
-    list_display = (
-        'username', 'email', 'phone_number', 'district',
-        'experience_level', 'language_preferences',
-        'notification_diseases', 'notification_weather', 'notification_market',
-        'is_staff', 'is_superuser'
-    )
-    search_fields = ('username', 'email', 'district')
-    list_filter = ('is_staff', 'is_superuser', 'district', 'experience_level', 'language_preferences')
-
-    fieldsets = UserAdmin.fieldsets + (
-        ('FarmAid — Farmer Profile', {
-            'fields': (
-                'phone_number', 'district', 'language_preferences',
-                'profile_photo_url', 'farm_size_hectares', 'experience_level',
-            ),
-        }),
-        ('FarmAid — Notification Preferences', {
-            'fields': (
-                'notification_diseases', 'notification_weather', 'notification_market',
-            ),
-        }),
-        ('FarmAid — App Status', {
-            'fields': ('onboarding_complete', 'last_active'),
-        }),
-    )
-
-    add_fieldsets = UserAdmin.add_fieldsets + (
-        ('FarmAid — Farmer Profile', {
-            'fields': (
-                'email', 'phone_number', 'district',
-                'language_preferences', 'experience_level',
-            ),
-        }),
-    )
+logger = logging.getLogger('api.rule_engine')
+gps_logger = logging.getLogger('api.gps')
 
 
 # ============================================================
-# --- 2. CROP PROFILE ---
+# --- HELPER: SESOTHO TRANSLATION ---
 # ============================================================
-@admin.register(CropProfile)
-class CropProfileAdmin(admin.ModelAdmin):
-    list_display = (
-        'ProfileID', 'get_farmer', 'VegetableType', 'SoilEnvironment',
-        'irrigation_method', 'seed_variety', 'growth_stage', 'IsActive', 'PlantingDate'
-    )
-    list_filter = ('VegetableType', 'SoilEnvironment', 'irrigation_method', 'IsActive')
-    search_fields = ('VegetableType', 'seed_variety', 'FarmerID__username')
+def _get_sesotho(disease_name: str, field: str, fallback: str) -> str:
+    """
+    Looks up Sesotho translation from TranslationCache by disease name.
+    Falls back to English if admin hasn't filled in the translation yet.
+    Also creates a blank cache record so admin can see it in the panel.
+    """
+    if not fallback or fallback in ("N/A", "Consult local expert"):
+        return fallback
 
-    def get_farmer(self, obj):
-        return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
+    cache = TranslationCache.objects.filter(disease_name_en__iexact=disease_name).first()
 
-    def growth_stage(self, obj):
-        return obj.growth_stage_label
-    growth_stage.short_description = 'Growth Stage'
+    if cache:
+        value = getattr(cache, field, None)
+        if value:
+            return value
 
+    # Auto-create empty record so admin sees it and can fill it in
+    if not cache:
+        TranslationCache.objects.get_or_create(
+            disease_name_en=disease_name,
+            defaults={'pesticide_st': '', 'dosage_st': '', 'steps_st': ''}
+        )
 
-# ============================================================
-# --- 3. PLANT ---
-# ============================================================
-@admin.register(Plant)
-class PlantAdmin(admin.ModelAdmin):
-    list_display = (
-        'PlantID', 'get_farmer', 'CropType', 'gps_district',
-        'latitude', 'longitude', 'altitude_meters', 'DateCaptured'
-    )
-    list_filter = ('CropType', 'gps_district')
-    search_fields = ('CropType', 'FarmerID__username', 'gps_district')
-
-    def get_farmer(self, obj):
-        return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
+    return fallback  # English fallback until admin translates
 
 
 # ============================================================
-# --- 4. DIAGNOSIS ---
+# --- 1. AUTHENTICATION ---
 # ============================================================
-@admin.register(Diagnosis)
-class DiagnosisAdmin(admin.ModelAdmin):
-    list_display = (
-        'DiagnosisID', 'get_farmer', 'DiseaseName', 'confidence_display',
-        'severity', 'farmer_feedback', 'treatment_applied',
-        'treatment_outcome', 'follow_up_date', 'DateDiagnosed'
-    )
-    list_filter = (
-        'DiseaseName', 'severity', 'farmer_feedback',
-        'treatment_applied', 'treatment_outcome', 'DateDiagnosed'
-    )
-    search_fields = ('DiseaseName', 'PlantID__FarmerID__username')
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_farmer(request):
+    data = request.data
+    try:
+        if Farmer.objects.filter(email=data.get('email')).exists():
+            return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
 
-    def get_farmer(self, obj):
-        return obj.PlantID.FarmerID.username
-    get_farmer.short_description = 'Farmer'
+        user = Farmer.objects.create_user(
+            username=data.get('email'),
+            email=data.get('email'),
+            password=data.get('password'),
+            first_name=data.get('first_name', ''),
+            last_name=data.get('last_name', ''),
+            phone_number=data.get('phone_number', ''),
+            district=data.get('district', ''),
+            language_preferences=data.get('language_preferences', 'en'),
+            experience_level=data.get('experience_level', 'beginner'),
+        )
+        user.is_active = False
+        user.save()
+        _send_activation_email(request, user)
 
-    def confidence_display(self, obj):
-        pct = int(obj.ConfidenceLevel * 100)
-        color = 'green' if pct >= 75 else 'orange' if pct >= 50 else 'red'
-        return format_html('<b style="color:{}">{:.0f}%</b>', color, obj.ConfidenceLevel * 100)
-    confidence_display.short_description = 'Confidence'
+        return Response({
+            'status': 'success',
+            'message': 'Verification email sent.',
+            'email': user.email
+        }, status=status.HTTP_201_CREATED)
 
-
-# ============================================================
-# --- 5. TREATMENT ---
-# ============================================================
-@admin.register(Treatment)
-class TreatmentAdmin(admin.ModelAdmin):
-    list_display = ('TreatmentID', 'DiseaseName', 'RecommendedPesticide', 'Dosage')
-    search_fields = ('DiseaseName', 'RecommendedPesticide')
-
-
-# ============================================================
-# --- 6. APP ALERT ---
-# ============================================================
-@admin.register(AppAlert)
-class AppAlertAdmin(admin.ModelAdmin):
-    list_display = (
-        'AlertID', 'get_farmer', 'alert_type', 'priority',
-        'Title', 'district_target', 'IsRead', 'expires_at', 'DateCreated'
-    )
-    list_filter = ('alert_type', 'priority', 'IsRead', 'district_target')
-    search_fields = ('Title', 'Message', 'FarmerID__username')
-
-    def get_farmer(self, obj):
-        return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# ============================================================
-# --- 7. WEATHER DATA ---
-# ============================================================
-@admin.register(WeatherData)
-class WeatherDataAdmin(admin.ModelAdmin):
-    list_display = (
-        'WeatherID', 'district', 'Temperature', 'Humidity',
-        'Rainfall', 'rainfall_last_7_days', 'AlertMessage', 'DateUpdated'
-    )
-    list_filter = ('district',)
-    search_fields = ('district',)
+def _send_activation_email(request, user):
+    current_site = get_current_site(request)
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
+    activation_link = f"http://{current_site.domain}/api/activate/{uid}/{token}/"
+    mail_subject = 'Activate your FarmAid Lesotho Account'
+    message = f"Dumela {user.first_name},\n\nPlease click the link below to verify your account:\n{activation_link}"
+    EmailMessage(mail_subject, message, to=[user.email]).send()
 
 
-# ============================================================
-# --- 8. KNOWLEDGE BASE ---
-# ============================================================
-@admin.register(KnowledgeBase)
-class KnowledgeBaseAdmin(admin.ModelAdmin):
-    list_display = ('DiseaseName', 'LastUpdated')
-    search_fields = ('DiseaseName',)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_activation_email(request):
+    email_addr = request.data.get('email')
+    try:
+        user = Farmer.objects.get(email=email_addr)
+        if user.is_active:
+            return Response({'error': 'Account already active.'}, status=400)
+        _send_activation_email(request, user)
+        return Response({'message': 'New activation link sent!'})
+    except Farmer.DoesNotExist:
+        return Response({'error': 'User not found.'}, status=404)
 
 
-# ============================================================
-# --- 9. AI MODEL ---
-# ============================================================
-@admin.register(AIModel)
-class AIModelAdmin(admin.ModelAdmin):
-    list_display = ('ModelID', 'Version', 'AccuracyRate', 'LastTrainedDate')
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def activate_account(request, uidb64, token):
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = Farmer.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, Farmer.DoesNotExist):
+        user = None
+
+    if user is not None and default_token_generator.check_token(user, token):
+        user.is_active = True
+        user.save()
+        return render(request, 'api/activation_success.html')
+    return HttpResponse("<h2>Activation link is invalid.</h2>", status=400)
 
 
-# ============================================================
-# --- 10. TRANSLATION CACHE ---
-# ============================================================
-@admin.register(TranslationCache)
-class TranslationCacheAdmin(admin.ModelAdmin):
-    list_display = ('disease_name_en', 'pesticide_st', 'dosage_st', 'last_updated')
-    search_fields = ('disease_name_en',)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_farmer(request):
+    email = request.data.get('email')
+    password = request.data.get('password')
+    user = authenticate(username=email, password=password)
+    if user:
+        if not user.is_active:
+            return Response({'error': 'unverified'}, status=403)
+        # Update last_active on every login
+        user.last_active = timezone.now()
+        user.save(update_fields=['last_active'])
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            'token': token.key,
+            'farmerName': f"{user.first_name} {user.last_name}".strip(),
+            'is_staff': user.is_staff,
+            'experience_level': user.experience_level,
+            'language_preferences': user.language_preferences,
+            'onboarding_complete': user.onboarding_complete,
+        })
+    return Response({'error': 'Invalid credentials'}, status=401)
 
 
-# ============================================================
-# --- 11. PERSONALIZED RULE ENGINE ---
-# ============================================================
-@admin.register(PersonalizedRule)
-class PersonalizedRuleAdmin(admin.ModelAdmin):
-    list_display = (
-        'RuleID', 'DiseaseName', 'TriggerDistrict', 'TriggerSoilType',
-        'TriggerIrrigation', 'TriggerCropVariety', 'TriggerSeason',
-        'TriggerRainfallLevel', 'growth_stage_range',
-        'RecommendationCategory', 'priority_score', 'short_advice'
-    )
-    list_filter = (
-        'DiseaseName', 'TriggerDistrict', 'TriggerSoilType',
-        'TriggerIrrigation', 'TriggerSeason', 'TriggerRainfallLevel',
-        'RecommendationCategory',
-    )
-    search_fields = ('DiseaseName', 'ExpertAdvice', 'TriggerCropVariety')
-    ordering = ('-priority_score',)
-
-    fieldsets = (
-        ('🔍 Disease Trigger (Required)', {
-            'fields': ('DiseaseName',),
-        }),
-        ('📍 Context Triggers — leave blank to match ALL values', {
-            'fields': (
-                'TriggerDistrict', 'TriggerSoilType', 'TriggerIrrigation',
-                'TriggerCropVariety', 'TriggerSeason', 'TriggerRainfallLevel',
-            ),
-        }),
-        ('🌿 Growth Stage Window', {
-            'fields': ('MinDaysSincePlanting', 'MaxDaysSincePlanting'),
-            'description': 'Rule only fires when days since planting falls within this range.',
-        }),
-        ('💡 Expert Advice Output', {
-            'fields': (
-                'ExpertAdvice', 'advice_beginner',
-                'RecommendationCategory', 'priority_score',
-            ),
-        }),
-    )
-
-    def growth_stage_range(self, obj):
-        return f"Day {obj.MinDaysSincePlanting} – {obj.MaxDaysSincePlanting}"
-    growth_stage_range.short_description = 'Growth Stage (Days)'
-
-    def short_advice(self, obj):
-        return f"{obj.ExpertAdvice[:60]}..." if len(obj.ExpertAdvice) > 60 else obj.ExpertAdvice
-    short_advice.short_description = 'Advice Preview'
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    user = request.user
+    old_pw = request.data.get("old_password")
+    new_pw = request.data.get("new_password")
+    if not user.check_password(old_pw):
+        return Response({"error": "Incorrect current password."}, status=400)
+    user.set_password(new_pw)
+    user.save()
+    return Response({"status": "success", "message": "Password updated!"})
 
 
 # ============================================================
-# --- 12. FARMER INSIGHT ---
+# --- 2. PROFILE ---
 # ============================================================
-@admin.register(FarmerInsight)
-class FarmerInsightAdmin(admin.ModelAdmin):
-    list_display = (
-        'get_farmer', 'total_scans', 'total_diseases_detected',
-        'total_healthy_scans', 'most_scanned_crop', 'most_common_disease',
-        'streak_healthy_days', 'last_scan_date', 'last_updated'
-    )
-    search_fields = ('FarmerID__username',)
-    readonly_fields = (
-        'total_scans', 'total_diseases_detected', 'total_healthy_scans',
-        'most_scanned_crop', 'most_common_disease', 'highest_risk_month',
-        'last_scan_date', 'streak_healthy_days', 'last_updated'
-    )
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    def get_farmer(self, obj):
-        return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
+    def get(self, request):
+        u = request.user
+        return Response({
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "full_name": f"{u.first_name} {u.last_name}".strip(),
+            "email": u.email,
+            "district": u.district,
+            "phone_number": u.phone_number,
+            "language_preferences": u.language_preferences,
+            "experience_level": u.experience_level,
+            "farm_size_hectares": u.farm_size_hectares,
+            "profile_photo_url": u.profile_photo_url,
+            "notification_diseases": u.notification_diseases,
+            "notification_weather": u.notification_weather,
+            "notification_market": u.notification_market,
+            "onboarding_complete": u.onboarding_complete,
+        })
+
+    def patch(self, request):
+        user = request.user
+        # Whitelist of safely updatable fields
+        allowed_fields = [
+            'first_name', 'last_name', 'phone_number', 'district',
+            'language_preferences', 'experience_level', 'farm_size_hectares',
+            'profile_photo_url', 'notification_diseases', 'notification_weather',
+            'notification_market', 'onboarding_complete',
+        ]
+        updated = []
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(user, field, request.data[field])
+                updated.append(field)
+
+        if updated:
+            user.save(update_fields=updated)
+
+        return Response({
+            "status": "success",
+            "farmerName": f"{user.first_name} {user.last_name}".strip(),
+            "updated_fields": updated,
+        })
 
 
 # ============================================================
-# --- 13. GROWTH JOURNAL ---
+# --- 3. WEATHER ---
 # ============================================================
-@admin.register(GrowthJournalEntry)
-class GrowthJournalEntryAdmin(admin.ModelAdmin):
-    list_display = (
-        'EntryID', 'get_farmer', 'get_crop', 'title',
-        'mood', 'entry_date', 'DateCreated'
-    )
-    list_filter = ('mood', 'entry_date')
-    search_fields = ('title', 'body', 'FarmerID__username')
+class LatestWeatherView(APIView):
+    permission_classes = [AllowAny]
 
-    def get_farmer(self, obj):
-        return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
+    def get(self, request):
+        # Return weather for farmer's district if logged in, else latest overall
+        district = None
+        if request.user.is_authenticated:
+            district = request.user.district
 
-    def get_crop(self, obj):
-        return obj.CropProfile.VegetableType
-    get_crop.short_description = 'Crop'
+        if district:
+            latest = WeatherData.objects.filter(district__iexact=district).order_by('-DateUpdated').first()
+        else:
+            latest = WeatherData.objects.order_by('-DateUpdated').first()
+
+        if not latest:
+            return Response({"error": "No weather data available"}, status=404)
+        return Response(WeatherDataSerializer(latest).data)
 
 
 # ============================================================
-# --- 14. MARKET PRICE ---
+# --- 4. CROP PROFILES ---
 # ============================================================
-@admin.register(MarketPrice)
-class MarketPriceAdmin(admin.ModelAdmin):
-    list_display = (
-        'PriceID', 'vegetable_name', 'market_name', 'district',
-        'price_per_kg', 'currency', 'price_trend', 'date_recorded'
-    )
-    list_filter = ('vegetable_name', 'district', 'price_trend')
-    search_fields = ('vegetable_name', 'market_name', 'district')
-    ordering = ('-date_recorded',)
+class CropProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profiles = CropProfile.objects.filter(
+            FarmerID=request.user, IsActive=True
+        ).order_by('-CreatedAt')
+
+        data = []
+        for p in profiles:
+            serialized = CropProfileSerializer(p).data
+            # Attach computed properties for Flutter app
+            serialized['days_since_planting'] = p.days_since_planting
+            serialized['growth_stage_label'] = p.growth_stage_label
+            data.append(serialized)
+
+        return Response(data)
+
+    def post(self, request):
+        ser = CropProfileSerializer(data=request.data)
+        if ser.is_valid():
+            profile = ser.save(FarmerID=request.user)
+            response_data = ser.data
+            response_data['days_since_planting'] = profile.days_since_planting
+            response_data['growth_stage_label'] = profile.growth_stage_label
+            return Response(response_data, status=201)
+        return Response(ser.errors, status=400)
+
+    def patch(self, request):
+        profile_id = request.data.get('ProfileID')
+        profile = CropProfile.objects.filter(pk=profile_id, FarmerID=request.user).first()
+        if not profile:
+            return Response({'error': 'Profile not found'}, status=404)
+        ser = CropProfileSerializer(profile, data=request.data, partial=True)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data)
+        return Response(ser.errors, status=400)
+
+
+# ============================================================
+# --- 5. ALERTS ---
+# ============================================================
+class FarmerAlertsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        now = timezone.now()
+
+        # Fetch alerts targeted to this farmer OR broadcast to their district
+        # Exclude expired alerts
+        alerts = AppAlert.objects.filter(
+            Q(FarmerID=user) | Q(district_target__iexact=user.district),
+            Q(expires_at__isnull=True) | Q(expires_at__gte=now)
+        ).order_by('-priority', '-DateCreated')
+
+        return Response(AppAlertSerializer(alerts, many=True).data)
+
+    def post(self, request):
+        # Mark all unread alerts as read
+        AppAlert.objects.filter(FarmerID=request.user, IsRead=False).update(IsRead=True)
+        return Response({'status': 'success'})
+
+
+# ============================================================
+# --- 6. CORE: AI SCAN + 8-FACTOR RULE ENGINE ---
+# ============================================================
+class SaveScanView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            user = request.user
+
+            # Sync language preference if sent from Flutter
+            incoming_lang = request.data.get('language') or request.data.get('lang')
+            if incoming_lang in ['st', 'en']:
+                user.language_preferences = incoming_lang
+                user.save(update_fields=['language_preferences'])
+            lang = user.language_preferences
+
+            # --- 1. Extract scan data from Flutter request ---
+            raw_label    = request.data.get('diseaseName') or "Healthy"
+            clean_label  = raw_label.replace('___', ' ').replace('_', ' ').strip()
+            image_url    = request.data.get('imageUrl') or request.data.get('ImageFile')
+            confidence   = float(request.data.get('confidence') or 0.0)
+            profile_id   = request.data.get('profileId')
+
+            # --- 2. Live GPS data from geolocator (sent by Flutter) ---
+            latitude     = request.data.get('latitude')
+            longitude    = request.data.get('longitude')
+            altitude     = request.data.get('altitude')
+            gps_district = request.data.get('gps_district') or user.district or ''
+
+            gps_logger.debug(
+                f"Scan GPS: farmer={user.username}, district={gps_district}, "
+                f"lat={latitude}, lon={longitude}, alt={altitude}"
+            )
+
+            if not image_url:
+                return Response({'error': 'Supabase image URL is missing'}, status=400)
+
+            # --- 3. Resolve crop profile ---
+            target_profile = None
+            if profile_id and str(profile_id).lower() != "null":
+                target_profile = CropProfile.objects.filter(
+                    pk=profile_id, FarmerID=user
+                ).first()
+
+            # --- 4. Save Plant with GPS coordinates ---
+            new_plant = Plant.objects.create(
+                FarmerID=user,
+                CropProfile=target_profile,
+                CropType=target_profile.VegetableType if target_profile else 'Vegetable',
+                ImageFile=image_url,
+                latitude=latitude,
+                longitude=longitude,
+                altitude_meters=altitude,
+                gps_district=gps_district,
+            )
+
+            # --- 5. Save Diagnosis ---
+            diagnosis = Diagnosis.objects.create(
+                PlantID=new_plant,
+                DiseaseName=clean_label,
+                ConfidenceLevel=confidence,
+            )
+
+            # --- 6. Retrieve treatment ---
+            treatment_query = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
+            treat    = Treatment.objects.filter(treatment_query).first()
+            kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
+
+            res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
+            res_dosage    = treat.Dosage if treat else "N/A"
+            res_steps     = (
+                treat.ApplicationSteps if treat and treat.ApplicationSteps
+                else kb_entry.TreatmentInfo if kb_entry and kb_entry.TreatmentInfo
+                else "Isolate plant immediately and consult an agronomist."
+            )
+
+            # --- 7. Apply Sesotho translation if needed ---
+            res_disease = clean_label
+            if lang == 'st':
+                res_disease   = _get_sesotho(clean_label, 'disease_name_en', clean_label)
+                res_pesticide = _get_sesotho(clean_label, 'pesticide_st', res_pesticide)
+                res_dosage    = _get_sesotho(clean_label, 'dosage_st', res_dosage)
+                res_steps     = _get_sesotho(clean_label, 'steps_st', res_steps)
+
+            # --- 8. Run 8-Factor Personalized Rule Engine ---
+            personalized_advice = None
+            rule_match_info = None
+
+            if target_profile and clean_label.lower() != 'healthy':
+                # Get recent rainfall for this district from WeatherData
+                weather = WeatherData.objects.filter(
+                    district__iexact=gps_district
+                ).order_by('-DateUpdated').first()
+                rainfall_mm = weather.rainfall_last_7_days if weather else 0.0
+
+                rule_result = RuleMatchingService.get_best_match(
+                    disease_name=clean_label,
+                    farmer=user,
+                    crop_profile=target_profile,
+                    gps_district=gps_district,
+                    rainfall_mm=rainfall_mm,
+                )
+
+                logger.debug(
+                    f"Rule match: farmer={user.username}, disease={clean_label}, "
+                    f"found={rule_result['found']}, matched_on={rule_result.get('matched_on')}"
+                )
+
+                if rule_result['found']:
+                    advice_text = rule_result['advice']
+
+                    # Translate personalized advice to Sesotho if needed
+                    if lang == 'st' and advice_text:
+                        advice_text = _get_sesotho(clean_label, 'steps_st', advice_text)
+
+                    personalized_advice = {
+                        "ExpertAdvice": advice_text,
+                        "category": rule_result['category'],
+                    }
+                    rule_match_info = rule_result['matched_on']
+
+            # --- 9. Update FarmerInsight stats ---
+            _update_farmer_insight(user, clean_label, target_profile)
+
+            # --- 10. Schedule follow-up scan if disease detected ---
+            if clean_label.lower() != 'healthy':
+                from datetime import timedelta
+                diagnosis.follow_up_date = date.today() + timedelta(days=7)
+                diagnosis.save(update_fields=['follow_up_date'])
+
+            return Response({
+                'status': 'success',
+                'diagnosis_id': diagnosis.DiagnosisID,
+                'results': {
+                    'disease': res_disease,
+                    'pesticide': res_pesticide,
+                    'dosage': res_dosage,
+                    'steps': res_steps,
+                },
+                'personalized_advice': personalized_advice,
+                'rule_matched_on': rule_match_info,
+                'growth_stage': target_profile.growth_stage_label if target_profile else None,
+            })
+
+        except Exception as e:
+            logger.error(f"SaveScanView error: {e}", exc_info=True)
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _update_farmer_insight(user, disease_name: str, crop_profile):
+    """
+    Updates FarmerInsight after every scan.
+    Called internally — not an API endpoint.
+    """
+    try:
+        insight, _ = FarmerInsight.objects.get_or_create(FarmerID=user)
+        insight.total_scans += 1
+        insight.last_scan_date = timezone.now()
+
+        is_healthy = disease_name.lower() == 'healthy'
+
+        if is_healthy:
+            insight.total_healthy_scans += 1
+            insight.streak_healthy_days += 1
+        else:
+            insight.total_diseases_detected += 1
+            insight.streak_healthy_days = 0  # Reset streak on disease detection
+
+        # Update most scanned crop
+        if crop_profile:
+            crop_counts = (
+                Plant.objects
+                .filter(FarmerID=user, CropProfile__isnull=False)
+                .values('CropType')
+                .annotate(count=Count('CropType'))
+                .order_by('-count')
+                .first()
+            )
+            if crop_counts:
+                insight.most_scanned_crop = crop_counts['CropType']
+
+        # Update most common disease
+        if not is_healthy:
+            disease_counts = (
+                Diagnosis.objects
+                .filter(PlantID__FarmerID=user)
+                .exclude(DiseaseName__iexact='healthy')
+                .values('DiseaseName')
+                .annotate(count=Count('DiseaseName'))
+                .order_by('-count')
+                .first()
+            )
+            if disease_counts:
+                insight.most_common_disease = disease_counts['DiseaseName']
+
+        # Update highest risk month
+        current_month = timezone.now().month
+        month_counts = (
+            Diagnosis.objects
+            .filter(PlantID__FarmerID=user)
+            .exclude(DiseaseName__iexact='healthy')
+            .extra(select={'month': "EXTRACT(MONTH FROM \"DateDiagnosed\")"})
+            .values('month')
+            .annotate(count=Count('DiagnosisID'))
+            .order_by('-count')
+            .first()
+        )
+        if month_counts:
+            insight.highest_risk_month = int(month_counts['month'])
+
+        insight.save()
+
+    except Exception as e:
+        logger.warning(f"FarmerInsight update failed for {user.username}: {e}")
+
+
+# ============================================================
+# --- 7. DIAGNOSIS FEEDBACK ---
+# ============================================================
+class DiagnosisFeedbackView(APIView):
+    """
+    Flutter app calls this after showing results so farmer
+    can confirm or dispute the AI diagnosis.
+    Also records treatment outcome on follow-up.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, diagnosis_id):
+        diagnosis = Diagnosis.objects.filter(
+            DiagnosisID=diagnosis_id,
+            PlantID__FarmerID=request.user
+        ).first()
+
+        if not diagnosis:
+            return Response({'error': 'Diagnosis not found'}, status=404)
+
+        allowed = ['farmer_feedback', 'severity', 'treatment_applied', 'treatment_outcome']
+        for field in allowed:
+            if field in request.data:
+                setattr(diagnosis, field, request.data[field])
+        diagnosis.save()
+
+        return Response({'status': 'success', 'diagnosis_id': diagnosis.DiagnosisID})
+
+
+# ============================================================
+# --- 8. SCAN HISTORY ---
+# ============================================================
+class FarmerHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        plants = Plant.objects.filter(
+            FarmerID=request.user
+        ).select_related('CropProfile').order_by('-DateCaptured')
+
+        history = []
+        for p in plants:
+            diag = Diagnosis.objects.filter(PlantID=p).first()
+            if diag:
+                history.append({
+                    "plant_id": p.PlantID,
+                    "crop": p.CropType,
+                    "image": p.ImageFile,
+                    "disease": diag.DiseaseName,
+                    "confidence": f"{diag.ConfidenceLevel:.0%}",
+                    "severity": diag.severity,
+                    "farmer_feedback": diag.farmer_feedback,
+                    "treatment_outcome": diag.treatment_outcome,
+                    "gps_district": p.gps_district,
+                    "growth_stage": p.CropProfile.growth_stage_label if p.CropProfile else None,
+                    "date": p.DateCaptured.strftime("%d %b, %Y"),
+                })
+        return Response(history)
+
+
+# ============================================================
+# --- 9. REPORTS ---
+# ============================================================
+class FarmerReportsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        plants = Plant.objects.filter(
+            FarmerID=request.user
+        ).order_by('-DateCaptured')
+
+        report_data = []
+        for p in plants:
+            diag = Diagnosis.objects.filter(PlantID=p).first()
+            if diag:
+                treat = Treatment.objects.filter(
+                    DiseaseName__iexact=diag.DiseaseName
+                ).first()
+                report_data.append({
+                    "FarmerID_id": request.user.id,
+                    "ReportDate": p.DateCaptured.isoformat(),
+                    "DiagnosisSummary": diag.DiseaseName.replace('_', ' ').upper(),
+                    "Confidence": f"{diag.ConfidenceLevel:.0%}",
+                    "Severity": diag.severity or "Not recorded",
+                    "TreatmentOutcome": diag.treatment_outcome or "Pending",
+                    "TreatmentSummary": treat.ApplicationSteps if treat else "Isolate plant immediately.",
+                    "GPSDistrict": p.gps_district or "Unknown",
+                    "ImageURL": p.ImageFile,
+                })
+        return Response(report_data)
+
+
+# ============================================================
+# --- 10. FARMER INSIGHT (Personalized Dashboard) ---
+# ============================================================
+class FarmerInsightView(APIView):
+    """
+    Returns personalized stats for the Flutter dashboard.
+    Cards like: 'Your most common disease', 'Healthy streak', etc.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        insight, _ = FarmerInsight.objects.get_or_create(FarmerID=request.user)
+        return Response(FarmerInsightSerializer(insight).data)
+
+
+# ============================================================
+# --- 11. GROWTH JOURNAL ---
+# ============================================================
+class GrowthJournalView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile_id = request.query_params.get('profile_id')
+        entries = GrowthJournalEntry.objects.filter(FarmerID=request.user)
+        if profile_id:
+            entries = entries.filter(CropProfile__ProfileID=profile_id)
+        return Response(GrowthJournalSerializer(entries, many=True).data)
+
+    def post(self, request):
+        profile_id = request.data.get('profile_id')
+        profile = CropProfile.objects.filter(
+            pk=profile_id, FarmerID=request.user
+        ).first()
+        if not profile:
+            return Response({'error': 'Crop profile not found'}, status=404)
+
+        entry = GrowthJournalEntry.objects.create(
+            FarmerID=request.user,
+            CropProfile=profile,
+            title=request.data.get('title', ''),
+            body=request.data.get('body', ''),
+            photo_url=request.data.get('photo_url'),
+            mood=request.data.get('mood', 'ok'),
+            entry_date=request.data.get('entry_date', date.today()),
+        )
+        return Response(GrowthJournalSerializer(entry).data, status=201)
+
+    def delete(self, request, entry_id):
+        entry = GrowthJournalEntry.objects.filter(
+            EntryID=entry_id, FarmerID=request.user
+        ).first()
+        if not entry:
+            return Response({'error': 'Entry not found'}, status=404)
+        entry.delete()
+        return Response({'status': 'deleted'})
+
+
+# ============================================================
+# --- 12. MARKET PRICES ---
+# ============================================================
+class MarketPriceView(APIView):
+    """
+    Returns market prices filtered by the farmer's district
+    and only for crops they are actively growing.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Get crops this farmer is actively growing
+        active_crops = CropProfile.objects.filter(
+            FarmerID=user, IsActive=True
+        ).values_list('VegetableType', flat=True)
+
+        # Filter prices by their crops and district first, fallback to all
+        prices = MarketPrice.objects.filter(
+            vegetable_name__in=active_crops
+        ).order_by('-date_recorded')
+
+        district = request.query_params.get('district') or user.district
+        if district:
+            district_prices = prices.filter(district__iexact=district)
+            if district_prices.exists():
+                prices = district_prices
+
+        return Response(MarketPriceSerializer(prices, many=True).data)
