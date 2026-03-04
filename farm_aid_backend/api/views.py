@@ -481,7 +481,7 @@ def activate_account(request, uidb64, token):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def login_farmer(request):
+def login(request):
     email = request.data.get('email')
     password = request.data.get('password')
     user = authenticate(username=email, password=password)
