@@ -4,7 +4,9 @@ gunicorn==23.0.0
 django-cors-headers==4.7.0
 asgiref==3.8.1
 sqlparse==0.5.3
-pip freeze > requirements.txt
+
+# --- UI & DASHBOARD ---
+django-jazzmin==3.0.1
 
 # --- API & REST FRAMEWORK ---
 djangorestframework==3.15.2
@@ -15,19 +17,17 @@ psycopg2-binary==2.9.10
 python-dotenv==1.0.1
 
 # --- AI & IMAGE PROCESSING (OPTIMIZED FOR RENDER) ---
-# tensorflow-cpu stays within Render's 512MB RAM limit
 tensorflow-cpu==2.15.0
 numpy==1.26.4
 pillow==10.4.0
 
-# --- STATIC FILES (NEW: Required by whitenoise in settings.py) ---
+# --- STATIC FILES ---
 whitenoise==6.7.0
 
 # --- BACKGROUND TASKS (CELERY + REDIS) ---
 celery==5.4.0
 django-celery-beat==2.7.0
 django-timezone-field==7.1
-# NEW: Redis client required for Celery broker & result backend
 redis==5.0.8
 
 # --- UTILITIES ---
