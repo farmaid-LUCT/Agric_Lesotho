@@ -50,7 +50,6 @@
 # ]
 
 
-
 from django.urls import path
 from .views import (
     # Auth
@@ -66,7 +65,7 @@ from .views import (
 
     # Crop Profiles & Alerts
     CropProfileView,
-    FarmerAlertsView,
+    FarmerAlerts_View, # Note: Ensure naming matches views.py exactly
 
     # AI Scan & Feedback
     SaveScanView,
@@ -88,64 +87,42 @@ urlpatterns = [
     # --------------------------------------------------------
     path('register/', register_farmer, name='register'),
     path('login/', login_farmer, name='login'),
-    path('activate/<uidb64>/<token>/', activate_account, name='activate'),
+    # Fixed to ensure strict string patterns for security tokens
+    path('activate/<str:uidb64>/<str:token>/', activate_account, name='activate'),
     path('resend-activation/', resend_activation_email, name='resend-activation'),
-    
-    # Matches your AuthService: changePassword() 
     path('auth/change-password/', change_password, name='change-password'),
 
     # --------------------------------------------------------
-    # PROFILE (Matches AuthService: getCurrentUser & updateProfile)
+    # PROFILE (Matches Flutter AuthService)
     # --------------------------------------------------------
     path('auth/profile/', ProfileView.as_view(), name='profile'),
-    # Extra endpoint for the updateProfile patch call specifically
     path('auth/profile/update/', ProfileView.as_view(), name='profile-update'),
 
     # --------------------------------------------------------
-    # WEATHER
+    # WEATHER & ALERTS
     # --------------------------------------------------------
     path('weather/latest/', LatestWeatherView.as_view(), name='latest-weather'),
-
-    # --------------------------------------------------------
-    # CROP PROFILES (Matches your CropProfile model)
-    # --------------------------------------------------------
-    path('crop-profiles/', CropProfileView.as_view(), name='crop-profiles'),
-
-    # --------------------------------------------------------
-    # ALERTS
-    # --------------------------------------------------------
     path('alerts/', FarmerAlertsView.as_view(), name='alerts'),
 
     # --------------------------------------------------------
-    # AI SCAN (Core Logic: Plant + Diagnosis + Rule Engine)
+    # SCANNER & TREATMENT (The 8-Factor Engine)
     # --------------------------------------------------------
+    # This is where Flutter sends the vegetable image result
     path('save-scan/', SaveScanView.as_view(), name='save-scan'),
-
-    # --------------------------------------------------------
-    # DIAGNOSIS FEEDBACK
-    # --------------------------------------------------------
     path('diagnosis/<int:diagnosis_id>/feedback/', DiagnosisFeedbackView.as_view(), name='diagnosis-feedback'),
 
     # --------------------------------------------------------
-    # HISTORY & REPORTS
+    # HISTORY & REPORTS (Used by Flutter HistoryScreen)
     # --------------------------------------------------------
     path('farmer-history/', FarmerHistoryView.as_view(), name='farmer-history'),
     path('farmer-reports/', FarmerReportsView.as_view(), name='farmer-reports'),
 
     # --------------------------------------------------------
-    # FARMER INSIGHTS (Personalized Dashboard Analytics)
+    # PERSONALIZATION & GROWTH
     # --------------------------------------------------------
     path('farmer-insight/', FarmerInsightView.as_view(), name='farmer-insight'),
-
-    # --------------------------------------------------------
-    # GROWTH JOURNAL
-    # --------------------------------------------------------
     path('journal/', GrowthJournalView.as_view(), name='journal-list'),
     path('journal/<int:entry_id>/delete/', GrowthJournalView.as_view(), name='journal-delete'),
-
-    # --------------------------------------------------------
-    # MARKET PRICES
-    # --------------------------------------------------------
     path('market-prices/', MarketPriceView.as_view(), name='market-prices'),
+    path('crop-profiles/', CropProfileView.as_view(), name='crop-profiles'),
 ]
-
