@@ -335,6 +335,7 @@
 #                 })
 #         return Response(report_data)
 
+
 import logging
 from datetime import date, timedelta
 
@@ -342,12 +343,10 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.mail import EmailMessage
-from django.db.models import Q, Count
-from django.http import HttpResponse
-from django.shortcuts import render
+from django.db.models import Q
 from django.utils import timezone
-from django.utils.encoding import force_bytes, force_str
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -358,26 +357,24 @@ from rest_framework.views import APIView
 
 from .models import (
     AppAlert, CropProfile, Diagnosis, FarmerInsight,
-    Farmer, GrowthJournalEntry, KnowledgeBase, MarketPrice,
-    PersonalizedRule, Plant, TranslationCache, Treatment,
-    WeatherData, RuleMatchingService,
+    Farmer, Plant, MarketPrice, Treatment,
+    WeatherData, RuleMatchingService, TranslationCache
 )
 from .serializers import (
     AppAlertSerializer, CropProfileSerializer,
     WeatherDataSerializer, MarketPriceSerializer,
-    GrowthJournalSerializer, FarmerInsightSerializer,
+    FarmerInsightSerializer,
 )
 
 logger = logging.getLogger('api.rule_engine')
-gps_logger = logging.getLogger('api.gps')
 
 # ============================================================
 # --- HELPER: SESOTHO TRANSLATION (MANUAL LOOKUP TABLE) ---
 # ============================================================
 def _get_sesotho(disease_name: str, field: str, fallback: str) -> str:
     """
-    Pulls from TranslationCache. If no translation exists, 
-    returns English but creates a record for the Admin to fill.
+    Manual lookup for Sesotho. If missing, it creates an entry in 
+    TranslationCache for the Admin to fill in later.
     """
     if not fallback or fallback in ("N/A", "Consult local expert"):
         return fallback
@@ -389,18 +386,42 @@ def _get_sesotho(disease_name: str, field: str, fallback: str) -> str:
         if value:
             return value
 
-    # Auto-create empty record for Django Admin visibility
-    if not cache:
-        TranslationCache.objects.get_or_create(
-            disease_name_en=disease_name,
-            defaults={'pesticide_st': '', 'dosage_st': '', 'steps_st': ''}
-        )
+    # Auto-create entry for Admin panel visibility if it doesn't exist
+    TranslationCache.objects.get_or_create(
+        disease_name_en=disease_name,
+        defaults={'pesticide_st': '', 'dosage_st': '', 'steps_st': ''}
+    )
 
     return fallback 
 
 # ============================================================
-# --- 1. AUTHENTICATION & ONBOARDING ---
+# --- 1. AUTHENTICATION (FIXED NAME FOR URLS.PY) ---
 # ============================================================
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_farmer(request):  # Renamed from 'login' to fix the ImportError
+    email = request.data.get('email')
+    password = request.data.get('password')
+    user = authenticate(username=email, password=password)
+    
+    if user:
+        if not user.is_active:
+            return Response({'error': 'unverified'}, status=403)
+        
+        user.last_active = timezone.now()
+        user.save(update_fields=['last_active'])
+        token, _ = Token.objects.get_or_create(user=user)
+        
+        return Response({
+            'token': token.key,
+            'farmerName': f"{user.first_name} {user.last_name}".strip(),
+            'is_staff': user.is_staff,
+            'experience_level': user.experience_level,
+            'language_preferences': user.language_preferences,
+            'onboarding_complete': user.onboarding_complete,
+        })
+    return Response({'error': 'Invalid credentials'}, status=401)
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_farmer(request):
@@ -420,7 +441,7 @@ def register_farmer(request):
             language_preferences=data.get('language_preferences', 'en'),
             experience_level=data.get('experience_level', 'beginner'),
         )
-        user.is_active = False # Require email activation
+        user.is_active = False 
         user.save()
         _send_activation_email(request, user)
 
@@ -442,28 +463,6 @@ def _send_activation_email(request, user):
     message = f"Dumela {user.first_name},\n\nPlease click the link below to verify your account:\n{activation_link}"
     EmailMessage(mail_subject, message, to=[user.email]).send()
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def login(request):
-    email = request.data.get('email')
-    password = request.data.get('password')
-    user = authenticate(username=email, password=password)
-    if user:
-        if not user.is_active:
-            return Response({'error': 'unverified'}, status=403)
-        user.last_active = timezone.now()
-        user.save(update_fields=['last_active'])
-        token, _ = Token.objects.get_or_create(user=user)
-        return Response({
-            'token': token.key,
-            'farmerName': f"{user.first_name} {user.last_name}".strip(),
-            'is_staff': user.is_staff,
-            'experience_level': user.experience_level,
-            'language_preferences': user.language_preferences,
-            'onboarding_complete': user.onboarding_complete,
-        })
-    return Response({'error': 'Invalid credentials'}, status=401)
-
 # ============================================================
 # --- 2. CORE: AI SCAN + 8-FACTOR PERSONALIZED ENGINE ---
 # ============================================================
@@ -473,23 +472,23 @@ class SaveScanView(APIView):
     def post(self, request):
         try:
             user = request.user
-            lang = user.language_preferences
+            lang = user.language_preferences # 'en' or 'st'
 
             # --- 1. Data Extraction ---
-            raw_label = request.data.get('diseaseName') # "Tomato_Late_Blight" or "Healthy"
+            raw_label = request.data.get('diseaseName') 
             image_url = request.data.get('imageUrl') 
             confidence = float(request.data.get('confidence') or 0.0)
             profile_id = request.data.get('profileId')
             
-            # GPS Data from Flutter
+            # GPS Data
             lat = request.data.get('latitude')
             lon = request.data.get('longitude')
             alt = request.data.get('altitude')
             gps_district = request.data.get('gps_district') or user.district
 
-            # --- 2. Vegetable Validation ---
-            # If the label doesn't contain a vegetable name or is 'Invalid', reject
-            if not raw_label or "invalid" in raw_label.lower():
+            # --- 2. Vegetable Validation Guardrail ---
+            # Rejects images that the AI identifies as non-vegetable
+            if not raw_label or "invalid" in raw_label.lower() or "not_vegetable" in raw_label.lower():
                 return Response({'error': 'Not a vegetable. Scan rejected.'}, status=400)
 
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
@@ -505,9 +504,7 @@ class SaveScanView(APIView):
                 CropProfile=target_profile,
                 CropType=target_profile.VegetableType if target_profile else 'Vegetable',
                 ImageFile=image_url,
-                latitude=lat,
-                longitude=lon,
-                altitude_meters=alt,
+                latitude=lat, longitude=lon, altitude_meters=alt,
                 gps_district=gps_district,
             )
 
@@ -539,8 +536,8 @@ class SaveScanView(APIView):
 
                 if rule_result['found']:
                     advice_text = rule_result['advice']
-                    # Translate advice to Sesotho if needed
                     if lang == 'st':
+                        # Use translation for advice if in Sesotho mode
                         advice_text = _get_sesotho(clean_label, 'steps_st', advice_text)
 
                     personalized_advice = {
@@ -548,7 +545,7 @@ class SaveScanView(APIView):
                         "category": rule_result['category']
                     }
 
-            # --- 7. Final Translation (Sesotho) ---
+            # --- 7. Final Translation (Sesotho Manual Table) ---
             res_disease = clean_label
             if lang == 'st':
                 res_disease = _get_sesotho(clean_label, 'disease_name_en', clean_label)
