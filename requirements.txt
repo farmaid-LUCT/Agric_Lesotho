@@ -14,23 +14,25 @@ djangorestframework==3.15.2
 # --- DATABASE (NEON & POSTGRES) ---
 dj-database-url==2.3.0
 psycopg2-binary==2.9.10
+psycopg==3.2.4
 python-dotenv==1.0.1
 
 # --- AI & IMAGE PROCESSING (OPTIMIZED FOR RENDER) ---
+# Using tensorflow-cpu to stay within Render's free/starter tier RAM limits
 tensorflow-cpu==2.15.0
 numpy==1.26.4
 pillow==10.4.0
 
 # --- STATIC FILES ---
-whitenoise==6.7.0
+whitenoise==6.9.0
 
 # --- BACKGROUND TASKS (CELERY + REDIS) ---
 celery==5.4.0
 django-celery-beat==2.7.0
 django-timezone-field==7.1
-redis==5.0.8
+redis==5.2.1
 
 # --- UTILITIES ---
 requests==2.32.3
-urllib3==2.2.3
-certifi==2024.12.14
+urllib3==2.3.0
+certifi==2025.1.31
