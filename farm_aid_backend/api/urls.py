@@ -103,6 +103,10 @@ urlpatterns = [
     # --------------------------------------------------------
     path('weather/latest/', LatestWeatherView.as_view(), name='latest-weather'),
     path('alerts/', FarmerAlertsView.as_view(), name='alerts'),
+    # Alerts Endpoints
+    path('alerts/', views.get_alerts, name='get_alerts'),
+    path('alerts/dismiss/<int:alert_id>/', views.dismiss_alert, name='dismiss_alert'),
+    path('alerts/mark-read/', views.mark_all_read, name='mark_all_read'),
 
     # --------------------------------------------------------
     # SCANNER & TREATMENT (The 8-Factor Engine)
