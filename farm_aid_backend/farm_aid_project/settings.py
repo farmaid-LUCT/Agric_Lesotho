@@ -192,19 +192,18 @@
 
 
 
-
 import dj_database_url
 import os
 from pathlib import Path
 from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'u)w*v%19nm644-q@xn791_ac_@jyi_%%w(-*#cnd%0e)z*@8ib' 
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'u)w*v%19nm644-q@xn791_ac_@jyi_%%w(-*#cnd%0e)z*@8ib')
 
 # Set DEBUG to False for production! 
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['farmaid-backend.onrender.com', 'localhost', '127.0.0.1', '*']
+ALLOWED_HOSTS = ['farmaid-backend.onrender.com', 'localhost', '127.0.0.1', '.onrender.com']
 
 # --- APPS CONFIGURATION ---
 INSTALLED_APPS = [
@@ -228,7 +227,7 @@ INSTALLED_APPS = [
 
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # Must be at the top
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -259,8 +258,10 @@ TEMPLATES = [
 ]
 
 # --- DATABASE (Neon.tech) ---
+# Better Practice: Use environment variable for the connection string on Render
+DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://neondb_owner:npg_Z46qfbzXJSuj@ep-long-credit-ahfpyg3c-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require')
 DATABASES = {
-    'default': dj_database_url.parse('postgresql://neondb_owner:npg_Z46qfbzXJSuj@ep-long-credit-ahfpyg3c-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require')
+    'default': dj_database_url.parse(DATABASE_URL)
 }
 
 # --- AUTHENTICATION ---
@@ -304,13 +305,25 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-# --- CORS & SECURITY SETTINGS ---
-CORS_ALLOW_ALL_ORIGINS = True 
+# --- FIXED CORS & SECURITY SETTINGS ---
+CORS_ALLOW_ALL_ORIGINS = True  # Necessary for development and Flutter Web
 CORS_ALLOW_CREDENTIALS = True
+
+# Important: Add the specific Origin causing the error to CSRF trust
 CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:62717", # The port from your error log
     "http://localhost:54018", 
-    "http://127.0.0.1", 
     "https://farmaid-backend.onrender.com" 
+]
+
+# Allow common headers used by Flutter
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
 ]
 
 # --- STATIC & MEDIA STORAGE ---
@@ -330,28 +343,16 @@ JAZZMIN_SETTINGS = {
     "site_brand": "FarmAid Management",
     "welcome_sign": "FarmAid Management System",
     "copyright": "FarmAid Lesotho",
-    "user_avatar": None,
-    
-    # 1. Force Logout into the TOP MENU BAR
     "topmenu_links": [
         {"name": "Home",  "url": "admin:index", "permissions": ["auth.view_user"]},
         {"name": "Activity Log", "model": "admin.LogEntry"},
-        {"name": "Sign Out", "url": "/admin/logout/", "icon": "fas fa-sign-out-alt"}, # Visible logout link
+        {"name": "Sign Out", "url": "/admin/logout/", "icon": "fas fa-sign-out-alt"},
     ],
-
-    # 2. Add Logout inside the USER DROPDOWN (Top Right Icon)
     "usermenu_links": [
         {"name": "Log out", "url": "admin:logout", "icon": "fas fa-sign-out-alt"},
     ],
-
     "show_sidebar": True,
     "navigation_expanded": True,
-    "order_with_respect_to": [
-        "admin.LogEntry", 
-        "api.Farmer", 
-        "api.Diagnosis", 
-        "api.Alert"
-    ],
     "icons": {
         "admin.LogEntry": "fas fa-history",
         "auth": "fas fa-users-cog",
@@ -362,14 +363,9 @@ JAZZMIN_SETTINGS = {
 }
 
 JAZZMIN_UI_TWEAKS = {
-    "navbar_small_text": False,
-    "footer_small_text": False,
-    "body_small_text": False,
-    "brand_small_text": False,
     "brand_colour": "navbar-success",
     "accent": "accent-teal",
     "navbar": "navbar-dark",
-    "no_navbar_border": False,
     "navbar_fixed": True,
     "sidebar_fixed": True,
     "sidebar": "sidebar-dark-success",
@@ -378,12 +374,6 @@ JAZZMIN_UI_TWEAKS = {
     "theme": "default",
 }
 
-# 3. CRITICAL: Allow logout via a simple click for Django 5.1 compatibility
 LOGOUT_ON_GET = True
-
-# --- AUTHENTICATION REDIRECTS ---
-# This forces the "Sign Out" button to go back to the login screen
 LOGOUT_REDIRECT_URL = '/login/'
-
-# (Optional) If you want them to go to the dashboard after logging in
 LOGIN_REDIRECT_URL = '/admin/'
