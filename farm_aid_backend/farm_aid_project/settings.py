@@ -192,7 +192,6 @@
 
 import dj_database_url
 import os
-import re
 from pathlib import Path
 from celery.schedules import crontab
 
@@ -201,7 +200,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'u)w*v%19nm644-q@xn791_ac_@jyi_
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-# 10.0.2.2 is required for the Android Emulator to communicate with a local server
+# --- HOSTS ---
 ALLOWED_HOSTS = [
     'farmaid-backend.onrender.com', 
     'localhost', 
@@ -210,9 +209,9 @@ ALLOWED_HOSTS = [
     '.onrender.com'
 ]
 
-# --- APPS CONFIGURATION ---
+# --- APPS ---
 INSTALLED_APPS = [
-    'jazzmin',           
+    'jazzmin',  # Must be above admin
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -232,7 +231,7 @@ INSTALLED_APPS = [
 
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # MUST BE AT THE TOP
+    'corsheaders.middleware.CorsMiddleware', 
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -244,6 +243,24 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'farm_aid_project.urls'
+
+# --- TEMPLATES (FIXED: This solves your TemplateDoesNotExist error) ---
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request', # Required for Jazzmin
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
 WSGI_APPLICATION = 'farm_aid_project.wsgi.application'
 
 # --- DATABASE (Neon.tech) ---
@@ -262,41 +279,24 @@ REST_FRAMEWORK = {
     ],
 }
 
-# --- FIXED CORS & SECURITY SETTINGS ---
+# --- CORS & SECURITY ---
 CORS_ALLOW_CREDENTIALS = True
-
-# 1. Broaden CORS for Web: This Regex allows any port on localhost (e.g., :57032, :62717)
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
     r"^http://127.0.0.1:\d+$",
 ]
-
-# 2. Add production domain
 CORS_ALLOWED_ORIGINS = [
     "https://farmaid-backend.onrender.com",
 ]
-
-# 3. CSRF Trust: Use wildcards for local development
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost",
     "http://127.0.0.1",
     "https://farmaid-backend.onrender.com"
 ]
 
-# 4. Mobile Fix: Prevent 301 redirects on POST/PATCH requests. 
-# Mobile apps often drop POST data if redirected from 'login' to 'login/'
 APPEND_SLASH = False 
 
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "authorization",
-    "content-type",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-]
-
-# --- EMAIL CONFIGURATION ---
+# --- EMAIL ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
@@ -305,7 +305,7 @@ EMAIL_HOST_USER = 'ramokhelekeeke@gmail.com'
 EMAIL_HOST_PASSWORD = 'sxhgmmpsxhtzotyh' 
 DEFAULT_FROM_EMAIL = 'FarmAid Support <ramokhelekeeke@gmail.com>'
 
-# --- TIMEZONE & LOCALIZATION ---
+# --- TIMEZONE ---
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Africa/Maseru'
 USE_I18N = True
@@ -330,7 +330,9 @@ CELERY_BEAT_SCHEDULE = {
 # --- STATIC & MEDIA ---
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Static storage fix for whitenoise/jazzmin compatibility
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -348,17 +350,15 @@ JAZZMIN_SETTINGS = {
         {"name": "Activity Log", "model": "admin.LogEntry"},
         {"name": "Sign Out", "url": "/admin/logout/", "icon": "fas fa-sign-out-alt"},
     ],
-    "usermenu_links": [
-        {"name": "Log out", "url": "admin:logout", "icon": "fas fa-sign-out-alt"},
-    ],
     "show_sidebar": True,
     "navigation_expanded": True,
     "icons": {
         "admin.LogEntry": "fas fa-history",
         "auth": "fas fa-users-cog",
-        "api.Farmer": "fas fa-seedling",
+        "api.Farmer": "fas fa-user-tag",
         "api.Plant": "fas fa-leaf",
         "api.AppAlert": "fas fa-bell",
+        "api.PersonalizedRule": "fas fa-gavel", # Icon for your 8-factor logic
     },
 }
 
@@ -375,5 +375,5 @@ JAZZMIN_UI_TWEAKS = {
 }
 
 LOGOUT_ON_GET = True
-LOGOUT_REDIRECT_URL = '/login/'
+LOGIN_URL = '/admin/login/'
 LOGIN_REDIRECT_URL = '/admin/'
