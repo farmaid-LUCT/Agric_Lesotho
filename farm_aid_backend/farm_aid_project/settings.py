@@ -130,7 +130,7 @@
 
 # # --- JAZZMIN SETTINGS (Professional Dashboard with Activity Log) ---
 # JAZZMIN_SETTINGS = {
-#     "site_title": "FarmAid Admin",
+#     "site_title": "FarmAid Admin", 
 #     "site_header": "FarmAid",
 #     "site_brand": "FarmAid Management",
 #     "welcome_sign": "FarmAid Management System",
@@ -190,20 +190,25 @@
 
 # LOGOUT_ON_GET = True
 
-
-
 import dj_database_url
 import os
+import re
 from pathlib import Path
 from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'u)w*v%19nm644-q@xn791_ac_@jyi_%%w(-*#cnd%0e)z*@8ib')
 
-# Set DEBUG to False for production! 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['farmaid-backend.onrender.com', 'localhost', '127.0.0.1', '.onrender.com']
+# 10.0.2.2 is required for the Android Emulator to communicate with a local server
+ALLOWED_HOSTS = [
+    'farmaid-backend.onrender.com', 
+    'localhost', 
+    '127.0.0.1', 
+    '10.0.2.2', 
+    '.onrender.com'
+]
 
 # --- APPS CONFIGURATION ---
 INSTALLED_APPS = [
@@ -227,7 +232,7 @@ INSTALLED_APPS = [
 
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Must be at the top
+    'corsheaders.middleware.CorsMiddleware',  # MUST BE AT THE TOP
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -241,24 +246,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'farm_aid_project.urls'
 WSGI_APPLICATION = 'farm_aid_project.wsgi.application'
 
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request', 
-                'django.contrib.auth.context_processors.auth', 
-                'django.contrib.messages.context_processors.messages', 
-            ],
-        },
-    },
-]
-
 # --- DATABASE (Neon.tech) ---
-# Better Practice: Use environment variable for the connection string on Render
 DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://neondb_owner:npg_Z46qfbzXJSuj@ep-long-credit-ahfpyg3c-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require')
 DATABASES = {
     'default': dj_database_url.parse(DATABASE_URL)
@@ -273,6 +261,40 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication', 
     ],
 }
+
+# --- FIXED CORS & SECURITY SETTINGS ---
+CORS_ALLOW_CREDENTIALS = True
+
+# 1. Broaden CORS for Web: This Regex allows any port on localhost (e.g., :57032, :62717)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127.0.0.1:\d+$",
+]
+
+# 2. Add production domain
+CORS_ALLOWED_ORIGINS = [
+    "https://farmaid-backend.onrender.com",
+]
+
+# 3. CSRF Trust: Use wildcards for local development
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost",
+    "http://127.0.0.1",
+    "https://farmaid-backend.onrender.com"
+]
+
+# 4. Mobile Fix: Prevent 301 redirects on POST/PATCH requests. 
+# Mobile apps often drop POST data if redirected from 'login' to 'login/'
+APPEND_SLASH = False 
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 
 # --- EMAIL CONFIGURATION ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -289,7 +311,7 @@ TIME_ZONE = 'Africa/Maseru'
 USE_I18N = True
 USE_TZ = True
 
-# --- CELERY & REDIS CONFIGURATION ---
+# --- CELERY & REDIS ---
 CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
@@ -305,32 +327,10 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-# --- FIXED CORS & SECURITY SETTINGS ---
-CORS_ALLOW_ALL_ORIGINS = True  # Necessary for development and Flutter Web
-CORS_ALLOW_CREDENTIALS = True
-
-# Important: Add the specific Origin causing the error to CSRF trust
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:62717", # The port from your error log
-    "http://localhost:54018", 
-    "https://farmaid-backend.onrender.com" 
-]
-
-# Allow common headers used by Flutter
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "authorization",
-    "content-type",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-]
-
-# --- STATIC & MEDIA STORAGE ---
+# --- STATIC & MEDIA ---
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
@@ -358,7 +358,7 @@ JAZZMIN_SETTINGS = {
         "auth": "fas fa-users-cog",
         "api.Farmer": "fas fa-seedling",
         "api.Plant": "fas fa-leaf",
-        "api.Alert": "fas fa-bell",
+        "api.AppAlert": "fas fa-bell",
     },
 }
 
