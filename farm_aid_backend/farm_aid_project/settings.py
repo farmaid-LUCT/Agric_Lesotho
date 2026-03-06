@@ -194,6 +194,7 @@ import dj_database_url
 import os
 from pathlib import Path
 from celery.schedules import crontab
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'u)w*v%19nm644-q@xn791_ac_@jyi_%%w(-*#cnd%0e)z*@8ib')
@@ -244,7 +245,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'farm_aid_project.urls'
 
-# --- TEMPLATES (FIXED: This solves your TemplateDoesNotExist error) ---
+# --- TEMPLATES ---
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -253,7 +254,7 @@ TEMPLATES = [
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
-                'django.template.context_processors.request', # Required for Jazzmin
+                'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -281,12 +282,14 @@ REST_FRAMEWORK = {
 
 # --- CORS & SECURITY ---
 CORS_ALLOW_CREDENTIALS = True
+# Added common dev ports for Flutter Web
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
     r"^http://127.0.0.1:\d+$",
 ]
 CORS_ALLOWED_ORIGINS = [
     "https://farmaid-backend.onrender.com",
+    "http://localhost:59464", # Added your specific port
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost",
@@ -294,7 +297,10 @@ CSRF_TRUSTED_ORIGINS = [
     "https://farmaid-backend.onrender.com"
 ]
 
-APPEND_SLASH = False 
+# Explicitly allow Authorization header for token auth
+CORS_ALLOW_HEADERS = list(default_headers) + ['authorization']
+
+APPEND_SLASH = True # Set to True to prevent 404s with trailing slashes
 
 # --- EMAIL ---
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -330,7 +336,6 @@ CELERY_BEAT_SCHEDULE = {
 # --- STATIC & MEDIA ---
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles') 
-# Static storage fix for whitenoise/jazzmin compatibility
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 MEDIA_URL = '/media/'
@@ -358,7 +363,7 @@ JAZZMIN_SETTINGS = {
         "api.Farmer": "fas fa-user-tag",
         "api.Plant": "fas fa-leaf",
         "api.AppAlert": "fas fa-bell",
-        "api.PersonalizedRule": "fas fa-gavel", # Icon for your 8-factor logic
+        "api.PersonalizedRule": "fas fa-gavel",
     },
 }
 
