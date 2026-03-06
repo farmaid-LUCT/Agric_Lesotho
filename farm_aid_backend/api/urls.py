@@ -55,7 +55,7 @@ from .views import (
     # Auth
     register_farmer,
     login_farmer,
-    resend_activation_email,
+    # resend_activation_email, # REMOVED: Function not defined in views.py
     activate_account,
     change_password,
 
@@ -65,7 +65,7 @@ from .views import (
 
     # Crop Profiles & Alerts
     CropProfileView,
-    FarmerAlerts_View, # Note: Ensure naming matches views.py exactly
+    FarmerAlertsView, # FIXED: Renamed from FarmerAlerts_View
 
     # AI Scan & Feedback
     SaveScanView,
@@ -82,44 +82,30 @@ from .views import (
 )
 
 urlpatterns = [
-    # --------------------------------------------------------
     # AUTHENTICATION
-    # --------------------------------------------------------
     path('register/', register_farmer, name='register'),
     path('login/', login_farmer, name='login'),
-    # Fixed to ensure strict string patterns for security tokens
     path('activate/<str:uidb64>/<str:token>/', activate_account, name='activate'),
-    path('resend-activation/', resend_activation_email, name='resend-activation'),
+    # path('resend-activation/', resend_activation_email, name='resend-activation'), # Commented out
     path('auth/change-password/', change_password, name='change-password'),
 
-    # --------------------------------------------------------
-    # PROFILE (Matches Flutter AuthService)
-    # --------------------------------------------------------
+    # PROFILE
     path('auth/profile/', ProfileView.as_view(), name='profile'),
     path('auth/profile/update/', ProfileView.as_view(), name='profile-update'),
 
-    # --------------------------------------------------------
     # WEATHER & ALERTS
-    # --------------------------------------------------------
     path('weather/latest/', LatestWeatherView.as_view(), name='latest-weather'),
     path('alerts/', FarmerAlertsView.as_view(), name='alerts'),
 
-    # --------------------------------------------------------
-    # SCANNER & TREATMENT (The 8-Factor Engine)
-    # --------------------------------------------------------
-    # This is where Flutter sends the vegetable image result
+    # SCANNER & TREATMENT
     path('save-scan/', SaveScanView.as_view(), name='save-scan'),
     path('diagnosis/<int:diagnosis_id>/feedback/', DiagnosisFeedbackView.as_view(), name='diagnosis-feedback'),
 
-    # --------------------------------------------------------
-    # HISTORY & REPORTS (Used by Flutter HistoryScreen)
-    # --------------------------------------------------------
+    # HISTORY & REPORTS
     path('farmer-history/', FarmerHistoryView.as_view(), name='farmer-history'),
     path('farmer-reports/', FarmerReportsView.as_view(), name='farmer-reports'),
 
-    # --------------------------------------------------------
     # PERSONALIZATION & GROWTH
-    # --------------------------------------------------------
     path('farmer-insight/', FarmerInsightView.as_view(), name='farmer-insight'),
     path('journal/', GrowthJournalView.as_view(), name='journal-list'),
     path('journal/<int:entry_id>/delete/', GrowthJournalView.as_view(), name='journal-delete'),
