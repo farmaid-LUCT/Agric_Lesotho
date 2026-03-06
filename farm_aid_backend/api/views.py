@@ -423,6 +423,19 @@ def login_farmer(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+def resend_activation_email(request):
+    email = request.data.get('email')
+    try:
+        user = Farmer.objects.get(email=email)
+        if user.is_active:
+            return Response({'error': 'Account already active'}, status=400)
+        _send_activation_email(request, user)
+        return Response({'message': 'Verification email resent.'})
+    except Farmer.DoesNotExist:
+        return Response({'error': 'User not found'}, status=404)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def register_farmer(request):
     data = request.data
     try:
