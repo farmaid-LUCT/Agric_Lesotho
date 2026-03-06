@@ -204,7 +204,7 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 # --- HOSTS ---
 ALLOWED_HOSTS = [
     'farmaid-backend.onrender.com', 
-    'localhost', 
+    'localhost:62803', 
     '127.0.0.1', 
     '10.0.2.2', 
     '.onrender.com'
@@ -292,7 +292,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:59464", # Added your specific port
 ]
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:59464",
+    "http://localhost:62803",
     "http://127.0.0.1",
     "https://farmaid-backend.onrender.com"
 ]
