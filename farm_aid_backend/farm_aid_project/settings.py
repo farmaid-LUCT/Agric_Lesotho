@@ -292,7 +292,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:59464", # Added your specific port
 ]
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost",
+    "http://localhost:59464",
     "http://127.0.0.1",
     "https://farmaid-backend.onrender.com"
 ]
