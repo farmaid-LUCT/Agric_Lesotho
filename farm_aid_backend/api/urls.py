@@ -65,6 +65,9 @@ from .views import (
     FarmerAlertsView,
     LatestWeatherView,
     MarketPricesView,       # NEW
+    DiagnosisFeedbackView,  # NEW
+    FarmerInsightView,      # NEW
+    GrowthJournalView,      # NEW
 )
 
 urlpatterns = [
@@ -104,4 +107,14 @@ urlpatterns = [
     # GET /api/market-prices/                   -> all prices
     # GET /api/market-prices/?district=Maseru   -> filtered by district
     path('market-prices/', MarketPricesView.as_view(), name='market-prices'),
+
+    # --- 9. DIAGNOSIS FEEDBACK ---
+    path('diagnosis/<int:diagnosis_id>/feedback/', DiagnosisFeedbackView.as_view(), name='diagnosis-feedback'),
+
+    # --- 10. FARMER INSIGHTS ---
+    path('farmer-insight/', FarmerInsightView.as_view(), name='farmer-insight'),
+
+    # --- 11. GROWTH JOURNAL ---
+    path('journal/',                    GrowthJournalView.as_view(), name='journal'),
+    path('journal/<int:entry_id>/delete/', GrowthJournalView.as_view(), name='journal-delete'),
 ]
