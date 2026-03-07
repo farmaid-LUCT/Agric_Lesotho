@@ -997,7 +997,7 @@ from .models import (
 
     CropProfile, AppAlert, WeatherData, PersonalizedRule, KnowledgeBase,
 
-    TranslationCache
+    TranslationCache, MarketPrice
 
 )
 
@@ -1511,3 +1511,31 @@ class FarmerReportsView(APIView):
                 })
 
         return Response(report_data)
+
+# --- 5. MARKET PRICES ---
+
+class MarketPricesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        district = request.query_params.get('district')
+
+        prices = MarketPrice.objects.all().order_by('-date_recorded')
+
+        if district:
+            prices = prices.filter(district__iexact=district)
+
+        data = []
+        for p in prices:
+            data.append({
+                'id':             p.PriceID,
+                'vegetable_name': p.vegetable_name,
+                'market_name':    p.market_name,
+                'district':       p.district,
+                'price_per_kg':   float(p.price_per_kg),
+                'currency':       p.currency,
+                'date_recorded':  p.date_recorded.isoformat(),
+                'price_trend':    p.price_trend,
+            })
+
+        return Response(data)
