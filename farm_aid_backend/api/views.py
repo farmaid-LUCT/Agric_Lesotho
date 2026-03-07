@@ -1539,3 +1539,151 @@ class MarketPricesView(APIView):
             })
 
         return Response(data)
+
+# --- 6. DIAGNOSIS FEEDBACK ---
+
+class DiagnosisFeedbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, diagnosis_id):
+        try:
+            diag = Diagnosis.objects.get(
+                DiagnosisID=diagnosis_id,
+                PlantID__FarmerID=request.user
+            )
+        except Diagnosis.DoesNotExist:
+            return Response({'error': 'Diagnosis not found'}, status=404)
+
+        # Update all feedback fields provided
+        feedback         = request.data.get('farmer_feedback')
+        severity         = request.data.get('severity')
+        treatment_applied = request.data.get('treatment_applied')
+        treatment_outcome = request.data.get('treatment_outcome')
+        notes            = request.data.get('notes')
+
+        if feedback         is not None: diag.farmer_feedback    = feedback
+        if severity         is not None: diag.severity           = severity
+        if treatment_applied is not None: diag.treatment_applied = treatment_applied
+        if treatment_outcome is not None: diag.treatment_outcome = treatment_outcome
+
+        diag.save()
+
+        return Response({
+            'status':  'success',
+            'message': 'Feedback recorded. Thank you!',
+            'id':       diag.DiagnosisID,
+        })
+
+
+# --- 7. FARMER INSIGHTS ---
+
+class FarmerInsightView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        insight, _ = FarmerInsight.objects.get_or_create(FarmerID=request.user)
+
+        # Recalculate live stats from Plant/Diagnosis tables
+        from django.db.models import Count
+        plants = Plant.objects.filter(FarmerID=request.user)
+        total_scans = plants.count()
+
+        diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
+        healthy   = diagnoses.filter(DiseaseName__iexact='healthy').count()
+        diseased  = total_scans - healthy
+
+        # Most common disease
+        top = (diagnoses
+               .exclude(DiseaseName__iexact='healthy')
+               .values('DiseaseName')
+               .annotate(c=Count('DiseaseName'))
+               .order_by('-c')
+               .first())
+
+        # Most scanned crop
+        top_crop = (plants
+                    .exclude(CropType='Vegetable')
+                    .values('CropType')
+                    .annotate(c=Count('CropType'))
+                    .order_by('-c')
+                    .first())
+
+        # Update cached insight record
+        insight.total_scans              = total_scans
+        insight.total_diseases_detected  = diseased
+        insight.total_healthy_scans      = healthy
+        insight.most_common_disease      = top['DiseaseName']  if top      else None
+        insight.most_scanned_crop        = top_crop['CropType'] if top_crop else None
+        insight.save()
+
+        return Response({
+            'total_scans':             insight.total_scans,
+            'total_diseases_detected': insight.total_diseases_detected,
+            'total_healthy_scans':     insight.total_healthy_scans,
+            'most_common_disease':     insight.most_common_disease,
+            'most_scanned_crop':       insight.most_scanned_crop,
+            'streak_healthy_days':     insight.streak_healthy_days,
+            'last_updated':            insight.last_updated.isoformat(),
+        })
+
+
+# --- 8. GROWTH JOURNAL ---
+
+class GrowthJournalView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        profile_id = request.query_params.get('crop_profile_id')
+        entries = GrowthJournalEntry.objects.filter(FarmerID=request.user)
+        if profile_id:
+            entries = entries.filter(CropProfile__ProfileID=profile_id)
+
+        data = []
+        for e in entries:
+            data.append({
+                'id':          e.EntryID,
+                'crop_profile_id': e.CropProfile.ProfileID,
+                'crop_name':   e.CropProfile.VegetableType,
+                'entry_date':  e.entry_date.isoformat(),
+                'title':       e.title,
+                'body':        e.body,
+                'mood':        e.mood,
+                'photo_url':   e.photo_url,
+                'created_at':  e.DateCreated.isoformat(),
+            })
+        return Response(data)
+
+    def post(self, request):
+        profile_id = request.data.get('crop_profile_id')
+        try:
+            profile = CropProfile.objects.get(
+                ProfileID=profile_id, FarmerID=request.user
+            )
+        except CropProfile.DoesNotExist:
+            return Response({'error': 'Crop profile not found'}, status=404)
+
+        entry = GrowthJournalEntry.objects.create(
+            FarmerID    = request.user,
+            CropProfile = profile,
+            title       = request.data.get('title', ''),
+            body        = request.data.get('body', ''),
+            mood        = request.data.get('mood', 'ok'),
+            photo_url   = request.data.get('photo_url'),
+            entry_date  = request.data.get('entry_date', date.today()),
+        )
+        return Response({
+            'status': 'success',
+            'id':     entry.EntryID,
+        }, status=201)
+
+    def delete(self, request, entry_id=None):
+        if entry_id is None:
+            return Response({'error': 'entry_id required'}, status=400)
+        try:
+            entry = GrowthJournalEntry.objects.get(
+                EntryID=entry_id, FarmerID=request.user
+            )
+            entry.delete()
+            return Response({'status': 'deleted'})
+        except GrowthJournalEntry.DoesNotExist:
+            return Response({'error': 'Entry not found'}, status=404)
