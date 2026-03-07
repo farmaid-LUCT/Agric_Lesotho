@@ -1178,6 +1178,10 @@ class SaveScanView(APIView):
             return Response({
 
                 'status': 'success',
+                    'id':                diagnosis.pk,         # Flutter reads this → shows feedback card
+                    'follow_up_date':    follow_up_date.isoformat(),  # shown in the nudge
+                    'crop_type':         target_profile.VegetableType if target_profile else None,
+                    'treatment_product': res_pesticide,
 
                 'results': {
 
