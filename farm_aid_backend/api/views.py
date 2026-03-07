@@ -959,6 +959,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.views import APIView
 
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from datetime import date, timedelta  # Add timedelta here
 
 from rest_framework.authtoken.models import Token
 
@@ -1312,121 +1313,64 @@ class FarmerAlertsView(APIView):
 
 # --- 4. AI SCAN & REPORTS (MANUAL TRANSLATION LOGIC) ---
 
-
-
 class SaveScanView(APIView):
-
     permission_classes = [IsAuthenticated]
 
-
-
     def _get_manual_sesotho(self, text):
-
         """
-
         Looks up Sesotho translation in the database.
-
         If not found, creates an entry for the Admin to translate later.
-
         """
-
         if not text or text == "N/A" or text == "Consult local expert": return text
-
         
-
         # Create a unique hash for this specific piece of text
-
         t_hash = hashlib.sha256(text.strip().lower().encode()).hexdigest()
-
         
-
         cached = TranslationCache.objects.filter(text_hash=t_hash).first()
-
         
-
         # If the Admin has filled in the Sesotho text, return it
-
         if cached and cached.sesotho_text:
-
             return cached.sesotho_text
-
         
-
         # If record doesn't exist, create it so Admin can see it in the Django Admin panel
-
         if not cached:
-
             TranslationCache.objects.create(
-
                 text_hash=t_hash, 
-
                 english_text=text, 
-
                 sesotho_text="" # Leaves blank for Admin to fill
-
             )
-
         
-
         # Return original English as fallback until Admin translates it
-
         return text
 
-
-
     def post(self, request):
-
         try:
-
             user = request.user
-
             
-
             # Sync user language preference from Flutter request
-
             incoming_lang = request.data.get('language') or request.data.get('lang')
-
             if incoming_lang in ['st', 'en']:
-
                 user.language_preferences = incoming_lang
-
                 user.save(update_fields=['language_preferences'])
-
             
-
             lang = user.language_preferences
 
-
-
             # 1. Capture Data
-
             raw_label = request.data.get('diseaseName') or request.data.get('DiseaseName') or "Healthy"
-
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
-
             image_url = request.data.get('imageUrl') or request.data.get('image_url') or request.data.get('ImageFile')
-
             confidence = request.data.get('confidence') or request.data.get('ConfidenceLevel') or 0.0
-
             profile_id = request.data.get('profileId') or request.data.get('ProfileID')
-
             # GPS — read all 4 fields from Flutter POST body
-            gps_lat      = request.data.get('latitude')
-            gps_lon      = request.data.get('longitude')
-            gps_alt      = request.data.get('altitude')
+            gps_lat     = request.data.get('latitude')
+            gps_lon     = request.data.get('longitude')
+            gps_alt     = request.data.get('altitude')
             gps_district = request.data.get('gps_district') or request.data.get('district') or request.user.district
 
-
-
             # 2. Database Save (Plant & Diagnosis)
-
             target_profile = None
-
             if profile_id and str(profile_id).lower() not in ["null", "", "none"]:
-
                 target_profile = CropProfile.objects.filter(pk=profile_id, FarmerID=user).first()
-
-
 
             new_plant = Plant.objects.create(
                 FarmerID=user,
@@ -1439,61 +1383,37 @@ class SaveScanView(APIView):
                 gps_district=gps_district,
             )
 
-            Diagnosis.objects.create(PlantID=new_plant, DiseaseName=clean_label, ConfidenceLevel=float(confidence))
-
-
+            # FIXED: Assigned to 'diagnosis' variable
+            diagnosis = Diagnosis.objects.create(
+                PlantID=new_plant, 
+                DiseaseName=clean_label, 
+                ConfidenceLevel=float(confidence)
+            )
 
             # 3. Treatment & KnowledgeBase Retrieval
-
             treatment_query = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
-
             treat = Treatment.objects.filter(treatment_query).first()
-
             kb_entry = KnowledgeBase.objects.filter(treatment_query).first()
 
-
-
             # --- Default English Values ---
-
             res_disease = clean_label
-
             res_pesticide = treat.RecommendedPesticide if treat else "Consult local expert"
-
             res_dosage = treat.Dosage if treat else "N/A"
-
             
-
             # Get steps from Treatment table, fallback to KnowledgeBase, fallback to generic advice
-
             if treat and treat.ApplicationSteps:
-
                 res_steps = treat.ApplicationSteps
-
             elif kb_entry and kb_entry.TreatmentInfo:
-
                 res_steps = kb_entry.TreatmentInfo
-
             else:
-
                 res_steps = "Isolate plant immediately."
 
-
-
             # 4. APPLY MANUAL TRANSLATION (If user prefers Sesotho)
-
-            # This is where we process every field through our lookup table
-
             if lang == 'st':
-
                 res_disease = self._get_manual_sesotho(res_disease)
-
                 res_pesticide = self._get_manual_sesotho(res_pesticide)
-
                 res_dosage = self._get_manual_sesotho(res_dosage)
-
                 res_steps = self._get_manual_sesotho(res_steps)
-
-
 
             # Calculate follow-up date
             # Urgent diseases (blight/rot/wilt) → check in 3 days, others → 10 days
@@ -1515,13 +1435,11 @@ class SaveScanView(APIView):
                     'pesticide': res_pesticide,
                     'dosage':    res_dosage,
                     'steps':     res_steps,
+                    'confidence': float(confidence) # Added to bridge UI
                 }
             })
-
             
-
         except Exception as e:
-
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
