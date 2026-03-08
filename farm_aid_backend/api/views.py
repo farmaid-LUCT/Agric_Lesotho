@@ -997,7 +997,7 @@ from .models import (
 
     CropProfile, AppAlert, WeatherData, PersonalizedRule, KnowledgeBase,
 
-    TranslationCache, MarketPrice
+    TranslationCache, MarketPrice, FarmerInsight, GrowthJournalEntry
 
 )
 
