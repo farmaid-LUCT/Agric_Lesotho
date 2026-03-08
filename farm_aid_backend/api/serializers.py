@@ -6,11 +6,19 @@ class CropProfileSerializer(serializers.ModelSerializer):
     """Handles the vegetable data for personalization."""
     class Meta:
         model = CropProfile
-        # We include ProfileID because it's your primary key in models.py
         fields = [
-            'ProfileID', 'FarmerID', 'VegetableType', 
-            'SoilEnvironment', 'FarmLocation', 'PlantingDate', 
-            'IsActive', 'CreatedAt'
+            'ProfileID', 
+            'FarmerID', 
+            'VegetableType', 
+            'SoilEnvironment', 
+            'PlantingDate',   # Matches models.py
+            'IsActive', 
+            'CreatedAt',
+            'plot_size_hectares',
+            'expected_harvest_date',
+            'irrigation_method',
+            'seed_variety',
+            'notes'
         ]
         read_only_fields = ['FarmerID', 'CreatedAt']
 
