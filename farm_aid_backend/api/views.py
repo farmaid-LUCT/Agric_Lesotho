@@ -1414,6 +1414,13 @@ class SaveScanView(APIView):
         try:
             user = request.user
 
+            # ── DEBUG — log all incoming fields ──────────────────────────
+            # Remove this block after confirming personalized flow works
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"[SaveScan] incoming data: {dict(request.data)}")
+            logger.warning(f"[SaveScan] scan_mode={request.data.get('scan_mode')} profileId={request.data.get('profileId')} ProfileID={request.data.get('ProfileID')}")
+
             # ── Language sync ─────────────────────────────────────────────
             incoming_lang = request.data.get('language') or request.data.get('lang')
             if incoming_lang in ['st', 'en']:
@@ -1457,12 +1464,18 @@ class SaveScanView(APIView):
                          or 'personalized').lower()
             wants_personalized = scan_mode == 'personalized'
 
+            # ── DEBUG ─────────────────────────────────────────────────────
+            logger.warning(f"[SaveScan] wants_personalized={wants_personalized} scan_mode='{scan_mode}'")
+
             # ── 2. Resolve crop profile ───────────────────────────────────
             target_profile = None
             if profile_id and str(profile_id).lower() not in ('null', 'none', ''):
                 target_profile = CropProfile.objects.filter(
                     pk=profile_id, FarmerID=user
                 ).first()
+
+            # ── DEBUG ─────────────────────────────────────────────────────
+            logger.warning(f"[SaveScan] profile_id='{profile_id}' target_profile={target_profile} wants_personalized={wants_personalized}")
 
             crop_type = (target_profile.VegetableType
                          if target_profile
@@ -1574,6 +1587,9 @@ class SaveScanView(APIView):
                     if match.get('found'):
                         personalized_advice = match['advice']
                         matched_context     = match.get('matched_on')
+                        logger.warning(f"[SaveScan] ✅ Rule matched: rule_id={match.get('rule_id')} advice={personalized_advice[:60]}")
+                    else:
+                        logger.warning(f"[SaveScan] ❌ No rule matched for disease='{clean_label}' district='{gps_district}'")
                 except Exception:
                     pass  # rule engine failure must never break the scan response
 
