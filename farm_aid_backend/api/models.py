@@ -598,6 +598,9 @@
 #     def __str__(self):
 #         return f"{self.vegetable_name} @ {self.market_name}: LSL {self.price_per_kg}/kg"
 
+
+# Ntse ke sebetsana le yona:
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
@@ -1115,6 +1118,7 @@ class MarketPrice(models.Model):
     vegetable_name = models.CharField(max_length=100)
     market_name    = models.CharField(max_length=100)
     district       = models.CharField(max_length=100)
+    price_per_kg   = models.DecimalField(max_digits=6, decimal_places=2)
     currency       = models.CharField(max_length=5, default='LSL')
     date_recorded  = models.DateField(default=timezone.now)
     price_trend    = models.CharField(
@@ -1127,3 +1131,4 @@ class MarketPrice(models.Model):
         ordering = ['-date_recorded']
 
     def __str__(self):
+        return f"{self.vegetable_name} @ {self.market_name}: LSL {self.price_per_kg}/kg"
