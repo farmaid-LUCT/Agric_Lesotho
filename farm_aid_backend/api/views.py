@@ -1449,6 +1449,14 @@ class SaveScanView(APIView):
                             or user.district
                             or '')
 
+            # scan_mode: 'general' → skip PersonalizedRule lookup entirely
+            #            'personalized' (default) → run full 9-factor match
+            # Flutter sends this based on which button the farmer tapped.
+            scan_mode = (request.data.get('scan_mode')
+                         or request.data.get('scanMode')
+                         or 'personalized').lower()
+            wants_personalized = scan_mode == 'personalized'
+
             # ── 2. Resolve crop profile ───────────────────────────────────
             target_profile = None
             if profile_id and str(profile_id).lower() not in ('null', 'none', ''):
@@ -1523,17 +1531,32 @@ class SaveScanView(APIView):
                 if st_d: res_dosage    = st_d
                 if st_s: res_steps     = st_s
 
-            # ── 7. Personalized advice (9-factor rule engine) ─────────────
-            # Runs only when farmer has a CropProfile.
-            # Combines:
-            #   a) PersonalizedRule match  → advice text (district/soil/altitude aware)
-            #   b) Treatment calculation   → exact product_amount + water for their plot
-            # Both are returned together so Flutter shows one unified personalized block.
-            personalized_advice  = None
-            matched_context      = None
-            personalized_dosage  = None   # calculated amounts from Treatment table
+            # ── 7. Personalized block ─────────────────────────────────────
+            # Only runs when:
+            #   a) farmer tapped "Personalized" button (scan_mode == 'personalized')
+            #   b) farmer has a CropProfile (target_profile is not None)
+            #
+            # Three sub-steps:
+            #   7a. PersonalizedRule match — 9-factor lookup, returns advice text
+            #       adjusted for farmer experience level (beginner vs expert)
+            #   7b. Dosage calculation — Treatment.calculate_for_plot() using
+            #       farmer's plot_size_hectares from CropProfile
+            #   7c. Combine into one block for Flutter
+            #
+            # If farmer chose "General" scan_mode → skip entirely, return None.
 
-            if target_profile:
+            personalized_advice = None
+            matched_context     = None
+            personalized_dosage = None
+
+            if wants_personalized and target_profile:
+
+                # ── 7a. PersonalizedRule lookup ───────────────────────────
+                # Compares AI disease output against PersonalizedRule table.
+                # RuleMatchingService filters by all 9 factors and picks
+                # the highest priority_score match.
+                # Returns advice_beginner for beginner farmers,
+                # ExpertAdvice for intermediate/expert farmers.
                 try:
                     weather = WeatherData.objects.filter(
                         district__iexact=gps_district
@@ -1541,12 +1564,12 @@ class SaveScanView(APIView):
                     rainfall_mm = weather.rainfall_last_7_days if weather else 0.0
 
                     match = RuleMatchingService.get_best_match(
-                        disease_name    = clean_label,
-                        farmer          = user,
-                        crop_profile    = target_profile,
-                        gps_district    = gps_district,
-                        rainfall_mm     = rainfall_mm,
-                        altitude_meters = gps_alt,
+                        disease_name    = clean_label,   # from AI output
+                        farmer          = user,           # carries experience_level
+                        crop_profile    = target_profile, # soil, irrigation, variety, days
+                        gps_district    = gps_district,   # live GPS district
+                        rainfall_mm     = rainfall_mm,    # from WeatherData
+                        altitude_meters = gps_alt,        # live GPS altitude
                     )
                     if match.get('found'):
                         personalized_advice = match['advice']
@@ -1554,16 +1577,16 @@ class SaveScanView(APIView):
                 except Exception:
                     pass  # rule engine failure must never break the scan response
 
-                # Dosage calculation — always runs when profile has plot_size_hectares,
-                # regardless of whether a PersonalizedRule was matched.
-                # dosage_calc is already computed above in step 5b.
+                # ── 7b. Dosage calculation ────────────────────────────────
+                # Uses Treatment row for this disease + farmer's plot_size_hectares.
+                # dosage_calc already computed in step 5b — just package it here.
                 if dosage_calc:
                     personalized_dosage = {
-                        'product':         res_pesticide,
-                        'amount':          dosage_calc.get('product_display'),   # e.g. "12.5g"
-                        'water':           dosage_calc.get('water_display'),      # e.g. "100L (10 × 10L buckets)"
-                        'unit':            dosage_calc.get('dosage_unit'),
-                        'plot_hectares':   dosage_calc.get('plot_hectares'),
+                        'product':       res_pesticide,
+                        'amount':        dosage_calc.get('product_display'),  # "12.5g"
+                        'water':         dosage_calc.get('water_display'),    # "100L (10 × 10L buckets)"
+                        'unit':          dosage_calc.get('dosage_unit'),
+                        'plot_hectares': dosage_calc.get('plot_hectares'),
                         'raw': {
                             'product_amount': dosage_calc.get('product_amount'),
                             'water_litres':   dosage_calc.get('water_litres'),
@@ -1571,38 +1594,49 @@ class SaveScanView(APIView):
                         },
                     }
 
-            # ── 8. Build response ─────────────────────────────────────────
-            # personalized block is None when farmer has no profile (general scan).
-            # Flutter uses this to decide whether to show personalized card.
+            # ── 7c. Build personalized block ──────────────────────────────
+            # None  → farmer chose general scan or has no profile
+            # {}    → farmer chose personalized but no rule matched and no plot size
+            # full  → has advice and/or dosage
             personalized_block = None
-            if target_profile and (personalized_advice or personalized_dosage):
+            if wants_personalized and target_profile:
                 personalized_block = {
-                    'advice':         personalized_advice,   # rule text or None
-                    'dosage':         personalized_dosage,   # calculated amounts or None
-                    'matched_on':     matched_context,       # 9 factors used
+                    'advice':     personalized_advice,  # None if no rule matched
+                    'dosage':     personalized_dosage,  # None if no plot_size_hectares
+                    'matched_on': matched_context,      # 9 factors that were used
+                    'farmer_level': user.experience_level,  # beginner/intermediate/expert
                 }
 
+            # ── 8. Build response ─────────────────────────────────────────
+            # General scan  → personalized is None, only results block shown
+            # Personalized  → personalized block shown alongside results block
             return Response({
-                'status':        'success',
-                'id':            diagnosis.DiagnosisID,
+                'status':         'success',
+                'id':             diagnosis.DiagnosisID,
                 'follow_up_date': follow_up_date.isoformat(),
-                'crop_type':     crop_type,
-                # Top-level personalized block — Flutter reads this for the green card
-                'personalized':  personalized_block,
-                # Keep these for backwards compatibility with scanner_result_service.dart
-                'treatment_product':   res_pesticide,
-                'personalized_advice': personalized_advice,
-                'matched_context':     matched_context,
+                'crop_type':      crop_type,
+                'scan_mode':      scan_mode,  # echo back so Flutter knows what was used
+
+                # ── Personalized block (None for general scans) ───────────
+                'personalized':   personalized_block,
+
+                # ── General treatment block (always returned) ─────────────
+                # Shown as-is for general scans.
+                # Shown alongside personalized block for personalized scans.
                 'results': {
                     'disease':    res_disease,
                     'pesticide':  res_pesticide,
-                    'dosage':     res_dosage,
+                    'dosage':     res_dosage,   # free-text e.g. "25g per 10L per hectare"
                     'steps':      res_steps,
                     'confidence': confidence,
-                    # Dosage display fields read by scanner_result_service.dart dosage card
-                    'treatment_dose_display': dosage_calc.get('product_display') if dosage_calc else None,
-                    'water_volume_display':   dosage_calc.get('water_display')   if dosage_calc else None,
+                    # Dosage display — only present for personalized scans with plot size
+                    'treatment_dose_display': dosage_calc.get('product_display') if dosage_calc and wants_personalized else None,
+                    'water_volume_display':   dosage_calc.get('water_display')   if dosage_calc and wants_personalized else None,
                 },
+
+                # Legacy fields — kept for backwards compatibility
+                'treatment_product':   res_pesticide,
+                'personalized_advice': personalized_advice,
             })
 
         except Exception as e:
