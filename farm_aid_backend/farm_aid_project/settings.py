@@ -376,6 +376,7 @@
 # LOGIN_REDIRECT_URL = '/admin/'
 
 
+
 import dj_database_url
 import os
 from pathlib import Path
@@ -741,3 +742,4 @@ JAZZMIN_UI_TWEAKS = {
 LOGOUT_ON_GET      = True
 LOGIN_URL          = '/admin/login/'
 LOGIN_REDIRECT_URL = '/admin/'
+
