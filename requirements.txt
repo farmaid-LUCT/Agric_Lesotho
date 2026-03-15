@@ -29,8 +29,24 @@ whitenoise==6.9.0
 # --- BACKGROUND TASKS (CELERY + REDIS) ---
 celery==5.4.0
 django-celery-beat==2.7.0
+django-celery-results==2.5.1  # NEW — stores Celery task results in Neon DB (CELERY_RESULT_BACKEND = 'django-db')
 django-timezone-field==7.1
 redis==5.2.1
+
+# --- SOCIAL AUTH & GOOGLE LOGIN ---
+django-allauth==65.3.0         # NEW — Google / social login framework
+google-auth==2.38.0            # NEW — verifies Google ID tokens from Flutter
+google-auth-httplib2==0.2.0    # NEW — HTTP transport for google-auth
+requests-oauthlib==2.0.0       # NEW — OAuth dependency for allauth
+
+# --- PASSWORD SECURITY ---
+# No extra package needed — custom validators live in api/validators.py
+# Django's built-in AUTH_PASSWORD_VALIDATORS are now enabled in settings.py
+
+# --- SOLAR SCHEDULED EVENTS ---
+ephem==4.1.6                   # NEW — enables solar('sunrise', lat, lon) in CELERY_BEAT_SCHEDULE
+                               # Used for Maseru sunrise weather sync trigger
+                               # Can be removed if you keep the solar block commented out
 
 # --- UTILITIES ---
 requests==2.32.3
