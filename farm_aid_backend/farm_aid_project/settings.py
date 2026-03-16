@@ -8,7 +8,8 @@
 # BASE_DIR = Path(__file__).resolve().parent.parent
 # SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'u)w*v%19nm644-q@xn791_ac_@jyi_%%w(-*#cnd%0e)z*@8ib')
 
-# DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+# # --- DEBUG OFF for production ---
+# DEBUG = False
 
 # # --- HOSTS ---
 # ALLOWED_HOSTS = [
@@ -21,14 +22,14 @@
 
 # # --- APPS ---
 # INSTALLED_APPS = [
-#     'jazzmin',  # Must be above admin
+#     'jazzmin',
 #     'django.contrib.admin',
 #     'django.contrib.auth',
 #     'django.contrib.contenttypes',
 #     'django.contrib.sessions',
 #     'django.contrib.messages',
 #     'django.contrib.staticfiles',
-#     'django.contrib.sites',               # Required by allauth
+#     'django.contrib.sites',
 
 #     # 3rd Party
 #     'rest_framework',
@@ -231,8 +232,8 @@
 # DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # # --- JAZZMIN SETTINGS ---
-# # All model URLs follow the pattern: admin/<app_label>/<modelname>/
-# # Your app label is 'api' — so ALL FarmAid models live under admin/api/
+# # All model URLs follow: admin/<app_label>/<modelname>/
+# # FarmAid app label is 'api' — all models live under admin/api/
 # # FIX: was using wrong app label 'knowledgebase' instead of 'api'
 # JAZZMIN_SETTINGS = {
 #     "site_title":   "FarmAid Admin",
@@ -258,8 +259,6 @@
 #         },
 #     ],
 
-#     # FIX — uses Django named URL reversals, not raw path strings
-#     # Format: "admin:<app_label>_<modelname>_changelist"
 #     "custom_links": {
 #         "api": [
 #             {
@@ -292,13 +291,10 @@
 #     "show_sidebar":        True,
 #     "navigation_expanded": True,
 
-#     # FIX — all icons use correct "api.ModelName" prefix
 #     "icons": {
 #         "admin.LogEntry":                      "fas fa-history",
 #         "auth":                                "fas fa-users-cog",
 #         "auth.Group":                          "fas fa-users",
-
-#         # FarmAid models — all correctly prefixed with 'api.'
 #         "api.Farmer":                          "fas fa-user-tag",
 #         "api.CropProfile":                     "fas fa-seedling",
 #         "api.Plant":                           "fas fa-leaf",
@@ -313,26 +309,19 @@
 #         "api.FarmerInsight":                   "fas fa-chart-pie",
 #         "api.GrowthJournalEntry":              "fas fa-journal-whills",
 #         "api.MarketPrice":                     "fas fa-chart-line",
-
-#         # Celery Beat
 #         "django_celery_beat.PeriodicTask":     "fas fa-clock",
 #         "django_celery_beat.CrontabSchedule":  "fas fa-calendar",
 #         "django_celery_beat.IntervalSchedule": "fas fa-redo",
 #         "django_celery_beat.SolarSchedule":    "fas fa-sun",
 #         "django_celery_beat.ClockedSchedule":  "fas fa-hourglass",
-
-#         # Celery Results
 #         "django_celery_results.TaskResult":    "fas fa-tasks",
 #         "django_celery_results.GroupResult":   "fas fa-layer-group",
-
-#         # Allauth
 #         "account.EmailAddress":                "fas fa-envelope",
 #         "socialaccount.SocialApp":             "fas fa-plug",
 #         "socialaccount.SocialToken":           "fas fa-key",
 #         "socialaccount.SocialAccount":         "fas fa-user-circle",
 #     },
 
-#     # Sidebar ordering — controls the order models appear in the left menu
 #     "order_with_respect_to": [
 #         "api",
 #         "api.Farmer",
@@ -375,8 +364,6 @@
 # LOGIN_URL          = '/admin/login/'
 # LOGIN_REDIRECT_URL = '/admin/'
 
-
-
 import dj_database_url
 import os
 from pathlib import Path
@@ -387,7 +374,6 @@ from corsheaders.defaults import default_headers
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'u)w*v%19nm644-q@xn791_ac_@jyi_%%w(-*#cnd%0e)z*@8ib')
 
-# --- DEBUG OFF for production ---
 DEBUG = False
 
 # --- HOSTS ---
@@ -506,10 +492,10 @@ REST_FRAMEWORK = {
 # --- ALLAUTH ---
 SITE_ID = 1
 
-ACCOUNT_EMAIL_REQUIRED        = True
-ACCOUNT_USERNAME_REQUIRED     = False
-ACCOUNT_AUTHENTICATION_METHOD = 'email'
-ACCOUNT_EMAIL_VERIFICATION    = 'none'
+# FIX — replaces 3 deprecated settings that caused warnings
+ACCOUNT_LOGIN_METHODS      = {'email'}
+ACCOUNT_SIGNUP_FIELDS      = ['email*', 'password1*', 'password2*']
+ACCOUNT_EMAIL_VERIFICATION = 'none'
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
@@ -611,9 +597,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- JAZZMIN SETTINGS ---
-# All model URLs follow: admin/<app_label>/<modelname>/
-# FarmAid app label is 'api' — all models live under admin/api/
-# FIX: was using wrong app label 'knowledgebase' instead of 'api'
 JAZZMIN_SETTINGS = {
     "site_title":   "FarmAid Admin",
     "site_header":  "FarmAid",
@@ -742,4 +725,3 @@ JAZZMIN_UI_TWEAKS = {
 LOGOUT_ON_GET      = True
 LOGIN_URL          = '/admin/login/'
 LOGIN_REDIRECT_URL = '/admin/'
-
