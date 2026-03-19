@@ -38,8 +38,8 @@ django-allauth==65.3.0
 google-auth==2.38.0
 google-auth-httplib2==0.2.0
 requests-oauthlib==2.0.0
-PyJWT==2.9.0                   # allauth.socialaccount requires jwt at startup
-cryptography==42.0.8           # FIX — allauth jwtkit requires cryptography.hazmat
+PyJWT==2.9.0
+cryptography==42.0.8
 
 # --- SOLAR SCHEDULED EVENTS ---
 ephem==4.1.6
