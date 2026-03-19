@@ -156,13 +156,6 @@ def _badge(text, bg, fg='#fff'):
         'border-radius:10px;font-size:11px;font-weight:600">{}</span>',
         bg, fg, text)
 
-def green_badge(t):   return _badge(t, '#1B5E20')
-def red_badge(t):     return _badge(t, '#B71C1C')
-def orange_badge(t):  return _badge(t, '#E65100')
-def blue_badge(t):    return _badge(t, '#1565C0')
-def purple_badge(t):  return _badge(t, '#6A1B9A')
-def grey_badge(t):    return _badge(t, '#555', '#fff')
-
 def any_label():
     return format_html('<span style="color:#bbb;font-size:11px">Any</span>')
 
@@ -226,7 +219,7 @@ class FarmerAdmin(UserAdmin):
     experience_badge.short_description = 'Level'
 
     def is_active_badge(self, obj):
-        return green_badge('Active') if obj.is_active else red_badge('Inactive')
+        return _badge('Active', '#1B5E20') if obj.is_active else _badge('Inactive', '#B71C1C')
     is_active_badge.short_description = 'Status'
 
 
@@ -237,8 +230,7 @@ class FarmerAdmin(UserAdmin):
 class CropProfileAdmin(admin.ModelAdmin):
     list_display  = (
         'ProfileID', 'get_farmer', 'VegetableType', 'SoilEnvironment',
-        'irrigation_method', 'seed_variety', 'growth_stage',
-        'is_active_badge', 'PlantingDate',
+        'irrigation_method', 'seed_variety', 'growth_stage', 'is_active_badge', 'PlantingDate',
     )
     list_filter   = ('VegetableType', 'SoilEnvironment', 'irrigation_method', 'IsActive')
     search_fields = ('VegetableType', 'seed_variety', 'FarmerID__username')
@@ -254,7 +246,7 @@ class CropProfileAdmin(admin.ModelAdmin):
     growth_stage.short_description = 'Growth Stage'
 
     def is_active_badge(self, obj):
-        return green_badge('Active') if obj.IsActive else grey_badge('Inactive')
+        return _badge('Active', '#1B5E20') if obj.IsActive else _badge('Inactive', '#555')
     is_active_badge.short_description = 'Active'
 
 
@@ -280,8 +272,7 @@ class PlantAdmin(admin.ModelAdmin):
     def image_link(self, obj):
         if obj.ImageURL:
             return format_html(
-                '<a href="{}" target="_blank" '
-                'style="color:#1B5E20;font-weight:600">View ↗</a>',
+                '<a href="{}" target="_blank" style="color:#1B5E20;font-weight:600">View ↗</a>',
                 obj.ImageURL)
         return '—'
     image_link.short_description = 'Image'
@@ -292,13 +283,13 @@ class PlantAdmin(admin.ModelAdmin):
 # ============================================================
 @admin.register(Diagnosis)
 class DiagnosisAdmin(admin.ModelAdmin):
-    list_display  = (
+    list_display = (
         'DiagnosisID', 'get_farmer', 'disease_badge',
-        'confidence_display', 'severity_badge', 'scan_mode_badge',
-        'farmer_feedback', 'treatment_applied', 'treatment_outcome',
+        'confidence_display', 'severity', 'farmer_feedback',
+        'treatment_applied', 'treatment_outcome',
         'follow_up_date', 'DateDiagnosed',
     )
-    list_filter   = (
+    list_filter  = (
         'DiseaseName', 'severity', 'farmer_feedback',
         'treatment_applied', 'treatment_outcome', 'DateDiagnosed',
     )
@@ -313,25 +304,12 @@ class DiagnosisAdmin(admin.ModelAdmin):
 
     def disease_badge(self, obj):
         name = obj.DiseaseName.replace('_', ' ')
-        return green_badge(name) if 'healthy' in name.lower() else red_badge(name)
+        return _badge(name, '#1B5E20') if 'healthy' in name.lower() else _badge(name, '#B71C1C')
     disease_badge.short_description = 'Disease'
 
     def confidence_display(self, obj):
         return conf_bar(obj.ConfidenceLevel)
     confidence_display.short_description = 'Confidence'
-
-    def severity_badge(self, obj):
-        sev = obj.severity or ''
-        colours = {'low': '#388E3C', 'medium': '#F57F17',
-                   'high': '#B71C1C', 'critical': '#880E4F'}
-        c = colours.get(sev.lower(), '#555')
-        return _badge(sev, c) if sev else grey_badge('—')
-    severity_badge.short_description = 'Severity'
-
-    def scan_mode_badge(self, obj):
-        mode = getattr(obj, 'scan_mode', 'general') or 'general'
-        return blue_badge('Personal') if mode == 'personalized' else grey_badge('General')
-    scan_mode_badge.short_description = 'Mode'
 
 
 # ============================================================
@@ -339,10 +317,7 @@ class DiagnosisAdmin(admin.ModelAdmin):
 # ============================================================
 @admin.register(Treatment)
 class TreatmentAdmin(admin.ModelAdmin):
-    list_display  = (
-        'TreatmentID', 'DiseaseName', 'RecommendedPesticide',
-        'Dosage', 'dosage_per_hectare_g', 'water_per_hectare_l', 'phi_days',
-    )
+    list_display  = ('TreatmentID', 'DiseaseName', 'RecommendedPesticide', 'Dosage')
     search_fields = ('DiseaseName', 'RecommendedPesticide')
     list_filter   = ('DiseaseName',)
     ordering      = ('DiseaseName',)
@@ -355,7 +330,7 @@ class TreatmentAdmin(admin.ModelAdmin):
 @admin.register(AppAlert)
 class AppAlertAdmin(admin.ModelAdmin):
     list_display  = (
-        'AlertID', 'get_farmer', 'alert_type_badge', 'priority_badge',
+        'AlertID', 'get_farmer', 'alert_type', 'priority',
         'Title', 'district_target', 'is_read_badge', 'expires_at', 'DateCreated',
     )
     list_filter   = ('alert_type', 'priority', 'IsRead', 'district_target')
@@ -369,24 +344,8 @@ class AppAlertAdmin(admin.ModelAdmin):
         return obj.FarmerID.username if obj.FarmerID else '(broadcast)'
     get_farmer.short_description = 'Farmer'
 
-    def alert_type_badge(self, obj):
-        colours = {
-            'disease':  '#B71C1C', 'weather': '#1565C0',
-            'market':   '#E65100', 'system':  '#555',
-        }
-        t = obj.alert_type or ''
-        return _badge(t, colours.get(t.lower(), '#555')) if t else grey_badge('—')
-    alert_type_badge.short_description = 'Type'
-
-    def priority_badge(self, obj):
-        colours = {'low': '#388E3C', 'medium': '#F57F17',
-                   'high': '#B71C1C', 'urgent': '#880E4F'}
-        p = obj.priority or ''
-        return _badge(p, colours.get(p.lower(), '#555')) if p else grey_badge('—')
-    priority_badge.short_description = 'Priority'
-
     def is_read_badge(self, obj):
-        return green_badge('Read') if obj.IsRead else orange_badge('Unread')
+        return _badge('Read', '#1B5E20') if obj.IsRead else _badge('Unread', '#E65100')
     is_read_badge.short_description = 'Status'
 
     @admin.action(description='✅ Mark selected alerts as read')
@@ -484,7 +443,6 @@ class PersonalizedRuleAdmin(admin.ModelAdmin):
             'fields': (
                 'TriggerDistrict', 'TriggerSoilType', 'TriggerIrrigation',
                 'TriggerCropVariety', 'TriggerSeason', 'TriggerRainfallLevel',
-                'TriggerAltitudeTier',
             ),
         }),
         ('🌿 Growth Stage Window', {
@@ -500,28 +458,25 @@ class PersonalizedRuleAdmin(admin.ModelAdmin):
     )
 
     def district_badge(self, obj):
-        v = obj.TriggerDistrict
-        return green_badge(v) if v else any_label()
+        return _badge(obj.TriggerDistrict, '#1B5E20') if obj.TriggerDistrict else any_label()
     district_badge.short_description = 'District'
 
     def soil_badge(self, obj):
-        v = obj.TriggerSoilType
-        return orange_badge(v) if v else any_label()
+        return _badge(obj.TriggerSoilType, '#E65100') if obj.TriggerSoilType else any_label()
     soil_badge.short_description = 'Soil'
 
     def irrigation_badge(self, obj):
-        v = obj.TriggerIrrigation
-        return blue_badge(v) if v else any_label()
+        return _badge(obj.TriggerIrrigation, '#1565C0') if obj.TriggerIrrigation else any_label()
     irrigation_badge.short_description = 'Irrigation'
 
     def season_badge(self, obj):
         v = obj.TriggerSeason
-        return green_badge(v) if v and v != 'any' else any_label()
+        return _badge(v, '#1B5E20') if v and v != 'any' else any_label()
     season_badge.short_description = 'Season'
 
     def rainfall_badge(self, obj):
         v = obj.TriggerRainfallLevel
-        return blue_badge(v) if v and v != 'any' else any_label()
+        return _badge(v, '#1565C0') if v and v != 'any' else any_label()
     rainfall_badge.short_description = 'Rainfall'
 
     def growth_stage_range(self, obj):
@@ -529,8 +484,7 @@ class PersonalizedRuleAdmin(admin.ModelAdmin):
         mx = obj.MaxDaysSincePlanting or 999
         if mn == 0 and mx == 999:
             return any_label()
-        return format_html(
-            '<span style="font-size:12px">Day {} – {}</span>', mn, mx)
+        return format_html('<span style="font-size:12px">Day {} – {}</span>', mn, mx)
     growth_stage_range.short_description = 'Growth Stage (Days)'
 
     def short_advice(self, obj):
@@ -544,7 +498,7 @@ class PersonalizedRuleAdmin(admin.ModelAdmin):
 # ============================================================
 @admin.register(FarmerInsight)
 class FarmerInsightAdmin(admin.ModelAdmin):
-    list_display  = (
+    list_display   = (
         'get_farmer', 'total_scans', 'total_diseases_detected',
         'total_healthy_scans', 'most_scanned_crop', 'most_common_disease',
         'streak_healthy_days', 'last_scan_date', 'last_updated',
@@ -574,7 +528,7 @@ class GrowthJournalEntryAdmin(admin.ModelAdmin):
     list_filter   = ('mood', 'entry_date')
     search_fields = ('title', 'body', 'FarmerID__username')
     ordering      = ('-DateCreated',)
-    list_per_page  = 30
+    list_per_page = 30
 
     def get_farmer(self, obj):
         return obj.FarmerID.username
@@ -586,14 +540,12 @@ class GrowthJournalEntryAdmin(admin.ModelAdmin):
 
     def mood_badge(self, obj):
         colours = {
-            'great':    '#1B5E20',
-            'good':     '#388E3C',
-            'okay':     '#F57F17',
-            'bad':      '#B71C1C',
-            'terrible': '#880E4F',
+            'great': '#1B5E20', 'good': '#388E3C',
+            'okay':  '#F57F17', 'bad':  '#B71C1C', 'terrible': '#880E4F',
         }
         m = (obj.mood or '').lower()
-        return _badge(obj.mood, colours.get(m, '#555')) if obj.mood else grey_badge('—')
+        return _badge(obj.mood, colours.get(m, '#555')) if obj.mood else format_html(
+            '<span style="color:#bbb">—</span>')
     mood_badge.short_description = 'Mood'
 
 
@@ -609,19 +561,19 @@ class MarketPriceAdmin(admin.ModelAdmin):
     list_filter   = ('vegetable_name', 'district', 'price_trend')
     search_fields = ('vegetable_name', 'market_name', 'district')
     ordering      = ('-date_recorded',)
-    list_per_page  = 30
+    list_per_page = 30
 
     def trend_badge(self, obj):
         t = obj.price_trend or ''
         colours = {'up': '#1B5E20', 'down': '#B71C1C', 'stable': '#1565C0'}
         icons   = {'up': '↑', 'down': '↓', 'stable': '→'}
-        c = colours.get(t.lower(), '#555')
-        label = f"{icons.get(t.lower(), '')} {t}".strip()
-        return _badge(label, c) if t else grey_badge('—')
+        label   = f"{icons.get(t.lower(), '')} {t}".strip()
+        return _badge(label, colours.get(t.lower(), '#555')) if t else format_html(
+            '<span style="color:#bbb">—</span>')
     trend_badge.short_description = 'Trend'
 
 
 # ── Admin site branding ────────────────────────────────────────────────────
-admin.site.site_header  = "🌿 FarmAid Lesotho"
-admin.site.site_title   = "FarmAid Admin"
-admin.site.index_title  = "Management Dashboard"
+admin.site.site_header = "🌿 FarmAid Lesotho"
+admin.site.site_title  = "FarmAid Admin"
+admin.site.index_title = "Management Dashboard"
