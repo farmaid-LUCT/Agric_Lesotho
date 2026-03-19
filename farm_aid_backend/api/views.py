@@ -1659,6 +1659,79 @@ def login_farmer(request):
     return Response({'error': 'Invalid credentials'}, status=401)
 
 
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_auth(request):
+    """
+    Google Sign-In endpoint.
+    Accepts a Google ID token from the Flutter app, verifies it,
+    then creates or retrieves the matching Farmer account and returns
+    a DRF token so the app can authenticate subsequent requests.
+
+    Expected body: { "id_token": "<google_id_token>" }
+
+    Falls back gracefully when google-auth-oauthlib is not installed —
+    returns 501 so the app can show a friendly 'not available' message
+    rather than crashing the whole server.
+    """
+    id_token_str = request.data.get('id_token')
+    if not id_token_str:
+        return Response({'error': 'id_token is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+        import os
+
+        CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+        id_info = google_id_token.verify_oauth2_token(
+            id_token_str,
+            google_requests.Request(),
+            CLIENT_ID,
+        )
+
+        email      = id_info.get('email', '').lower()
+        first_name = id_info.get('given_name', '')
+        last_name  = id_info.get('family_name', '')
+
+        if not email:
+            return Response({'error': 'No email in Google token'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get or create farmer — Google users are auto-activated
+        user, created = Farmer.objects.get_or_create(
+            email=email,
+            defaults={
+                'username':   email,
+                'first_name': first_name,
+                'last_name':  last_name,
+                'is_active':  True,
+            }
+        )
+
+        if created:
+            user.set_unusable_password()
+            user.save()
+
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            'token':      token.key,
+            'farmerName': f"{user.first_name} {user.last_name}".strip() or email,
+            'is_staff':   user.is_staff,
+            'created':    created,
+        })
+
+    except ImportError:
+        return Response(
+            {'error': 'Google authentication is not configured on this server.'},
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )
+    except ValueError as e:
+        return Response({'error': f'Invalid Google token: {e}'}, status=status.HTTP_401_UNAUTHORIZED)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def change_password(request):
@@ -1741,6 +1814,24 @@ class FarmerAlertsView(APIView):
     def post(self, request):
         AppAlert.objects.filter(FarmerID=request.user, IsRead=False).update(IsRead=True)
         return Response({'status': 'success'})
+
+
+
+class AlertCountView(APIView):
+    """
+    Returns the number of unread alerts for the authenticated farmer.
+    Used by HomeDashboard bell icon badge.
+    GET /api/alerts/unread-count/  →  { "unread_count": 3 }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_dist = request.user.district or ""
+        unread = AppAlert.objects.filter(
+            Q(FarmerID=request.user) | Q(Message__icontains=user_dist),
+            IsRead=False,
+        ).count()
+        return Response({'unread_count': unread})
 
 
 # ── 4. AI SCAN & SAVE ────────────────────────────────────────────────────────
