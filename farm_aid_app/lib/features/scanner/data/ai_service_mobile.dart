@@ -6,7 +6,6 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
 import 'package:http/http.dart' as http; 
 
-// ✅ Corrected Imports to use Constants
 import 'package:farm_aid_app/core/constants.dart';
 import 'package:farm_aid_app/services/auth_service.dart';
 
@@ -15,7 +14,6 @@ class AIService {
   static List<String>? _labels;
   final AuthService _auth = AuthService();
 
-  // ✅ 1. Load Local Model & Labels for Mobile
   static Future<void> loadModel() async {
     if (_interpreter != null) return;
     try {
@@ -28,13 +26,48 @@ class AIService {
     }
   }
 
-  // ✅ 2. Sync Method (FIXED: Uses AppConstants to prevent /api/ doubling)
+  Future<Map<String, dynamic>?> fetchTreatmentAndSave({
+    required String rawLabel,
+    required String imageUrl,
+    required double confidence,
+    required String languageCode,
+  }) async {
+    try {
+      final token = await _auth.getToken();
+      if (token == null) return null;
+
+      final response = await http.post(
+        Uri.parse("${AppConstants.baseUrl}/save-scan/"), 
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Token $token',
+        },
+        body: jsonEncode({
+          'diseaseName': rawLabel,
+          'imageUrl': imageUrl,
+          'confidence': confidence,
+          'language': languageCode,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['results']; 
+      } else {
+        print("⚠️ Server Error in SaveScan: ${response.body}");
+        return null;
+      }
+    } catch (e) {
+      print("❌ Exception fetching treatment: $e");
+      return null;
+    }
+  }
+
   Future<void> syncScanHistory() async {
     try {
       final token = await _auth.getToken();
       if (token == null) throw Exception("No Auth Token found");
 
-      // ✅ Centralized URL from AppConstants
       final response = await http.get(
         Uri.parse(AppConstants.farmerReports), 
         headers: {"Authorization": "Token $token"},
@@ -53,31 +86,32 @@ class AIService {
     }
   }
 
-  // ✅ 3. Main Entry Point (Uses Isolate to keep UI smooth)
+  // ✅ 4. Updated Main Entry Point (Local Inference)
   static Future<Map<String, dynamic>> runInference(Uint8List imageBytes) async {
     if (_interpreter == null) await loadModel();
 
-    final String rawLocalResult = await compute(_processLocalInference, {
+    final String jsonResult = await compute(_processLocalInference, {
       'bytes': imageBytes,
       'labels': _labels,
       'interpreterAddress': _interpreter!.address,
     });
 
-    // Vegetable-only check
-    bool isRejected = rawLocalResult.toLowerCase().contains("background") || 
-                      rawLocalResult.toLowerCase().contains("rejected") ||
-                      rawLocalResult.toLowerCase().contains("unknown");
+    final Map<String, dynamic> decoded = jsonDecode(jsonResult);
+    final String label = decoded['label'];
+    final double confidence = decoded['score'];
 
-    String finalLabel = isRejected ? "Rejected: This is not a vegetable." : rawLocalResult;
+    bool isRejected = label.toLowerCase().contains("background") || 
+                      label.toLowerCase().contains("rejected") ||
+                      label.toLowerCase().contains("unknown");
 
     return {
-      "label": finalLabel,
-      "confidence": 0.95, 
+      "label": isRejected ? "Rejected: This is not a vegetable." : label,
+      "confidence": confidence, 
       "isRejected": isRejected,
     };
   }
 
-  // ✅ 4. Background Processing (Isolate)
+  // ✅ 5. Updated Background Processing (Isolate)
   static String _processLocalInference(Map<String, dynamic> params) {
     final Uint8List bytes = params['bytes'];
     final List<String> labels = params['labels'];
@@ -86,7 +120,7 @@ class AIService {
     final interpreter = Interpreter.fromAddress(address);
 
     img.Image? originalImage = img.decodeImage(bytes);
-    if (originalImage == null) return "Invalid Image";
+    if (originalImage == null) return jsonEncode({"label": "Invalid", "score": 0.0});
 
     img.Image resizedImage = img.copyResize(originalImage, width: 224, height: 224);
 
@@ -107,6 +141,9 @@ class AIService {
       }
     }
 
-    return labels[bestIndex].trim();
+    return jsonEncode({
+      "label": labels[bestIndex].trim(),
+      "score": maxScore
+    });
   }
 }
