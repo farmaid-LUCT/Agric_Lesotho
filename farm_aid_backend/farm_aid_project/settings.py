@@ -379,7 +379,7 @@ DEBUG = False
 # --- HOSTS ---
 ALLOWED_HOSTS = [
     'farmaid-backend.onrender.com',
-    'localhost:62803',
+    'localhost:58696',
     '127.0.0.1',
     '10.0.2.2',
     '.onrender.com'
