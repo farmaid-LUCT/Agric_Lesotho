@@ -1,23 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Activated | FarmAid Lesotho</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1faf5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; max-width: 400px; border-top: 5px solid #00A844; }
-        h1 { color: #1B5E20; margin-bottom: 10px; }
-        p { color: #555; line-height: 1.6; }
-        .icon { font-size: 50px; color: #00A844; margin-bottom: 20px; }
-        .btn { display: inline-block; margin-top: 20px; padding: 12px 25px; background-color: #00A844; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #f1faf5; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .card { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 15px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+            text-align: center; 
+            max-width: 400px; 
+            border-top: 5px solid #00A844; 
+        }
+        h1 { color: #1B5E20; margin-bottom: 10px; font-size: 28px; }
+        p { color: #555; line-height: 1.6; font-size: 16px; }
+        .icon { 
+            font-size: 60px; 
+            color: #00A844; 
+            margin-bottom: 20px; 
+            display: block;
+        }
+        .btn { 
+            display: inline-block; 
+            margin-top: 25px; 
+            padding: 14px 30px; 
+            background-color: #00A844; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            transition: background 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #008f3a;
+        }
+        .footer-text {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #888;
+        }
     </style>
 </head>
 <body>
     <div class="card">
-        <div class="icon">✔️</div>
+        <span class="icon">✔️</span>
         <h1>Dumela!</h1>
         <p>Your <strong>FarmAid Lesotho</strong> account has been successfully activated.</p>
-        <p>You can now return to the app and sign in to start scanning your crops.</p>
-        <a href="#" class="btn">Return to App</a>
+        <p>You can now return to the app and sign in to start scanning your crops for diseases.</p>
+        
+        <a href="farmaid://login" id="app-link" class="btn">RETURN TO APP</a>
+
+        <p class="footer-text">If the app doesn't open automatically, click the button above.</p>
     </div>
+
+    <script>
+        // Automatic Redirect Logic
+        window.onload = function() {
+            const appUri = "farmaid://login";
+            
+            // Attempt to open the app immediately
+            window.location.replace(appUri);
+
+            // Fallback: If they are still on this page after 3 seconds, 
+            // the user can manually click the button.
+            setTimeout(function() {
+                console.log("If you are seeing this, the app didn't auto-open.");
+            }, 3000);
+        };
+    </script>
 </body>
 </html>
