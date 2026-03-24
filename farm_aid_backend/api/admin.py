@@ -139,441 +139,731 @@
 # class PersonalizedRuleAdmin(admin.ModelAdmin):
 #     list_display = ('DiseaseName', 'RecommendationCategory', 'ExpertAdvice')
 
-from django.contrib        import admin
+# from django.contrib        import admin
+# from django.contrib.auth.admin import UserAdmin
+# from django.utils.html     import format_html
+# from .models import (
+#     Farmer, KnowledgeBase, AIModel, Diagnosis,
+#     Treatment, PersonalizedRule, TranslationCache,
+#     CropProfile, Plant, AppAlert, WeatherData,
+#     FarmerInsight, GrowthJournalEntry, MarketPrice,
+# )
+
+# # ── Shared badge helpers ───────────────────────────────────────────────────
+# def _badge(text, bg, fg='#fff'):
+#     return format_html(
+#         '<span style="background:{};color:{};padding:2px 10px;'
+#         'border-radius:10px;font-size:11px;font-weight:600">{}</span>',
+#         bg, fg, text)
+
+# def any_label():
+#     return format_html('<span style="color:#bbb;font-size:11px">Any</span>')
+
+# def conf_bar(level):
+#     pct   = int((level or 0) * 100)
+#     color = '#1B5E20' if pct >= 75 else '#F57F17' if pct >= 50 else '#B71C1C'
+#     return format_html(
+#         '<div style="width:80px;background:#eee;border-radius:4px;height:14px">'
+#         '<div style="width:{}%;background:{};border-radius:4px;height:14px;'
+#         'text-align:center;color:#fff;font-size:10px;line-height:14px">'
+#         '{}%</div></div>', pct, color, pct)
+
+
+# # ============================================================
+# # 1. FARMER
+# # ============================================================
+# @admin.register(Farmer)
+# class FarmerAdmin(UserAdmin):
+#     list_display = (
+#         'username', 'email', 'phone_number', 'district',
+#         'experience_badge', 'language_preferences',
+#         'notification_diseases', 'notification_weather', 'notification_market',
+#         'is_active_badge', 'is_staff', 'is_superuser',
+#     )
+#     search_fields = ('username', 'email', 'district')
+#     list_filter   = ('is_staff', 'is_superuser', 'is_active',
+#                      'district', 'experience_level', 'language_preferences')
+#     ordering      = ('-date_joined',)
+#     list_per_page = 25
+#     date_hierarchy = 'date_joined'
+
+#     fieldsets = UserAdmin.fieldsets + (
+#         ('FarmAid — Farmer Profile', {
+#             'fields': (
+#                 'phone_number', 'district', 'language_preferences',
+#                 'profile_photo_url', 'farm_size_hectares', 'experience_level',
+#             ),
+#         }),
+#         ('FarmAid — Notification Preferences', {
+#             'fields': (
+#                 'notification_diseases', 'notification_weather', 'notification_market',
+#             ),
+#         }),
+#         ('FarmAid — App Status', {
+#             'fields': ('onboarding_complete', 'last_active'),
+#         }),
+#     )
+#     add_fieldsets = UserAdmin.add_fieldsets + (
+#         ('FarmAid — Farmer Profile', {
+#             'fields': (
+#                 'email', 'phone_number', 'district',
+#                 'language_preferences', 'experience_level',
+#             ),
+#         }),
+#     )
+
+#     def experience_badge(self, obj):
+#         colours = {'beginner': '#388E3C', 'intermediate': '#F57F17', 'expert': '#1565C0'}
+#         c = colours.get(obj.experience_level, '#555')
+#         return _badge(obj.experience_level or '—', c)
+#     experience_badge.short_description = 'Level'
+
+#     def is_active_badge(self, obj):
+#         return _badge('Active', '#1B5E20') if obj.is_active else _badge('Inactive', '#B71C1C')
+#     is_active_badge.short_description = 'Status'
+
+
+# # ============================================================
+# # 2. CROP PROFILE
+# # ============================================================
+# @admin.register(CropProfile)
+# class CropProfileAdmin(admin.ModelAdmin):
+#     list_display  = (
+#         'ProfileID', 'get_farmer', 'VegetableType', 'SoilEnvironment',
+#         'irrigation_method', 'seed_variety', 'growth_stage', 'is_active_badge', 'PlantingDate',
+#     )
+#     list_filter   = ('VegetableType', 'SoilEnvironment', 'irrigation_method', 'IsActive')
+#     search_fields = ('VegetableType', 'seed_variety', 'FarmerID__username')
+#     ordering      = ('-PlantingDate',)
+#     list_per_page = 30
+
+#     def get_farmer(self, obj):
+#         return obj.FarmerID.username
+#     get_farmer.short_description = 'Farmer'
+
+#     def growth_stage(self, obj):
+#         return obj.growth_stage_label
+#     growth_stage.short_description = 'Growth Stage'
+
+#     def is_active_badge(self, obj):
+#         return _badge('Active', '#1B5E20') if obj.IsActive else _badge('Inactive', '#555')
+#     is_active_badge.short_description = 'Active'
+
+
+# # ============================================================
+# # 3. PLANT
+# # ============================================================
+# @admin.register(Plant)
+# class PlantAdmin(admin.ModelAdmin):
+#     list_display  = (
+#         'PlantID', 'get_farmer', 'CropType', 'gps_district',
+#         'latitude', 'longitude', 'altitude_meters', 'image_link', 'DateCaptured',
+#     )
+#     list_filter   = ('CropType', 'gps_district')
+#     search_fields = ('CropType', 'FarmerID__username', 'gps_district')
+#     ordering      = ('-DateCaptured',)
+#     list_per_page = 30
+#     date_hierarchy = 'DateCaptured'
+
+#     def get_farmer(self, obj):
+#         return obj.FarmerID.username
+#     get_farmer.short_description = 'Farmer'
+
+#     def image_link(self, obj):
+#         if obj.ImageURL:
+#             return format_html(
+#                 '<a href="{}" target="_blank" style="color:#1B5E20;font-weight:600">View ↗</a>',
+#                 obj.ImageURL)
+#         return '—'
+#     image_link.short_description = 'Image'
+
+
+# # ============================================================
+# # 4. DIAGNOSIS
+# # ============================================================
+# @admin.register(Diagnosis)
+# class DiagnosisAdmin(admin.ModelAdmin):
+#     list_display = (
+#         'DiagnosisID', 'get_farmer', 'disease_badge',
+#         'confidence_display', 'severity', 'farmer_feedback',
+#         'treatment_applied', 'treatment_outcome',
+#         'follow_up_date', 'DateDiagnosed',
+#     )
+#     list_filter  = (
+#         'DiseaseName', 'severity', 'farmer_feedback',
+#         'treatment_applied', 'treatment_outcome', 'DateDiagnosed',
+#     )
+#     search_fields = ('DiseaseName', 'PlantID__FarmerID__username')
+#     ordering      = ('-DateDiagnosed',)
+#     list_per_page = 30
+#     date_hierarchy = 'DateDiagnosed'
+
+#     def get_farmer(self, obj):
+#         return obj.PlantID.FarmerID.username
+#     get_farmer.short_description = 'Farmer'
+
+#     def disease_badge(self, obj):
+#         name = obj.DiseaseName.replace('_', ' ')
+#         return _badge(name, '#1B5E20') if 'healthy' in name.lower() else _badge(name, '#B71C1C')
+#     disease_badge.short_description = 'Disease'
+
+#     def confidence_display(self, obj):
+#         return conf_bar(obj.ConfidenceLevel)
+#     confidence_display.short_description = 'Confidence'
+
+
+# # ============================================================
+# # 5. TREATMENT
+# # ============================================================
+# @admin.register(Treatment)
+# class TreatmentAdmin(admin.ModelAdmin):
+#     list_display  = ('TreatmentID', 'DiseaseName', 'RecommendedPesticide', 'Dosage')
+#     search_fields = ('DiseaseName', 'RecommendedPesticide')
+#     list_filter   = ('DiseaseName',)
+#     ordering      = ('DiseaseName',)
+#     list_per_page = 30
+
+
+# # ============================================================
+# # 6. APP ALERT
+# # ============================================================
+# @admin.register(AppAlert)
+# class AppAlertAdmin(admin.ModelAdmin):
+#     list_display  = (
+#         'AlertID', 'get_farmer', 'alert_type', 'priority',
+#         'Title', 'district_target', 'is_read_badge', 'expires_at', 'DateCreated',
+#     )
+#     list_filter   = ('alert_type', 'priority', 'IsRead', 'district_target')
+#     search_fields = ('Title', 'Message', 'FarmerID__username')
+#     ordering      = ('-DateCreated',)
+#     list_per_page = 30
+#     date_hierarchy = 'DateCreated'
+#     actions       = ['mark_read']
+
+#     def get_farmer(self, obj):
+#         return obj.FarmerID.username if obj.FarmerID else '(broadcast)'
+#     get_farmer.short_description = 'Farmer'
+
+#     def is_read_badge(self, obj):
+#         return _badge('Read', '#1B5E20') if obj.IsRead else _badge('Unread', '#E65100')
+#     is_read_badge.short_description = 'Status'
+
+#     @admin.action(description='✅ Mark selected alerts as read')
+#     def mark_read(self, request, queryset):
+#         n = queryset.update(IsRead=True)
+#         self.message_user(request, f'{n} alert(s) marked as read.')
+
+
+# # ============================================================
+# # 7. WEATHER DATA
+# # ============================================================
+# @admin.register(WeatherData)
+# class WeatherDataAdmin(admin.ModelAdmin):
+#     list_display  = (
+#         'WeatherID', 'district', 'Temperature', 'Humidity',
+#         'Rainfall', 'rainfall_last_7_days', 'AlertMessage', 'DateUpdated',
+#     )
+#     list_filter   = ('district',)
+#     search_fields = ('district',)
+#     ordering      = ('-DateUpdated',)
+#     list_per_page = 30
+
+
+# # ============================================================
+# # 8. KNOWLEDGE BASE
+# # ============================================================
+# @admin.register(KnowledgeBase)
+# class KnowledgeBaseAdmin(admin.ModelAdmin):
+#     list_display  = ('DiseaseName', 'short_symptoms', 'short_prevention', 'LastUpdated')
+#     search_fields = ('DiseaseName', 'Symptoms', 'Prevention')
+#     ordering      = ('DiseaseName',)
+#     list_per_page = 30
+
+#     def short_symptoms(self, obj):
+#         t = obj.Symptoms or ''
+#         return (t[:65] + '…') if len(t) > 65 else t
+#     short_symptoms.short_description = 'Symptoms'
+
+#     def short_prevention(self, obj):
+#         t = obj.Prevention or ''
+#         return (t[:65] + '…') if len(t) > 65 else t
+#     short_prevention.short_description = 'Prevention'
+
+
+# # ============================================================
+# # 9. AI MODEL
+# # ============================================================
+# @admin.register(AIModel)
+# class AIModelAdmin(admin.ModelAdmin):
+#     list_display  = ('ModelID', 'Version', 'accuracy_bar', 'LastTrainedDate')
+#     ordering      = ('-LastTrainedDate',)
+#     list_per_page = 20
+
+#     def accuracy_bar(self, obj):
+#         return conf_bar(obj.AccuracyRate)
+#     accuracy_bar.short_description = 'Accuracy'
+
+
+# # ============================================================
+# # 10. TRANSLATION CACHE
+# # ============================================================
+# @admin.register(TranslationCache)
+# class TranslationCacheAdmin(admin.ModelAdmin):
+#     list_display  = ('disease_name_en', 'pesticide_st', 'dosage_st', 'last_updated')
+#     search_fields = ('disease_name_en',)
+#     ordering      = ('disease_name_en',)
+#     list_per_page = 30
+
+
+# # ============================================================
+# # 11. PERSONALIZED RULE ENGINE
+# # ============================================================
+# @admin.register(PersonalizedRule)
+# class PersonalizedRuleAdmin(admin.ModelAdmin):
+#     list_display  = (
+#         'RuleID', 'DiseaseName', 'district_badge', 'soil_badge',
+#         'irrigation_badge', 'TriggerCropVariety', 'season_badge',
+#         'rainfall_badge', 'growth_stage_range',
+#         'RecommendationCategory', 'priority_score', 'short_advice',
+#     )
+#     list_filter   = (
+#         'DiseaseName', 'TriggerDistrict', 'TriggerSoilType',
+#         'TriggerIrrigation', 'TriggerSeason', 'TriggerRainfallLevel',
+#         'RecommendationCategory',
+#     )
+#     search_fields = ('DiseaseName', 'ExpertAdvice', 'TriggerCropVariety')
+#     ordering      = ('-priority_score',)
+#     list_per_page = 30
+
+#     fieldsets = (
+#         ('🔍 Disease Trigger (Required)', {
+#             'fields': ('DiseaseName',),
+#         }),
+#         ('📍 Context Triggers — leave blank to match ALL values', {
+#             'fields': (
+#                 'TriggerDistrict', 'TriggerSoilType', 'TriggerIrrigation',
+#                 'TriggerCropVariety', 'TriggerSeason', 'TriggerRainfallLevel',
+#             ),
+#         }),
+#         ('🌿 Growth Stage Window', {
+#             'fields': ('MinDaysSincePlanting', 'MaxDaysSincePlanting'),
+#             'description': 'Rule only fires when days since planting falls within this range.',
+#         }),
+#         ('💡 Expert Advice Output', {
+#             'fields': (
+#                 'ExpertAdvice', 'advice_beginner',
+#                 'RecommendationCategory', 'priority_score',
+#             ),
+#         }),
+#     )
+
+#     def district_badge(self, obj):
+#         return _badge(obj.TriggerDistrict, '#1B5E20') if obj.TriggerDistrict else any_label()
+#     district_badge.short_description = 'District'
+
+#     def soil_badge(self, obj):
+#         return _badge(obj.TriggerSoilType, '#E65100') if obj.TriggerSoilType else any_label()
+#     soil_badge.short_description = 'Soil'
+
+#     def irrigation_badge(self, obj):
+#         return _badge(obj.TriggerIrrigation, '#1565C0') if obj.TriggerIrrigation else any_label()
+#     irrigation_badge.short_description = 'Irrigation'
+
+#     def season_badge(self, obj):
+#         v = obj.TriggerSeason
+#         return _badge(v, '#1B5E20') if v and v != 'any' else any_label()
+#     season_badge.short_description = 'Season'
+
+#     def rainfall_badge(self, obj):
+#         v = obj.TriggerRainfallLevel
+#         return _badge(v, '#1565C0') if v and v != 'any' else any_label()
+#     rainfall_badge.short_description = 'Rainfall'
+
+#     def growth_stage_range(self, obj):
+#         mn = obj.MinDaysSincePlanting or 0
+#         mx = obj.MaxDaysSincePlanting or 999
+#         if mn == 0 and mx == 999:
+#             return any_label()
+#         return format_html('<span style="font-size:12px">Day {} – {}</span>', mn, mx)
+#     growth_stage_range.short_description = 'Growth Stage (Days)'
+
+#     def short_advice(self, obj):
+#         t = obj.ExpertAdvice or ''
+#         return (t[:60] + '…') if len(t) > 60 else t
+#     short_advice.short_description = 'Advice Preview'
+
+
+# # ============================================================
+# # 12. FARMER INSIGHT
+# # ============================================================
+# @admin.register(FarmerInsight)
+# class FarmerInsightAdmin(admin.ModelAdmin):
+#     list_display   = (
+#         'get_farmer', 'total_scans', 'total_diseases_detected',
+#         'total_healthy_scans', 'most_scanned_crop', 'most_common_disease',
+#         'streak_healthy_days', 'last_scan_date', 'last_updated',
+#     )
+#     search_fields  = ('FarmerID__username',)
+#     readonly_fields = (
+#         'total_scans', 'total_diseases_detected', 'total_healthy_scans',
+#         'most_scanned_crop', 'most_common_disease', 'highest_risk_month',
+#         'last_scan_date', 'streak_healthy_days', 'last_updated',
+#     )
+#     list_per_page  = 30
+
+#     def get_farmer(self, obj):
+#         return obj.FarmerID.username
+#     get_farmer.short_description = 'Farmer'
+
+
+# # ============================================================
+# # 13. GROWTH JOURNAL
+# # ============================================================
+# @admin.register(GrowthJournalEntry)
+# class GrowthJournalEntryAdmin(admin.ModelAdmin):
+#     list_display  = (
+#         'EntryID', 'get_farmer', 'get_crop',
+#         'title', 'mood_badge', 'entry_date', 'DateCreated',
+#     )
+#     list_filter   = ('mood', 'entry_date')
+#     search_fields = ('title', 'body', 'FarmerID__username')
+#     ordering      = ('-DateCreated',)
+#     list_per_page = 30
+
+#     def get_farmer(self, obj):
+#         return obj.FarmerID.username
+#     get_farmer.short_description = 'Farmer'
+
+#     def get_crop(self, obj):
+#         return obj.CropProfile.VegetableType
+#     get_crop.short_description = 'Crop'
+
+#     def mood_badge(self, obj):
+#         colours = {
+#             'great': '#1B5E20', 'good': '#388E3C',
+#             'okay':  '#F57F17', 'bad':  '#B71C1C', 'terrible': '#880E4F',
+#         }
+#         m = (obj.mood or '').lower()
+#         return _badge(obj.mood, colours.get(m, '#555')) if obj.mood else format_html(
+#             '<span style="color:#bbb">—</span>')
+#     mood_badge.short_description = 'Mood'
+
+
+# # ============================================================
+# # 14. MARKET PRICE
+# # ============================================================
+# @admin.register(MarketPrice)
+# class MarketPriceAdmin(admin.ModelAdmin):
+#     list_display  = (
+#         'PriceID', 'vegetable_name', 'market_name', 'district',
+#         'price_per_kg', 'currency', 'trend_badge', 'date_recorded',
+#     )
+#     list_filter   = ('vegetable_name', 'district', 'price_trend')
+#     search_fields = ('vegetable_name', 'market_name', 'district')
+#     ordering      = ('-date_recorded',)
+#     list_per_page = 30
+
+#     def trend_badge(self, obj):
+#         t = obj.price_trend or ''
+#         colours = {'up': '#1B5E20', 'down': '#B71C1C', 'stable': '#1565C0'}
+#         icons   = {'up': '↑', 'down': '↓', 'stable': '→'}
+#         label   = f"{icons.get(t.lower(), '')} {t}".strip()
+#         return _badge(label, colours.get(t.lower(), '#555')) if t else format_html(
+#             '<span style="color:#bbb">—</span>')
+#     trend_badge.short_description = 'Trend'
+
+
+# # ── Admin site branding ────────────────────────────────────────────────────
+# admin.site.site_header = "🌿 FarmAid Lesotho"
+# admin.site.site_title  = "FarmAid Admin"
+# admin.site.index_title = "Management Dashboard"
+
+
+
+from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from django.utils.html     import format_html
+from django.utils.html import format_html
 from .models import (
-    Farmer, KnowledgeBase, AIModel, Diagnosis,
-    Treatment, PersonalizedRule, TranslationCache,
-    CropProfile, Plant, AppAlert, WeatherData,
-    FarmerInsight, GrowthJournalEntry, MarketPrice,
+    Farmer, TranslationCache, CropProfile, Plant,
+    Diagnosis, Treatment, AppAlert, WeatherData,
+    KnowledgeBase, AIModel, PersonalizedRule,
 )
 
-# ── Shared badge helpers ───────────────────────────────────────────────────
-def _badge(text, bg, fg='#fff'):
+# ── Colour helpers ─────────────────────────────────────────────────────────────
+def _badge(text, bg, fg="ffffff"):
     return format_html(
-        '<span style="background:{};color:{};padding:2px 10px;'
-        'border-radius:10px;font-size:11px;font-weight:600">{}</span>',
-        bg, fg, text)
+        '<span style="background:#{};color:#{};padding:2px 8px;'
+        'border-radius:4px;font-size:11px;font-weight:bold">{}</span>',
+        bg, fg, text,
+    )
 
-def any_label():
-    return format_html('<span style="color:#bbb;font-size:11px">Any</span>')
-
-def conf_bar(level):
-    pct   = int((level or 0) * 100)
-    color = '#1B5E20' if pct >= 75 else '#F57F17' if pct >= 50 else '#B71C1C'
+def _bar(value, max_val=1.0, color="2E7D32"):
+    pct = min(int(value / max_val * 100), 100)
     return format_html(
-        '<div style="width:80px;background:#eee;border-radius:4px;height:14px">'
-        '<div style="width:{}%;background:{};border-radius:4px;height:14px;'
-        'text-align:center;color:#fff;font-size:10px;line-height:14px">'
-        '{}%</div></div>', pct, color, pct)
+        '<div style="background:#e0e0e0;border-radius:4px;width:100px;height:12px">'
+        '<div style="background:#{};width:{}%;height:12px;border-radius:4px"></div>'
+        '</div><small>{:.1f}%</small>',
+        color, pct, value * 100,
+    )
 
-
-# ============================================================
-# 1. FARMER
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# FARMER  (AbstractUser — real fields: phone_number, location, language_preferences)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(Farmer)
 class FarmerAdmin(UserAdmin):
-    list_display = (
-        'username', 'email', 'phone_number', 'district',
-        'experience_badge', 'language_preferences',
-        'notification_diseases', 'notification_weather', 'notification_market',
-        'is_active_badge', 'is_staff', 'is_superuser',
+    list_display  = (
+        'username', 'email', 'phone_number', 'location',
+        'language_badge', 'role_badge',
+        'is_active', 'is_staff', 'date_joined',
     )
-    search_fields = ('username', 'email', 'district')
-    list_filter   = ('is_staff', 'is_superuser', 'is_active',
-                     'district', 'experience_level', 'language_preferences')
+    search_fields = ('username', 'email', 'location', 'phone_number')
+    list_filter   = ('is_staff', 'is_superuser', 'is_active', 'language_preferences')
     ordering      = ('-date_joined',)
     list_per_page = 25
     date_hierarchy = 'date_joined'
 
     fieldsets = UserAdmin.fieldsets + (
         ('FarmAid — Farmer Profile', {
-            'fields': (
-                'phone_number', 'district', 'language_preferences',
-                'profile_photo_url', 'farm_size_hectares', 'experience_level',
-            ),
-        }),
-        ('FarmAid — Notification Preferences', {
-            'fields': (
-                'notification_diseases', 'notification_weather', 'notification_market',
-            ),
-        }),
-        ('FarmAid — App Status', {
-            'fields': ('onboarding_complete', 'last_active'),
+            'fields': ('phone_number', 'location', 'language_preferences'),
         }),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('FarmAid — Farmer Profile', {
-            'fields': (
-                'email', 'phone_number', 'district',
-                'language_preferences', 'experience_level',
-            ),
+            'fields': ('phone_number', 'location', 'language_preferences'),
         }),
     )
 
-    def experience_badge(self, obj):
-        colours = {'beginner': '#388E3C', 'intermediate': '#F57F17', 'expert': '#1565C0'}
-        c = colours.get(obj.experience_level, '#555')
-        return _badge(obj.experience_level or '—', c)
-    experience_badge.short_description = 'Level'
+    @admin.display(description='Language')
+    def language_badge(self, obj):
+        if obj.language_preferences == 'st':
+            return _badge('Sesotho', '1B5E20')
+        return _badge('English', '1565C0')
 
-    def is_active_badge(self, obj):
-        return _badge('Active', '#1B5E20') if obj.is_active else _badge('Inactive', '#B71C1C')
-    is_active_badge.short_description = 'Status'
+    @admin.display(description='Role')
+    def role_badge(self, obj):
+        if obj.is_superuser:
+            return _badge('Admin', 'B71C1C')
+        if obj.is_staff:
+            return _badge('Staff', 'E65100')
+        return _badge('Farmer', '2E7D32')
 
 
-# ============================================================
-# 2. CROP PROFILE
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# TRANSLATION CACHE  (PK: disease_name_en)
+# ══════════════════════════════════════════════════════════════════════════════
+@admin.register(TranslationCache)
+class TranslationCacheAdmin(admin.ModelAdmin):
+    list_display  = ('disease_name_en', 'pesticide_st', 'dosage_st', 'last_updated')
+    search_fields = ('disease_name_en', 'pesticide_st')
+    ordering      = ('disease_name_en',)
+    list_per_page = 30
+    readonly_fields = ('last_updated',)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CROP PROFILE  (fields: ProfileID, FarmerID, VegetableType, SoilEnvironment,
+#                        FarmLocation, PlantingDate, IsActive, CreatedAt)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(CropProfile)
 class CropProfileAdmin(admin.ModelAdmin):
     list_display  = (
-        'ProfileID', 'get_farmer', 'VegetableType', 'SoilEnvironment',
-        'irrigation_method', 'seed_variety', 'growth_stage', 'is_active_badge', 'PlantingDate',
+        'ProfileID', 'get_farmer', 'VegetableType',
+        'SoilEnvironment', 'FarmLocation', 'active_badge', 'PlantingDate',
     )
-    list_filter   = ('VegetableType', 'SoilEnvironment', 'irrigation_method', 'IsActive')
-    search_fields = ('VegetableType', 'seed_variety', 'FarmerID__username')
+    list_filter   = ('VegetableType', 'SoilEnvironment', 'IsActive')
+    search_fields = ('VegetableType', 'FarmLocation', 'FarmerID__username')
     ordering      = ('-PlantingDate',)
     list_per_page = 30
 
+    @admin.display(description='Farmer', ordering='FarmerID__username')
     def get_farmer(self, obj):
         return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
 
-    def growth_stage(self, obj):
-        return obj.growth_stage_label
-    growth_stage.short_description = 'Growth Stage'
-
-    def is_active_badge(self, obj):
-        return _badge('Active', '#1B5E20') if obj.IsActive else _badge('Inactive', '#555')
-    is_active_badge.short_description = 'Active'
+    @admin.display(description='Active', boolean=False)
+    def active_badge(self, obj):
+        return _badge('Active', '2E7D32') if obj.IsActive else _badge('Inactive', '757575')
 
 
-# ============================================================
-# 3. PLANT
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# PLANT  (FarmerID, CropProfile FK, CropType, ImageFile, DateCaptured)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(Plant)
 class PlantAdmin(admin.ModelAdmin):
     list_display  = (
-        'PlantID', 'get_farmer', 'CropType', 'gps_district',
-        'latitude', 'longitude', 'altitude_meters', 'image_link', 'DateCaptured',
+        'PlantID', 'get_farmer', 'CropType',
+        'get_profile', 'image_link', 'DateCaptured',
     )
-    list_filter   = ('CropType', 'gps_district')
-    search_fields = ('CropType', 'FarmerID__username', 'gps_district')
+    search_fields = ('CropType', 'FarmerID__username')
+    list_filter   = ('CropType',)
     ordering      = ('-DateCaptured',)
     list_per_page = 30
     date_hierarchy = 'DateCaptured'
 
+    @admin.display(description='Farmer', ordering='FarmerID__username')
     def get_farmer(self, obj):
         return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
 
-    def image_link(self, obj):
-        if obj.ImageURL:
-            return format_html(
-                '<a href="{}" target="_blank" style="color:#1B5E20;font-weight:600">View ↗</a>',
-                obj.ImageURL)
+    @admin.display(description='Crop Profile')
+    def get_profile(self, obj):
+        if obj.CropProfile:
+            return f"{obj.CropProfile.VegetableType} (#{obj.CropProfile.ProfileID})"
         return '—'
-    image_link.short_description = 'Image'
+
+    @admin.display(description='Image')
+    def image_link(self, obj):
+        if obj.ImageFile:
+            return format_html(
+                '<a href="{}" target="_blank">View</a>', obj.ImageFile)
+        return '—'
 
 
-# ============================================================
-# 4. DIAGNOSIS
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# DIAGNOSIS  (PlantID FK, DiseaseName, ConfidenceLevel, DateDiagnosed)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(Diagnosis)
 class DiagnosisAdmin(admin.ModelAdmin):
-    list_display = (
-        'DiagnosisID', 'get_farmer', 'disease_badge',
-        'confidence_display', 'severity', 'farmer_feedback',
-        'treatment_applied', 'treatment_outcome',
-        'follow_up_date', 'DateDiagnosed',
-    )
-    list_filter  = (
-        'DiseaseName', 'severity', 'farmer_feedback',
-        'treatment_applied', 'treatment_outcome', 'DateDiagnosed',
+    list_display  = (
+        'DiagnosisID', 'get_farmer', 'get_crop',
+        'DiseaseName', 'confidence_bar', 'DateDiagnosed',
     )
     search_fields = ('DiseaseName', 'PlantID__FarmerID__username')
+    list_filter   = ('DiseaseName',)
     ordering      = ('-DateDiagnosed',)
-    list_per_page = 30
+    list_per_page = 40
     date_hierarchy = 'DateDiagnosed'
 
+    @admin.display(description='Farmer')
     def get_farmer(self, obj):
         return obj.PlantID.FarmerID.username
-    get_farmer.short_description = 'Farmer'
 
-    def disease_badge(self, obj):
-        name = obj.DiseaseName.replace('_', ' ')
-        return _badge(name, '#1B5E20') if 'healthy' in name.lower() else _badge(name, '#B71C1C')
-    disease_badge.short_description = 'Disease'
+    @admin.display(description='Crop')
+    def get_crop(self, obj):
+        return obj.PlantID.CropType
 
-    def confidence_display(self, obj):
-        return conf_bar(obj.ConfidenceLevel)
-    confidence_display.short_description = 'Confidence'
+    @admin.display(description='Confidence')
+    def confidence_bar(self, obj):
+        return _bar(obj.ConfidenceLevel)
 
 
-# ============================================================
-# 5. TREATMENT
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# TREATMENT  (DiseaseName, RecommendedPesticide, Dosage, ApplicationSteps)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(Treatment)
 class TreatmentAdmin(admin.ModelAdmin):
-    list_display  = ('TreatmentID', 'DiseaseName', 'RecommendedPesticide', 'Dosage')
+    list_display  = (
+        'TreatmentID', 'DiseaseName',
+        'RecommendedPesticide', 'Dosage',
+    )
     search_fields = ('DiseaseName', 'RecommendedPesticide')
-    list_filter   = ('DiseaseName',)
     ordering      = ('DiseaseName',)
     list_per_page = 30
 
 
-# ============================================================
-# 6. APP ALERT
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# APP ALERT  (FarmerID, RelatedCrop, Title, Message, alert_type, IsRead)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(AppAlert)
 class AppAlertAdmin(admin.ModelAdmin):
     list_display  = (
-        'AlertID', 'get_farmer', 'alert_type', 'priority',
-        'Title', 'district_target', 'is_read_badge', 'expires_at', 'DateCreated',
+        'AlertID', 'get_farmer', 'alert_type_badge',
+        'Title', 'read_badge', 'DateCreated',
     )
-    list_filter   = ('alert_type', 'priority', 'IsRead', 'district_target')
     search_fields = ('Title', 'Message', 'FarmerID__username')
+    list_filter   = ('IsRead', 'alert_type')
     ordering      = ('-DateCreated',)
-    list_per_page = 30
+    list_per_page = 40
     date_hierarchy = 'DateCreated'
-    actions       = ['mark_read']
+    actions       = ['mark_read', 'mark_unread']
 
+    @admin.display(description='Farmer', ordering='FarmerID__username')
     def get_farmer(self, obj):
-        return obj.FarmerID.username if obj.FarmerID else '(broadcast)'
-    get_farmer.short_description = 'Farmer'
+        return obj.FarmerID.username
 
-    def is_read_badge(self, obj):
-        return _badge('Read', '#1B5E20') if obj.IsRead else _badge('Unread', '#E65100')
-    is_read_badge.short_description = 'Status'
+    @admin.display(description='Type')
+    def alert_type_badge(self, obj):
+        colors = {
+            'weather':  '1565C0',
+            'disease':  'B71C1C',
+            'market':   'E65100',
+            'system':   '424242',
+        }
+        color = colors.get(obj.alert_type, '607D8B')
+        return _badge(obj.alert_type.title(), color)
 
-    @admin.action(description='✅ Mark selected alerts as read')
-    def mark_read(self, request, queryset):
-        n = queryset.update(IsRead=True)
-        self.message_user(request, f'{n} alert(s) marked as read.')
+    @admin.display(description='Read')
+    def read_badge(self, obj):
+        return _badge('Read', '2E7D32') if obj.IsRead else _badge('Unread', 'F57F17', '000000')
+
+    @admin.action(description='Mark selected as read')
+    def mark_read(self, request, qs):
+        qs.update(IsRead=True)
+
+    @admin.action(description='Mark selected as unread')
+    def mark_unread(self, request, qs):
+        qs.update(IsRead=False)
 
 
-# ============================================================
-# 7. WEATHER DATA
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# WEATHER DATA  (Temperature, Humidity, Rainfall, AlertMessage, DateUpdated)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(WeatherData)
 class WeatherDataAdmin(admin.ModelAdmin):
     list_display  = (
-        'WeatherID', 'district', 'Temperature', 'Humidity',
-        'Rainfall', 'rainfall_last_7_days', 'AlertMessage', 'DateUpdated',
+        'WeatherID', 'Temperature', 'Humidity',
+        'Rainfall', 'AlertMessage', 'DateUpdated',
     )
-    list_filter   = ('district',)
-    search_fields = ('district',)
     ordering      = ('-DateUpdated',)
     list_per_page = 30
+    date_hierarchy = 'DateUpdated'
 
 
-# ============================================================
-# 8. KNOWLEDGE BASE
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# KNOWLEDGE BASE  (DiseaseName, Symptoms, TreatmentInfo, LastUpdated)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(KnowledgeBase)
 class KnowledgeBaseAdmin(admin.ModelAdmin):
-    list_display  = ('DiseaseName', 'short_symptoms', 'short_prevention', 'LastUpdated')
-    search_fields = ('DiseaseName', 'Symptoms', 'Prevention')
+    list_display  = ('EntryID', 'DiseaseName', 'short_symptoms', 'LastUpdated')
+    search_fields = ('DiseaseName', 'Symptoms')
     ordering      = ('DiseaseName',)
     list_per_page = 30
 
+    @admin.display(description='Symptoms (preview)')
     def short_symptoms(self, obj):
-        t = obj.Symptoms or ''
-        return (t[:65] + '…') if len(t) > 65 else t
-    short_symptoms.short_description = 'Symptoms'
-
-    def short_prevention(self, obj):
-        t = obj.Prevention or ''
-        return (t[:65] + '…') if len(t) > 65 else t
-    short_prevention.short_description = 'Prevention'
+        return obj.Symptoms[:80] + '…' if len(obj.Symptoms) > 80 else obj.Symptoms
 
 
-# ============================================================
-# 9. AI MODEL
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# AI MODEL  (Version, AccuracyRate, LastTrainedDate)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
     list_display  = ('ModelID', 'Version', 'accuracy_bar', 'LastTrainedDate')
     ordering      = ('-LastTrainedDate',)
     list_per_page = 20
 
+    @admin.display(description='Accuracy')
     def accuracy_bar(self, obj):
-        return conf_bar(obj.AccuracyRate)
-    accuracy_bar.short_description = 'Accuracy'
+        return _bar(obj.AccuracyRate / 100.0)
 
 
-# ============================================================
-# 10. TRANSLATION CACHE
-# ============================================================
-@admin.register(TranslationCache)
-class TranslationCacheAdmin(admin.ModelAdmin):
-    list_display  = ('disease_name_en', 'pesticide_st', 'dosage_st', 'last_updated')
-    search_fields = ('disease_name_en',)
-    ordering      = ('disease_name_en',)
-    list_per_page = 30
-
-
-# ============================================================
-# 11. PERSONALIZED RULE ENGINE
-# ============================================================
+# ══════════════════════════════════════════════════════════════════════════════
+# PERSONALIZED RULE  (DiseaseName, TriggerSoilType, TriggerLocation,
+#                     MinDaysSincePlanting, MaxDaysSincePlanting,
+#                     ExpertAdvice, RecommendationCategory)
+# ══════════════════════════════════════════════════════════════════════════════
 @admin.register(PersonalizedRule)
 class PersonalizedRuleAdmin(admin.ModelAdmin):
     list_display  = (
-        'RuleID', 'DiseaseName', 'district_badge', 'soil_badge',
-        'irrigation_badge', 'TriggerCropVariety', 'season_badge',
-        'rainfall_badge', 'growth_stage_range',
-        'RecommendationCategory', 'priority_score', 'short_advice',
+        'RuleID', 'DiseaseName', 'RecommendationCategory',
+        'TriggerSoilType', 'TriggerLocation',
+        'MinDaysSincePlanting', 'MaxDaysSincePlanting',
+        'short_advice',
     )
-    list_filter   = (
-        'DiseaseName', 'TriggerDistrict', 'TriggerSoilType',
-        'TriggerIrrigation', 'TriggerSeason', 'TriggerRainfallLevel',
-        'RecommendationCategory',
-    )
-    search_fields = ('DiseaseName', 'ExpertAdvice', 'TriggerCropVariety')
-    ordering      = ('-priority_score',)
-    list_per_page = 30
+    search_fields = ('DiseaseName', 'TriggerLocation', 'TriggerSoilType')
+    list_filter   = ('RecommendationCategory', 'TriggerSoilType')
+    ordering      = ('DiseaseName',)
+    list_per_page = 40
 
-    fieldsets = (
-        ('🔍 Disease Trigger (Required)', {
-            'fields': ('DiseaseName',),
-        }),
-        ('📍 Context Triggers — leave blank to match ALL values', {
-            'fields': (
-                'TriggerDistrict', 'TriggerSoilType', 'TriggerIrrigation',
-                'TriggerCropVariety', 'TriggerSeason', 'TriggerRainfallLevel',
-            ),
-        }),
-        ('🌿 Growth Stage Window', {
-            'fields': ('MinDaysSincePlanting', 'MaxDaysSincePlanting'),
-            'description': 'Rule only fires when days since planting falls within this range.',
-        }),
-        ('💡 Expert Advice Output', {
-            'fields': (
-                'ExpertAdvice', 'advice_beginner',
-                'RecommendationCategory', 'priority_score',
-            ),
-        }),
-    )
-
-    def district_badge(self, obj):
-        return _badge(obj.TriggerDistrict, '#1B5E20') if obj.TriggerDistrict else any_label()
-    district_badge.short_description = 'District'
-
-    def soil_badge(self, obj):
-        return _badge(obj.TriggerSoilType, '#E65100') if obj.TriggerSoilType else any_label()
-    soil_badge.short_description = 'Soil'
-
-    def irrigation_badge(self, obj):
-        return _badge(obj.TriggerIrrigation, '#1565C0') if obj.TriggerIrrigation else any_label()
-    irrigation_badge.short_description = 'Irrigation'
-
-    def season_badge(self, obj):
-        v = obj.TriggerSeason
-        return _badge(v, '#1B5E20') if v and v != 'any' else any_label()
-    season_badge.short_description = 'Season'
-
-    def rainfall_badge(self, obj):
-        v = obj.TriggerRainfallLevel
-        return _badge(v, '#1565C0') if v and v != 'any' else any_label()
-    rainfall_badge.short_description = 'Rainfall'
-
-    def growth_stage_range(self, obj):
-        mn = obj.MinDaysSincePlanting or 0
-        mx = obj.MaxDaysSincePlanting or 999
-        if mn == 0 and mx == 999:
-            return any_label()
-        return format_html('<span style="font-size:12px">Day {} – {}</span>', mn, mx)
-    growth_stage_range.short_description = 'Growth Stage (Days)'
-
+    @admin.display(description='Advice (preview)')
     def short_advice(self, obj):
-        t = obj.ExpertAdvice or ''
-        return (t[:60] + '…') if len(t) > 60 else t
-    short_advice.short_description = 'Advice Preview'
-
-
-# ============================================================
-# 12. FARMER INSIGHT
-# ============================================================
-@admin.register(FarmerInsight)
-class FarmerInsightAdmin(admin.ModelAdmin):
-    list_display   = (
-        'get_farmer', 'total_scans', 'total_diseases_detected',
-        'total_healthy_scans', 'most_scanned_crop', 'most_common_disease',
-        'streak_healthy_days', 'last_scan_date', 'last_updated',
-    )
-    search_fields  = ('FarmerID__username',)
-    readonly_fields = (
-        'total_scans', 'total_diseases_detected', 'total_healthy_scans',
-        'most_scanned_crop', 'most_common_disease', 'highest_risk_month',
-        'last_scan_date', 'streak_healthy_days', 'last_updated',
-    )
-    list_per_page  = 30
-
-    def get_farmer(self, obj):
-        return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
-
-
-# ============================================================
-# 13. GROWTH JOURNAL
-# ============================================================
-@admin.register(GrowthJournalEntry)
-class GrowthJournalEntryAdmin(admin.ModelAdmin):
-    list_display  = (
-        'EntryID', 'get_farmer', 'get_crop',
-        'title', 'mood_badge', 'entry_date', 'DateCreated',
-    )
-    list_filter   = ('mood', 'entry_date')
-    search_fields = ('title', 'body', 'FarmerID__username')
-    ordering      = ('-DateCreated',)
-    list_per_page = 30
-
-    def get_farmer(self, obj):
-        return obj.FarmerID.username
-    get_farmer.short_description = 'Farmer'
-
-    def get_crop(self, obj):
-        return obj.CropProfile.VegetableType
-    get_crop.short_description = 'Crop'
-
-    def mood_badge(self, obj):
-        colours = {
-            'great': '#1B5E20', 'good': '#388E3C',
-            'okay':  '#F57F17', 'bad':  '#B71C1C', 'terrible': '#880E4F',
-        }
-        m = (obj.mood or '').lower()
-        return _badge(obj.mood, colours.get(m, '#555')) if obj.mood else format_html(
-            '<span style="color:#bbb">—</span>')
-    mood_badge.short_description = 'Mood'
-
-
-# ============================================================
-# 14. MARKET PRICE
-# ============================================================
-@admin.register(MarketPrice)
-class MarketPriceAdmin(admin.ModelAdmin):
-    list_display  = (
-        'PriceID', 'vegetable_name', 'market_name', 'district',
-        'price_per_kg', 'currency', 'trend_badge', 'date_recorded',
-    )
-    list_filter   = ('vegetable_name', 'district', 'price_trend')
-    search_fields = ('vegetable_name', 'market_name', 'district')
-    ordering      = ('-date_recorded',)
-    list_per_page = 30
-
-    def trend_badge(self, obj):
-        t = obj.price_trend or ''
-        colours = {'up': '#1B5E20', 'down': '#B71C1C', 'stable': '#1565C0'}
-        icons   = {'up': '↑', 'down': '↓', 'stable': '→'}
-        label   = f"{icons.get(t.lower(), '')} {t}".strip()
-        return _badge(label, colours.get(t.lower(), '#555')) if t else format_html(
-            '<span style="color:#bbb">—</span>')
-    trend_badge.short_description = 'Trend'
-
-
-# ── Admin site branding ────────────────────────────────────────────────────
-admin.site.site_header = "🌿 FarmAid Lesotho"
-admin.site.site_title  = "FarmAid Admin"
-admin.site.index_title = "Management Dashboard"
+        return obj.ExpertAdvice[:80] + '…' if len(obj.ExpertAdvice) > 80 else obj.ExpertAdvice
