@@ -513,19 +513,22 @@ SOCIALACCOUNT_PROVIDERS = {
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
-    r"^http://127.0.0.1:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+    r"^https?://.*\.onrender\.com$",
 ]
 CORS_ALLOWED_ORIGINS = [
     "https://farmaid-backend.onrender.com",
     "http://localhost:59464",
+    "http://localhost:8080",
+    "http://localhost:3000",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:62803",
     "http://127.0.0.1",
-    "https://farmaid-backend.onrender.com"
+    "https://farmaid-backend.onrender.com",
 ]
 
-CORS_ALLOW_HEADERS = list(default_headers) + ['authorization']
+CORS_ALLOW_HEADERS = list(default_headers) + ['authorization', 'content-type', 'accept']
 APPEND_SLASH = True
 
 # --- EMAIL ---
