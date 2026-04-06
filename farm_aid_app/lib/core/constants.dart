@@ -1,92 +1,187 @@
-// // // lib/core/constants.dart
 
-// // class AppConstants {
-// //   // 💻 LOCAL TESTING: Use '127.0.0.1' or 'localhost' for Chrome.
-// //   // 📱 MOBILE TESTING: Use your IPv4 address (10.120.110.223) for physical devices.
-// //   static const String serverIp = "10.120.110.223"; 
-// //   static const String baseUrl = "http://$serverIp:8000/api";
+// typedef AppConstants = Constants;
 
-// //   // --- API Endpoints ---
-// //   static const String registerUrl = "$baseUrl/register/";
-// //   static const String loginUrl = "$baseUrl/login/";
-// //   static const String saveScanUrl = "$baseUrl/save-scan/"; // Added for your Neon/Django sync
+// class Constants {
+//   // --------------------------------------------------------
+//   // BASE URLs
+//   // --------------------------------------------------------
+//   static const String baseUrl        = "https://farmaid-backend.onrender.com/api";
+//   static const String apiBaseUrl     = baseUrl;
+//   static const String adminPortalUrl = "https://farmaid-backend.onrender.com/admin/";
 
-// //   // --- AI Configuration ---
-// //   // Fixed: Must be static const to live inside a class
-// //   static const String geminiApiKey = 'AIzaSyCh_Kbhuj27lplco77eq5O-tM0rupM2sAA';
+//   // --------------------------------------------------------
+//   // AUTHENTICATION
+//   // --------------------------------------------------------
+//   static const String registerUrl         = "$baseUrl/register/";
+//   static const String loginUrl            = "$baseUrl/login/";
+//   static const String resendActivationUrl = "$baseUrl/resend-activation/";
+//   static const String changePasswordUrl   = "$baseUrl/auth/change-password/";
+//   static const String googleAuthUrl       = "$baseUrl/auth/google/";
 
-// //   // --- Storage Keys ---
-// //   static const String tokenKey = "auth_token";
-// //   static const String userDataKey = "user_data";
-// // }
+//   // --------------------------------------------------------
+//   // PROFILE & SETTINGS
+//   // --------------------------------------------------------
+//   static const String profileUrl       = "$baseUrl/auth/profile/";
+//   static const String profileUpdateUrl = "$baseUrl/auth/profile/update/";
 
+//   // --------------------------------------------------------
+//   // WEATHER & REGIONAL DATA
+//   // --------------------------------------------------------
+//   static const String weatherUrl = "$baseUrl/weather/latest/";
 
-
-// class AppConstants {
-//   // 💻 LOCAL TESTING: 
-//   // - Chrome: 'localhost'
-//   // - Android Emulator: '10.0.2.2' 
-//   // - Physical Device: Your IPv4 (10.40.151.141)
-//   static const String serverIp = "10.40.151.141"; 
-//   static const String baseUrl = "http://$serverIp:8000/api";
-
-//   // --- 🔐 AUTH ENDPOINTS ---
-//   static const String registerUrl = "$baseUrl/register/";
-//   static const String loginUrl = "$baseUrl/login/";
-
-//   // --- ⚠️ ALERTS MODULE (New) ---
-//   static const String alertsUrl = "$baseUrl/alerts/";
+//   // --------------------------------------------------------
+//   // ALERTS & NOTIFICATIONS
+//   // --------------------------------------------------------
+//   static const String alertsUrl         = "$baseUrl/alerts/";
 //   static const String markAlertsReadUrl = "$baseUrl/alerts/mark-read/";
+//   static const String unreadCountUrl    = "$baseUrl/alerts/unread-count/";
 
-//   // --- 🌦️ WEATHER MODULE ---
-//   static const String weatherUrl = "$baseUrl/weather/";
+//   // --------------------------------------------------------
+//   // CROP PROFILES
+//   // --------------------------------------------------------
+//   static const String cropProfileUrl = "$baseUrl/crop-profiles/";
 
-//   // --- 🧪 SCANNER & DATABASE ---
+//   // --------------------------------------------------------
+//   // AI SCAN
+//   // --------------------------------------------------------
 //   static const String saveScanUrl = "$baseUrl/save-scan/";
-  
-//   // --- 🧠 AI CONFIGURATION ---
-//   // Using 'static const' for compile-time optimization
-//   static const String geminiApiKey = 'AIzaSyCh_Kbhuj27lplco77eq5O-tM0rupM2sAA';
+//   static const String saveScan    = saveScanUrl;
 
-//   // --- 💾 STORAGE KEYS ---
-//   static const String tokenKey = "auth_token";
-//   static const String userDataKey = "user_data";
+//   // --------------------------------------------------------
+//   // DIAGNOSIS FEEDBACK
+//   // --------------------------------------------------------
+//   static String diagnosisFeedbackUrl(int diagnosisId) =>
+//       "$baseUrl/diagnosis/$diagnosisId/feedback/";
+
+//   // --------------------------------------------------------
+//   // HISTORY & REPORTS
+//   // --------------------------------------------------------
+//   static const String farmerHistory = "$baseUrl/farmer-history/";
+//   static const String farmerReports = "$baseUrl/farmer-reports/";
+
+//   // --------------------------------------------------------
+//   // FARMER INSIGHTS (Analytics) — used by AnalyticsScreen
+//   // --------------------------------------------------------
+//   static const String farmerInsightUrl = "$baseUrl/farmer-insight/";
+
+//   // --------------------------------------------------------
+//   // GROWTH JOURNAL
+//   // --------------------------------------------------------
+//   static const String journalUrl = "$baseUrl/journal/";
+//   static String journalDeleteUrl(int entryId) =>
+//       "$baseUrl/journal/$entryId/delete/";
+
+//   // --------------------------------------------------------
+//   // MARKET PRICES
+//   // --------------------------------------------------------
+//   static const String marketPricesUrl = "$baseUrl/market-prices/";
+
+//   // --------------------------------------------------------
+//   // LOCAL STORAGE KEYS
+//   // --------------------------------------------------------
+//   static const String tokenKey      = "auth_token";
+//   static const String userDataKey   = "user_data";
+//   static const String languageKey   = "selected_language";
+//   static const String isAdminKey    = "is_admin";
+//   static const String farmerNameKey = "farmer_name";
+
+//   // Cache keys
+//   static const String insightCacheKey = "farmer_insight_cache";
+//   static const String profileCacheKey = "farmer_profile_cache";
+//   static const String weatherCacheKey = "weather_cache";
 // }
 
+typedef AppConstants = Constants;
 
-// lib/core/constants.dart 10.11.1.190
+class Constants {
+  // --------------------------------------------------------
+  // BASE URLs
+  // --------------------------------------------------------
+  static const String baseUrl        = "https://farmaid-backend.onrender.com/api";
+  static const String apiBaseUrl     = baseUrl;
+  static const String adminPortalUrl = "https://farmaid-backend.onrender.com/admin/";
 
-class AppConstants {
-  static const String serverIp = "10.65.70.167"; 
-  
-  // ✅ This fixes the 'baseUrl' member not found error
-  static const String baseUrl = "http://$serverIp:8000/api";
-  
-  // ✅ This fixes the 'apiBaseUrl' member not found error
-  static const String apiBaseUrl = baseUrl;
-
-  // --- 🔐 AUTH ENDPOINTS ---
-  static const String registerUrl = "$baseUrl/register/";
-  static const String loginUrl = "$baseUrl/login/";
-  static const String profileUrl = "$baseUrl/auth/profile/";
-  static const String profileUpdateUrl = "$baseUrl/auth/profile/update/";
-  static const String changePasswordUrl = "$baseUrl/auth/password/change/";
+  // --------------------------------------------------------
+  // AUTHENTICATION
+  // --------------------------------------------------------
+  static const String registerUrl         = "$baseUrl/register/";
+  static const String loginUrl            = "$baseUrl/login/";
   static const String resendActivationUrl = "$baseUrl/resend-activation/";
+  static const String changePasswordUrl   = "$baseUrl/auth/change-password/";
+  static const String googleAuthUrl       = "$baseUrl/auth/google/";
+  
+  // --- ADDED THIS LINE TO FIX THE ERROR ---
+  static const String passwordResetUrl    = "$baseUrl/auth/password-reset/";
 
-  // --- ⚠️ ALERTS MODULE ---
-  static const String alertsUrl = "$baseUrl/alerts/";
-  static const String markAlertsReadUrl = "$baseUrl/alerts/mark-read/";
+  // --------------------------------------------------------
+  // PROFILE & SETTINGS
+  // --------------------------------------------------------
+  static const String profileUrl       = "$baseUrl/auth/profile/";
+  static const String profileUpdateUrl = "$baseUrl/auth/profile/update/";
 
-  // --- 🌦️ WEATHER MODULE ---
+  // --------------------------------------------------------
+  // WEATHER & REGIONAL DATA
+  // --------------------------------------------------------
   static const String weatherUrl = "$baseUrl/weather/latest/";
 
-  // --- 🧪 SCANNER & DATABASE ---
-  static const String saveScanUrl = "$baseUrl/save-scan/";
-  static const String farmerReports = "$baseUrl/farmer-reports/";
-  static const String farmerHistory = "$baseUrl/farmer-history/";
+  // --------------------------------------------------------
+  // ALERTS & NOTIFICATIONS
+  // --------------------------------------------------------
+  static const String alertsUrl         = "$baseUrl/alerts/";
+  static const String markAlertsReadUrl = "$baseUrl/alerts/mark-read/";
+  static const String unreadCountUrl    = "$baseUrl/alerts/unread-count/";
+
+  // --------------------------------------------------------
+  // CROP PROFILES
+  // --------------------------------------------------------
   static const String cropProfileUrl = "$baseUrl/crop-profiles/";
 
-  // --- 💾 STORAGE KEYS ---
-  static const String tokenKey = "auth_token";
-  static const String userDataKey = "user_data";
+  // --------------------------------------------------------
+  // AI SCAN
+  // --------------------------------------------------------
+  static const String saveScanUrl = "$baseUrl/save-scan/";
+  static const String saveScan    = saveScanUrl;
+
+  // --------------------------------------------------------
+  // DIAGNOSIS FEEDBACK
+  // --------------------------------------------------------
+  static String diagnosisFeedbackUrl(int diagnosisId) =>
+      "$baseUrl/diagnosis/$diagnosisId/feedback/";
+
+  // --------------------------------------------------------
+  // HISTORY & REPORTS
+  // --------------------------------------------------------
+  static const String farmerHistory = "$baseUrl/farmer-history/";
+  static const String farmerReports = "$baseUrl/farmer-reports/";
+
+  // --------------------------------------------------------
+  // FARMER INSIGHTS (Analytics)
+  // --------------------------------------------------------
+  static const String farmerInsightUrl = "$baseUrl/farmer-insight/";
+
+  // --------------------------------------------------------
+  // GROWTH JOURNAL
+  // --------------------------------------------------------
+  static const String journalUrl = "$baseUrl/journal/";
+  static String journalDeleteUrl(int entryId) =>
+      "$baseUrl/journal/$entryId/delete/";
+
+  // --------------------------------------------------------
+  // MARKET PRICES
+  // --------------------------------------------------------
+  static const String marketPricesUrl = "$baseUrl/market-prices/";
+
+  // --------------------------------------------------------
+  // LOCAL STORAGE KEYS
+  // --------------------------------------------------------
+  static const String tokenKey      = "auth_token";
+  static const String userDataKey   = "user_data";
+  static const String languageKey   = "selected_language";
+  static const String isAdminKey    = "is_admin";
+  static const String farmerNameKey = "farmer_name";
+
+  // Cache keys
+  static const String insightCacheKey = "farmer_insight_cache";
+  static const String profileCacheKey = "farmer_profile_cache";
+  static const String weatherCacheKey = "weather_cache";
 }
