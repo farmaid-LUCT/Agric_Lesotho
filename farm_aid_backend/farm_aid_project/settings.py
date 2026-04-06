@@ -518,7 +518,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 ]
 CORS_ALLOWED_ORIGINS = [
     "https://farmaid-backend.onrender.com",
-    "http://localhost:59464",
+    "http://localhost:49375",
     "http://localhost:8080",
     "http://localhost:3000",
 ]
