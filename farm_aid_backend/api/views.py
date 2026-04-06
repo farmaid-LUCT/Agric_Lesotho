@@ -798,7 +798,7 @@ class FarmerReportsView(APIView):
                     'FarmerID_id':      request.user.id,
                     'ReportDate':       p.DateCaptured.isoformat(),
                     'DiagnosisSummary': diag.DiseaseName.replace('_', ' ').upper(),
-                    'Confidence':       float(diag.Confidence) if diag.Confidence else 1.0,
+                    'Confidence':       float(diag.ConfidenceLevel) if diag.ConfidenceLevel else 1.0,
                     'TreatmentSummary': (treat.ApplicationSteps
                                          if treat else 'Isolate plant immediately.'),
                     'ImageURL':         p.ImageFile,
