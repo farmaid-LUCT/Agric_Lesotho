@@ -14,7 +14,7 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 # --- HOSTS ---
 ALLOWED_HOSTS = [
     'farmaid-backend.onrender.com',
-    'localhost',
+    'localhost:63726',
     '127.0.0.1',
     '10.0.2.2', # Android Emulator Loopback
     '.onrender.com'
