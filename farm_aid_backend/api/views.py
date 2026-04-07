@@ -106,14 +106,37 @@ def register_farmer(request):
         )
         user.is_active = False
         user.save()
-        send_activation_email(request, user)
+
+        # Send activation email — but NEVER let a mail failure crash registration.
+        # If SMTP is misconfigured the account is still created; the user can
+        # request a new link via /api/resend-activation/.
+        email_sent = True
+        try:
+            send_activation_email(request, user)
+        except Exception as mail_err:
+            import logging
+            logging.getLogger(__name__).error(
+                f'[register] Activation email failed for {user.email}: {mail_err}'
+            )
+            email_sent = False
+
         return Response({
-            'status':  'success',
-            'message': 'Verification email sent.',
-            'email':   user.email,
+            'status':     'success',
+            'message':    (
+                'Verification email sent. Please check your inbox.'
+                if email_sent else
+                'Account created. Email delivery failed — use Resend Activation to try again.'
+            ),
+            'email':      user.email,
+            'email_sent': email_sent,
         }, status=status.HTTP_201_CREATED)
 
     except Exception as e:
+        import traceback
+        import logging
+        logging.getLogger(__name__).error(
+            f'[register] Unexpected error: {traceback.format_exc()}'
+        )
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -121,10 +144,13 @@ def send_activation_email(request, user):
     current_site    = get_current_site(request)
     uid             = urlsafe_base64_encode(force_bytes(user.pk))
     token           = default_token_generator.make_token(user)
-    activation_link = f"http://{current_site.domain}/api/activate/{uid}/{token}/"
+    activation_link = f"https://farmaid-backend.onrender.com/api/activate/{uid}/{token}/"
     EmailMessage(
         'Activate your FarmAid Lesotho Account',
-        f"Dumela {user.first_name},\n\nPlease click link to verify: {activation_link}",
+        f"Dumela {user.first_name},\n\nPlease click the link below to verify your account:\n\n"
+        f"{activation_link}\n\n"
+        f"If you did not create this account, ignore this email.\n\n"
+        f"— The FarmAid Team",
         to=[user.email],
     ).send()
 
@@ -136,8 +162,14 @@ def resend_activation_email(request):
         user = Farmer.objects.get(email=request.data.get('email'))
         if user.is_active:
             return Response({'error': 'Account already active.'}, status=400)
-        send_activation_email(request, user)
-        return Response({'message': 'New activation link sent!'})
+        try:
+            send_activation_email(request, user)
+            return Response({'message': 'New activation link sent!'})
+        except Exception as mail_err:
+            return Response(
+                {'error': f'Email delivery failed: {mail_err}. Contact support.'},
+                status=500,
+            )
     except Farmer.DoesNotExist:
         return Response({'error': 'User not found.'}, status=404)
 
