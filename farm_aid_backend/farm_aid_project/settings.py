@@ -8,21 +8,20 @@ from corsheaders.defaults import default_headers
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'u)w*v%19nm644-q@xn791_ac_@jyi_%%w(-*#cnd%0e)z*@8ib')
 
-# Set to False in production
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = False
 
 # --- HOSTS ---
 ALLOWED_HOSTS = [
     'farmaid-backend.onrender.com',
-    'localhost:63726',
+    'localhost:53594',
     '127.0.0.1',
-    '10.0.2.2', # Android Emulator Loopback
+    '10.0.2.2',
     '.onrender.com'
 ]
 
 # --- APPS ---
 INSTALLED_APPS = [
-    'jazzmin',  # Must be before admin
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -48,9 +47,10 @@ INSTALLED_APPS = [
 
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Must be first
+    'farm_aid_project.middleware.CorsExceptionMiddleware',  # must be first
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # After security, before everything else
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -91,12 +91,25 @@ DATABASES = {
 AUTH_USER_MODEL = 'api.Farmer'
 
 AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 8}},
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-    {'NAME': 'api.validators.NoCommonPasswordValidator'},
-    {'NAME': 'api.validators.PasswordStrengthValidator'},
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 8},
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+    {
+        'NAME': 'api.validators.NoCommonPasswordValidator',
+    },
+    {
+        'NAME': 'api.validators.PasswordStrengthValidator',
+    },
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -111,13 +124,13 @@ REST_FRAMEWORK = {
     ],
 }
 
-# --- ALLAUTH (Modern Config) ---
+# --- ALLAUTH ---
 SITE_ID = 1
-ACCOUNT_LOGIN_METHODS = {'email'}
-ACCOUNT_EMAIL_REQUIRED = True
-ACCOUNT_USERNAME_REQUIRED = False
+
+# FIX — replaces 3 deprecated settings that caused warnings
+ACCOUNT_LOGIN_METHODS      = {'email'}
+ACCOUNT_SIGNUP_FIELDS      = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_ADAPTER = 'allauth.account.adapter.DefaultAccountAdapter'
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
@@ -132,28 +145,25 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 # --- CORS & SECURITY ---
-CORS_ALLOW_ALL_ORIGINS = True  # Set to False and use ALLOWED_ORIGINS for strict production
 CORS_ALLOW_CREDENTIALS = True
-
-# Allows any local Flutter development port
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
     r"^http://127\.0\.0\.1:\d+$",
+    r"^https?://.*\.onrender\.com$",
 ]
-
+CORS_ALLOWED_ORIGINS = [
+    "https://farmaid-backend.onrender.com",
+    "http://localhost:59464",
+    "http://localhost:8080",
+    "http://localhost:3000",
+]
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost",
-    "https://farmaid-backend.onrender.com"
+    "http://localhost:62803",
+    "http://127.0.0.1",
+    "https://farmaid-backend.onrender.com",
 ]
 
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    'authorization',
-    'content-type',
-    'accept',
-    'origin',
-    'x-requested-with',
-]
-
+CORS_ALLOW_HEADERS = list(default_headers) + ['authorization', 'content-type', 'accept']
 APPEND_SLASH = True
 
 # --- EMAIL ---
@@ -161,7 +171,7 @@ EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST          = 'smtp.gmail.com'
 EMAIL_PORT          = 587
 EMAIL_USE_TLS       = True
-EMAIL_HOST_USER      = os.environ.get('EMAIL_HOST_USER', 'ramokhelekeeke@gmail.com')
+EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', 'ramokhelekeeke@gmail.com')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'sxhgmmpsxhtzotyh')
 DEFAULT_FROM_EMAIL  = 'FarmAid Support <ramokhelekeeke@gmail.com>'
 
@@ -186,11 +196,38 @@ CELERY_TASK_SOFT_TIME_LIMIT = 120
 CELERY_TASK_TIME_LIMIT      = 180
 CELERY_TASK_ACKS_LATE       = True
 
+CELERY_TASK_ROUTES = {
+    'api.tasks.sync_weather_and_generate_alerts': {'queue': 'weather'},
+    'api.tasks.send_followup_reminders':          {'queue': 'reminders'},
+    'api.tasks.send_market_price_alerts':         {'queue': 'market'},
+}
+
+CELERY_BEAT_SCHEDULE = {
+    'fetch-weather-every-12-hours': {
+        'task':     'api.tasks.sync_weather_and_generate_alerts',
+        'schedule': crontab(minute=0, hour='*/12'),
+        'options':  {'expires': 3600},
+    },
+    # Uncomment after: pip install ephem
+    # 'sunrise-weather-maseru': {
+    #     'task':     'api.tasks.sync_weather_and_generate_alerts',
+    #     'schedule': solar('sunrise', -29.31, 27.48),
+    #     'options':  {'expires': 1800},
+    # },
+    'followup-reminders-daily': {
+        'task':     'api.tasks.send_followup_reminders',
+        'schedule': crontab(minute=0, hour=7),
+    },
+    'market-alerts-daily': {
+        'task':     'api.tasks.send_market_price_alerts',
+        'schedule': crontab(minute=0, hour=8),
+    },
+}
+
 # --- STATIC & MEDIA ---
 STATIC_URL          = 'static/'
 STATIC_ROOT         = os.path.join(BASE_DIR, 'staticfiles')
-# WhiteNoise optimized for production
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 
 MEDIA_URL  = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -204,24 +241,125 @@ JAZZMIN_SETTINGS = {
     "site_brand":   "FarmAid Management",
     "welcome_sign": "FarmAid Management System",
     "copyright":    "FarmAid Lesotho",
-    "show_sidebar": True,
-    "navigation_expanded": True,
-    "icons": {
-        "auth": "fas fa-users-cog",
-        "api.Farmer": "fas fa-user-tag",
-        "api.Plant": "fas fa-leaf",
-        "api.AppAlert": "fas fa-bell",
-        "api.WeatherData": "fas fa-cloud-sun-rain",
+
+    "topmenu_links": [
+        {
+            "name":        "Home",
+            "url":         "admin:index",
+            "permissions": ["auth.view_user"],
+        },
+        {
+            "name":  "Activity Log",
+            "model": "admin.LogEntry",
+        },
+        {
+            "name": "Sign Out",
+            "url":  "/admin/logout/",
+            "icon": "fas fa-sign-out-alt",
+        },
+    ],
+
+    "custom_links": {
+        "api": [
+            {
+                "name":        "Knowledge Base",
+                "url":         "admin:api_knowledgebase_changelist",
+                "icon":        "fas fa-book-open",
+                "permissions": ["api.view_knowledgebase"],
+            },
+            {
+                "name":        "Translation Cache",
+                "url":         "admin:api_translationcache_changelist",
+                "icon":        "fas fa-language",
+                "permissions": ["api.view_translationcache"],
+            },
+            {
+                "name":        "Personalized Rules",
+                "url":         "admin:api_personalizedrule_changelist",
+                "icon":        "fas fa-gavel",
+                "permissions": ["api.view_personalizedrule"],
+            },
+            {
+                "name":        "Market Prices",
+                "url":         "admin:api_marketprice_changelist",
+                "icon":        "fas fa-chart-line",
+                "permissions": ["api.view_marketprice"],
+            },
+        ],
     },
+
+    "show_sidebar":        True,
+    "navigation_expanded": True,
+
+    "icons": {
+        "admin.LogEntry":                      "fas fa-history",
+        "auth":                                "fas fa-users-cog",
+        "auth.Group":                          "fas fa-users",
+        "api.Farmer":                          "fas fa-user-tag",
+        "api.CropProfile":                     "fas fa-seedling",
+        "api.Plant":                           "fas fa-leaf",
+        "api.Diagnosis":                       "fas fa-stethoscope",
+        "api.Treatment":                       "fas fa-prescription-bottle-alt",
+        "api.AppAlert":                        "fas fa-bell",
+        "api.WeatherData":                     "fas fa-cloud-sun-rain",
+        "api.KnowledgeBase":                   "fas fa-book-open",
+        "api.AIModel":                         "fas fa-robot",
+        "api.TranslationCache":                "fas fa-language",
+        "api.PersonalizedRule":                "fas fa-gavel",
+        "api.FarmerInsight":                   "fas fa-chart-pie",
+        "api.GrowthJournalEntry":              "fas fa-journal-whills",
+        "api.MarketPrice":                     "fas fa-chart-line",
+        "django_celery_beat.PeriodicTask":     "fas fa-clock",
+        "django_celery_beat.CrontabSchedule":  "fas fa-calendar",
+        "django_celery_beat.IntervalSchedule": "fas fa-redo",
+        "django_celery_beat.SolarSchedule":    "fas fa-sun",
+        "django_celery_beat.ClockedSchedule":  "fas fa-hourglass",
+        "django_celery_results.TaskResult":    "fas fa-tasks",
+        "django_celery_results.GroupResult":   "fas fa-layer-group",
+        "account.EmailAddress":                "fas fa-envelope",
+        "socialaccount.SocialApp":             "fas fa-plug",
+        "socialaccount.SocialToken":           "fas fa-key",
+        "socialaccount.SocialAccount":         "fas fa-user-circle",
+    },
+
+    "order_with_respect_to": [
+        "api",
+        "api.Farmer",
+        "api.CropProfile",
+        "api.Plant",
+        "api.Diagnosis",
+        "api.Treatment",
+        "api.AppAlert",
+        "api.WeatherData",
+        "api.KnowledgeBase",
+        "api.TranslationCache",
+        "api.PersonalizedRule",
+        "api.FarmerInsight",
+        "api.GrowthJournalEntry",
+        "api.MarketPrice",
+        "django_celery_beat",
+        "django_celery_results",
+        "auth",
+        "account",
+        "socialaccount",
+    ],
+
+    "hide_apps":   [],
+    "hide_models": [],
 }
 
 JAZZMIN_UI_TWEAKS = {
-    "brand_colour": "navbar-success",
-    "accent": "accent-teal",
-    "navbar": "navbar-dark",
-    "sidebar": "sidebar-dark-success",
+    "brand_colour":             "navbar-success",
+    "accent":                   "accent-teal",
+    "navbar":                   "navbar-dark",
+    "navbar_fixed":             True,
+    "sidebar_fixed":            True,
+    "sidebar":                  "sidebar-dark-success",
+    "sidebar_nav_child_indent": True,
+    "sidebar_nav_flat_style":   True,
+    "theme":                    "default",
 }
 
-LOGOUT_ON_GET = True
-LOGIN_URL = '/admin/login/'
+LOGOUT_ON_GET      = True
+LOGIN_URL          = '/admin/login/'
 LOGIN_REDIRECT_URL = '/admin/'
