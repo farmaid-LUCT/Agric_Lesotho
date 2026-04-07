@@ -18,8 +18,9 @@ psycopg==3.2.4
 python-dotenv==1.0.1
 
 # --- AI & IMAGE PROCESSING (OPTIMIZED FOR RENDER) ---
-# Using tensorflow-cpu to stay within Render's free/starter tier RAM limits
-tensorflow-cpu==2.15.0
+# tflite-runtime is a ~15MB drop-in replacement for tensorflow for inference only.
+# tensorflow-cpu is 2.5GB+ and will crash Render's free tier on install.
+tflite-runtime==2.14.0
 numpy==1.26.4
 pillow==10.4.0
 
