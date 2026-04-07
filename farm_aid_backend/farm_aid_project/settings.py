@@ -6,17 +6,19 @@ from datetime import timedelta
 from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'u)w*v%19nm644-q@xn791_ac_@jyi_%%w(-*#cnd%0e)z*@8ib')
+
+# --- SECURITY --- pulled from Render environment variables
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'change-me-in-production')
 
 DEBUG = False
 
 # --- HOSTS ---
 ALLOWED_HOSTS = [
     'farmaid-backend.onrender.com',
-    'localhost:53594',
+    '.onrender.com',
+    'localhost',
     '127.0.0.1',
     '10.0.2.2',
-    '.onrender.com'
 ]
 
 # --- APPS ---
@@ -81,10 +83,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'farm_aid_project.wsgi.application'
 
-# --- DATABASE (Neon.tech) ---
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://neondb_owner:npg_Z46qfbzXJSuj@ep-long-credit-ahfpyg3c-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require')
+# --- DATABASE (Neon.tech) --- pulled from Render environment variables
 DATABASES = {
-    'default': dj_database_url.parse(DATABASE_URL)
+    'default': dj_database_url.parse(
+        os.environ.get('DATABASE_URL', '')
+    )
 }
 
 # --- AUTHENTICATION ---
@@ -127,7 +130,6 @@ REST_FRAMEWORK = {
 # --- ALLAUTH ---
 SITE_ID = 1
 
-# FIX — replaces 3 deprecated settings that caused warnings
 ACCOUNT_LOGIN_METHODS      = {'email'}
 ACCOUNT_SIGNUP_FIELDS      = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
@@ -145,34 +147,49 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 # --- CORS & SECURITY ---
-CORS_ALLOW_CREDENTIALS = True
+# Allow all origins so any Flutter localhost port works during development
+CORS_ALLOW_ALL_ORIGINS   = True
+CORS_ALLOW_CREDENTIALS   = True
+
+# Also cover specific origins explicitly
+CORS_ALLOWED_ORIGINS = [
+    "https://farmaid-backend.onrender.com",
+    "http://localhost:8080",
+    "http://localhost:3000",
+]
+
+# Regex covers any localhost port Flutter assigns dynamically
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://localhost:\d+$",
     r"^http://127\.0\.0\.1:\d+$",
     r"^https?://.*\.onrender\.com$",
 ]
-CORS_ALLOWED_ORIGINS = [
-    "https://farmaid-backend.onrender.com",
-    "http://localhost:59464",
-    "http://localhost:8080",
-    "http://localhost:3000",
-]
+
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:62803",
+    "http://localhost",
     "http://127.0.0.1",
     "https://farmaid-backend.onrender.com",
 ]
 
-CORS_ALLOW_HEADERS = list(default_headers) + ['authorization', 'content-type', 'accept']
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'authorization',
+    'content-type',
+    'accept',
+    'origin',
+    'x-requested-with',
+]
+
 APPEND_SLASH = True
 
-# --- EMAIL ---
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# --- EMAIL (Gmail SMTP via App Password) ---
+# EMAIL_HOST_USER and EMAIL_HOST_PASSWORD are set in Render environment variables
+# Never hardcode passwords here — the repo is public
+EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST          = 'smtp.gmail.com'
 EMAIL_PORT          = 587
 EMAIL_USE_TLS       = True
-EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', 'ramokhelekeeke@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'sxhgmmpsxhtzotyh')
+EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL  = 'FarmAid Support <ramokhelekeeke@gmail.com>'
 
 # --- TIMEZONE ---
@@ -208,12 +225,6 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute=0, hour='*/12'),
         'options':  {'expires': 3600},
     },
-    # Uncomment after: pip install ephem
-    # 'sunrise-weather-maseru': {
-    #     'task':     'api.tasks.sync_weather_and_generate_alerts',
-    #     'schedule': solar('sunrise', -29.31, 27.48),
-    #     'options':  {'expires': 1800},
-    # },
     'followup-reminders-daily': {
         'task':     'api.tasks.send_followup_reminders',
         'schedule': crontab(minute=0, hour=7),
