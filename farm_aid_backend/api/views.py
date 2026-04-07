@@ -141,7 +141,6 @@ def register_farmer(request):
 
 
 def send_activation_email(request, user):
-    current_site    = get_current_site(request)
     uid             = urlsafe_base64_encode(force_bytes(user.pk))
     token           = default_token_generator.make_token(user)
     activation_link = f"https://farmaid-backend.onrender.com/api/activate/{uid}/{token}/"
@@ -1268,11 +1267,9 @@ def password_reset_request(request):
         # Return 200 to avoid revealing whether the account exists
         return Response({'status': 'If that address is registered, a reset link has been sent.'})
 
-    uid   = urlsafe_base64_encode(force_bytes(farmer.pk))
-    token = default_token_generator.make_token(farmer)
-
-    site = get_current_site(request)
-    reset_link = f"https://{site.domain}/api/auth/password-reset/confirm/{uid}/{token}/"
+    uid        = urlsafe_base64_encode(force_bytes(farmer.pk))
+    token      = default_token_generator.make_token(farmer)
+    reset_link = f"https://farmaid-backend.onrender.com/api/auth/password-reset/confirm/{uid}/{token}/"
 
     subject = 'FarmAid Lesotho — Password Reset'
     body = (
