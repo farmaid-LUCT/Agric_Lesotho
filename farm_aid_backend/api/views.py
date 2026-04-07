@@ -764,164 +764,393 @@ class SaveScanView(APIView):
 # ── 8. HISTORY & REPORTS ─────────────────────────────────────────────────────
 
 class FarmerHistoryView(APIView):
+    """
+    GET /api/farmer-history/
+    Returns each scanned plant with its latest diagnosis.
+
+    Optional query params:
+      ?limit=N        — return only the N most recent records (default: all)
+      ?disease=name   — filter by disease name (case-insensitive, partial match)
+      ?crop=name      — filter by crop type
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        plants  = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
+        plants = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
+
+        # Optional crop filter
+        crop_filter = request.query_params.get('crop')
+        if crop_filter:
+            plants = plants.filter(CropType__icontains=crop_filter)
+
+        # Optional limit
+        limit = request.query_params.get('limit')
+        if limit:
+            try:
+                plants = plants[:int(limit)]
+            except (ValueError, TypeError):
+                pass
+
         history = []
         for p in plants:
-            diag = Diagnosis.objects.filter(PlantID=p).first()
-            if diag:
-                history.append({
-                    'plant_id': p.PlantID,
-                    'crop':     p.CropType,
-                    'image':    p.ImageFile,
-                    'disease':  diag.DiseaseName,
-                    'date':     p.DateCaptured.strftime('%d %b, %Y'),
-                })
+            diag = Diagnosis.objects.filter(PlantID=p).order_by('-DateDiagnosed').first()
+            if not diag:
+                continue
+
+            # Optional disease filter (applied after fetch to allow partial match)
+            disease_filter = request.query_params.get('disease', '')
+            if disease_filter and disease_filter.lower() not in diag.DiseaseName.lower():
+                continue
+
+            is_healthy  = diag.DiseaseName.lower() == 'healthy'
+            risk_score  = 0.0 if is_healthy else float(diag.ConfidenceLevel or 0.0)
+
+            history.append({
+                'plant_id':         p.PlantID,
+                'crop':             p.CropType,
+                'image':            p.ImageFile,
+                'disease':          diag.DiseaseName,
+                'disease_display':  diag.DiseaseName.replace('_', ' ').title(),
+                'confidence':       float(diag.ConfidenceLevel or 0.0),
+                'risk':             risk_score,
+                'is_healthy':       is_healthy,
+                'severity':         diag.severity,
+                'follow_up_date':   diag.follow_up_date.isoformat() if diag.follow_up_date else None,
+                'feedback_given':   bool(diag.farmer_feedback),
+                'date':             p.DateCaptured.strftime('%d %b, %Y'),
+                'date_iso':         p.DateCaptured.isoformat(),
+                'district':         p.gps_district or '',
+                'latitude':         p.latitude,
+                'longitude':        p.longitude,
+                'diagnosis_id':     diag.DiagnosisID,
+            })
+
         return Response(history)
 
 
 class FarmerReportsView(APIView):
+    """
+    GET /api/farmer-reports/
+    Returns enriched scan records used by the Insights & History screens.
+
+    Each record includes:
+      - ReportDate, DiagnosisSummary, Confidence, TreatmentSummary, ImageURL
+      - risk  : 0.0 for healthy scans, ConfidenceLevel for diseased (used by trend chart)
+      - date  : parsed DateTime object hint (ISO string) so Flutter can build the chart axis
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         plants      = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
         report_data = []
+
         for p in plants:
-            diag = Diagnosis.objects.filter(PlantID=p).first()
-            if diag:
-                treat = Treatment.objects.filter(
-                    DiseaseName__iexact=diag.DiseaseName
-                ).first()
-                report_data.append({
-                    'FarmerID_id':      request.user.id,
-                    'ReportDate':       p.DateCaptured.isoformat(),
-                    'DiagnosisSummary': diag.DiseaseName.replace('_', ' ').upper(),
-                    'Confidence':       float(diag.ConfidenceLevel) if diag.ConfidenceLevel else 1.0,
-                    'TreatmentSummary': (treat.ApplicationSteps
-                                         if treat else 'Isolate plant immediately.'),
-                    'ImageURL':         p.ImageFile,
-                })
+            diag = Diagnosis.objects.filter(PlantID=p).order_by('-DateDiagnosed').first()
+            if not diag:
+                continue
+
+            treat = Treatment.objects.filter(
+                DiseaseName__iexact=diag.DiseaseName
+            ).first()
+
+            is_healthy = diag.DiseaseName.lower() == 'healthy'
+            risk_score = 0.0 if is_healthy else float(diag.ConfidenceLevel or 0.0)
+
+            treatment_text = 'No treatment needed — plant is healthy.'
+            if not is_healthy:
+                if treat and treat.ApplicationSteps:
+                    treatment_text = treat.ApplicationSteps
+                else:
+                    treatment_text = 'Isolate plant immediately and consult your local agricultural officer.'
+
+            report_data.append({
+                'FarmerID_id':      request.user.id,
+                'ReportDate':       p.DateCaptured.isoformat(),
+                'DiagnosisSummary': diag.DiseaseName.replace('_', ' ').upper(),
+                'Confidence':       float(diag.ConfidenceLevel or 0.0),
+                'risk':             risk_score,          # ← used by TrendChart in Flutter
+                'is_healthy':       is_healthy,
+                'TreatmentSummary': treatment_text,
+                'pesticide':        treat.RecommendedPesticide if treat else '',
+                'dosage':           treat.Dosage if treat else '',
+                'ImageURL':         p.ImageFile,
+                'crop':             p.CropType,
+                'district':         p.gps_district or '',
+                'diagnosis_id':     diag.DiagnosisID,
+                'severity':         diag.severity,
+                'follow_up_date':   diag.follow_up_date.isoformat() if diag.follow_up_date else None,
+                'feedback':         diag.farmer_feedback,
+                'treatment_applied': diag.treatment_applied,
+                'treatment_outcome': diag.treatment_outcome,
+            })
+
         return Response(report_data)
 
 
 # ── 9. MARKET PRICES ─────────────────────────────────────────────────────────
 
 class MarketPricesView(APIView):
+    """
+    GET /api/market-prices/
+    Optional query params:
+      ?district=Maseru   — filter by district
+      ?vegetable=tomato  — filter by vegetable name (partial, case-insensitive)
+      ?limit=N           — cap results
+
+    Returns prices sorted newest first with trend badge.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        district = request.query_params.get('district')
-        prices   = MarketPrice.objects.all().order_by('-date_recorded')
+        prices = MarketPrice.objects.all().order_by('-date_recorded')
+
+        district  = request.query_params.get('district')
+        vegetable = request.query_params.get('vegetable')
+        limit     = request.query_params.get('limit')
+
         if district:
             prices = prices.filter(district__iexact=district)
-        return Response([{
-            'id':             p.PriceID,
-            'vegetable_name': p.vegetable_name,
-            'market_name':    p.market_name,
-            'district':       p.district,
-            'price_per_kg':   float(p.price_per_kg),
-            'currency':       p.currency,
-            'date_recorded':  p.date_recorded.isoformat(),
-            'price_trend':    p.price_trend,
-        } for p in prices])
+        if vegetable:
+            prices = prices.filter(vegetable_name__icontains=vegetable)
+        if limit:
+            try:
+                prices = prices[:int(limit)]
+            except (ValueError, TypeError):
+                pass
+
+        data = []
+        for p in prices:
+            # Compute a simple week-over-week change label
+            prev = (
+                MarketPrice.objects
+                .filter(
+                    vegetable_name__iexact=p.vegetable_name,
+                    market_name__iexact=p.market_name,
+                    date_recorded__lt=p.date_recorded,
+                )
+                .order_by('-date_recorded')
+                .first()
+            )
+            change_pct = None
+            if prev and prev.price_per_kg:
+                change_pct = round(
+                    float((p.price_per_kg - prev.price_per_kg) / prev.price_per_kg * 100), 1
+                )
+
+            data.append({
+                'id':             p.PriceID,
+                'vegetable_name': p.vegetable_name,
+                'market_name':    p.market_name,
+                'district':       p.district,
+                'price_per_kg':   float(p.price_per_kg),
+                'currency':       p.currency,
+                'date_recorded':  p.date_recorded.isoformat(),
+                'price_trend':    p.price_trend,
+                'change_pct':     change_pct,   # e.g. +5.2 or -3.1 or null
+            })
+
+        return Response(data)
 
 
 # ── 10. DIAGNOSIS FEEDBACK ────────────────────────────────────────────────────
 
 class DiagnosisFeedbackView(APIView):
+    """
+    GET   /api/diagnosis/<id>/feedback/  → retrieve current feedback for a diagnosis
+    PATCH /api/diagnosis/<id>/feedback/  → submit or update feedback
+
+    PATCH body (all fields optional):
+      {
+        "farmer_feedback":   "correct" | "incorrect" | "unsure",
+        "severity":          "mild" | "moderate" | "severe",
+        "treatment_applied": true | false,
+        "treatment_outcome": "recovered" | "no_change" | "worsened"
+      }
+    """
     permission_classes = [IsAuthenticated]
 
-    def patch(self, request, diagnosis_id):
+    def _get_diagnosis(self, request, diagnosis_id):
         try:
-            diag = Diagnosis.objects.get(
+            return Diagnosis.objects.get(
                 DiagnosisID=diagnosis_id,
                 PlantID__FarmerID=request.user,
             )
         except Diagnosis.DoesNotExist:
+            return None
+
+    def get(self, request, diagnosis_id):
+        diag = self._get_diagnosis(request, diagnosis_id)
+        if not diag:
             return Response({'error': 'Diagnosis not found'}, status=404)
 
-        for field in ('farmer_feedback', 'severity', 'treatment_applied', 'treatment_outcome'):
+        return Response({
+            'diagnosis_id':     diag.DiagnosisID,
+            'disease':          diag.DiseaseName,
+            'confidence':       float(diag.ConfidenceLevel or 0.0),
+            'farmer_feedback':  diag.farmer_feedback,
+            'severity':         diag.severity,
+            'treatment_applied': diag.treatment_applied,
+            'treatment_outcome': diag.treatment_outcome,
+            'follow_up_date':   diag.follow_up_date.isoformat() if diag.follow_up_date else None,
+            'date_diagnosed':   diag.DateDiagnosed.isoformat(),
+        })
+
+    def patch(self, request, diagnosis_id):
+        diag = self._get_diagnosis(request, diagnosis_id)
+        if not diag:
+            return Response({'error': 'Diagnosis not found'}, status=404)
+
+        allowed = ('farmer_feedback', 'severity', 'treatment_applied', 'treatment_outcome')
+        for field in allowed:
             val = request.data.get(field)
             if val is not None:
                 setattr(diag, field, val)
         diag.save()
 
         return Response({
-            'status':  'success',
-            'message': 'Feedback recorded. Thank you!',
-            'id':      diag.DiagnosisID,
+            'status':           'success',
+            'message':          'Feedback recorded. Thank you!',
+            'id':               diag.DiagnosisID,
+            'farmer_feedback':  diag.farmer_feedback,
+            'severity':         diag.severity,
+            'treatment_applied': diag.treatment_applied,
+            'treatment_outcome': diag.treatment_outcome,
         })
 
 
 # ── 11. FARMER INSIGHTS ──────────────────────────────────────────────────────
 
 class FarmerInsightView(APIView):
+    """
+    GET /api/farmer-insights/
+    Returns aggregate statistics AND a time-series trend list for the chart.
+
+    Response:
+      total_scans, total_diseases_detected, total_healthy_scans,
+      most_common_disease, most_scanned_crop, streak_healthy_days,
+      last_updated,
+      disease_breakdown: [ { disease, count, percentage } ]   ← pie chart
+      trend:             [ { date, risk } ]                    ← line chart
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from django.db.models import Count
+
         insight, _ = FarmerInsight.objects.get_or_create(FarmerID=request.user)
 
         plants      = Plant.objects.filter(FarmerID=request.user)
         total_scans = plants.count()
-        diagnoses   = Diagnosis.objects.filter(PlantID__in=plants)
-        healthy     = diagnoses.filter(DiseaseName__iexact='healthy').count()
+        diagnoses   = Diagnosis.objects.filter(PlantID__in=plants).select_related('PlantID')
 
-        top = (diagnoses
-               .exclude(DiseaseName__iexact='healthy')
-               .values('DiseaseName')
-               .annotate(c=Count('DiseaseName'))
-               .order_by('-c')
-               .first())
+        healthy_qs = diagnoses.filter(DiseaseName__iexact='healthy')
+        healthy    = healthy_qs.count()
+        diseased   = total_scans - healthy
 
-        top_crop = (plants
-                    .exclude(CropType='Vegetable')
-                    .values('CropType')
-                    .annotate(c=Count('CropType'))
-                    .order_by('-c')
-                    .first())
+        # ── Most common disease ───────────────────────────────────────────
+        top = (
+            diagnoses
+            .exclude(DiseaseName__iexact='healthy')
+            .values('DiseaseName')
+            .annotate(c=Count('DiseaseName'))
+            .order_by('-c')
+            .first()
+        )
 
+        # ── Most scanned crop ─────────────────────────────────────────────
+        top_crop = (
+            plants
+            .exclude(CropType='Vegetable')
+            .values('CropType')
+            .annotate(c=Count('CropType'))
+            .order_by('-c')
+            .first()
+        )
+
+        # ── Disease breakdown for pie chart ───────────────────────────────
+        breakdown_qs = (
+            diagnoses
+            .values('DiseaseName')
+            .annotate(count=Count('DiseaseName'))
+            .order_by('-count')
+        )
+        disease_breakdown = []
+        for row in breakdown_qs:
+            pct = round(row['count'] / total_scans * 100, 1) if total_scans else 0.0
+            disease_breakdown.append({
+                'disease':    row['DiseaseName'].replace('_', ' ').title(),
+                'count':      row['count'],
+                'percentage': pct,
+            })
+
+        # ── Trend data for line chart (one point per scan, chronological) ─
+        # risk = 0.0 for healthy, ConfidenceLevel for diseased
+        trend_qs = (
+            diagnoses
+            .select_related('PlantID')
+            .order_by('PlantID__DateCaptured')
+        )
+        trend = []
+        for d in trend_qs:
+            is_healthy = d.DiseaseName.lower() == 'healthy'
+            risk       = 0.0 if is_healthy else float(d.ConfidenceLevel or 0.0)
+            trend.append({
+                'date': d.PlantID.DateCaptured.isoformat(),
+                'risk': round(risk, 4),
+            })
+
+        # ── Persist summary to FarmerInsight model ────────────────────────
         insight.total_scans             = total_scans
-        insight.total_diseases_detected = total_scans - healthy
+        insight.total_diseases_detected = diseased
         insight.total_healthy_scans     = healthy
         insight.most_common_disease     = top['DiseaseName']   if top      else None
         insight.most_scanned_crop       = top_crop['CropType'] if top_crop else None
         insight.save()
 
         return Response({
-            'total_scans':             insight.total_scans,
-            'total_diseases_detected': insight.total_diseases_detected,
-            'total_healthy_scans':     insight.total_healthy_scans,
+            'total_scans':             total_scans,
+            'total_diseases_detected': diseased,
+            'total_healthy_scans':     healthy,
             'most_common_disease':     insight.most_common_disease,
             'most_scanned_crop':       insight.most_scanned_crop,
             'streak_healthy_days':     insight.streak_healthy_days,
             'last_updated':            insight.last_updated.isoformat(),
+            'disease_breakdown':       disease_breakdown,
+            'trend':                   trend,
         })
 
 
 # ── 12. GROWTH JOURNAL ────────────────────────────────────────────────────────
 
 class GrowthJournalView(APIView):
+    """
+    GET    /api/growth-journal/                 → list entries (optional ?crop_profile_id=)
+    POST   /api/growth-journal/                 → create new entry
+    PATCH  /api/growth-journal/<entry_id>/      → update an existing entry
+    DELETE /api/growth-journal/<entry_id>/      → delete an entry
+    """
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        profile_id = request.query_params.get('crop_profile_id')
-        entries    = GrowthJournalEntry.objects.filter(FarmerID=request.user)
-        if profile_id:
-            entries = entries.filter(CropProfile__ProfileID=profile_id)
-        return Response([{
+    def _serialize(self, e):
+        return {
             'id':              e.EntryID,
             'crop_profile_id': e.CropProfile.ProfileID,
             'crop_name':       e.CropProfile.VegetableType,
+            'growth_stage':    e.CropProfile.growth_stage_label,
             'entry_date':      e.entry_date.isoformat(),
             'title':           e.title,
             'body':            e.body,
             'mood':            e.mood,
             'photo_url':       e.photo_url,
             'created_at':      e.DateCreated.isoformat(),
-        } for e in entries])
+        }
+
+    def get(self, request):
+        profile_id = request.query_params.get('crop_profile_id')
+        entries    = GrowthJournalEntry.objects.filter(FarmerID=request.user)
+        if profile_id:
+            entries = entries.filter(CropProfile__ProfileID=profile_id)
+        return Response([self._serialize(e) for e in entries])
 
     def post(self, request):
         try:
@@ -932,6 +1161,15 @@ class GrowthJournalView(APIView):
         except CropProfile.DoesNotExist:
             return Response({'error': 'Crop profile not found'}, status=404)
 
+        raw_date   = request.data.get('entry_date')
+        entry_date = date.today()
+        if raw_date:
+            try:
+                from datetime import datetime as dt
+                entry_date = dt.fromisoformat(str(raw_date)).date()
+            except (ValueError, TypeError):
+                pass
+
         entry = GrowthJournalEntry.objects.create(
             FarmerID    = request.user,
             CropProfile = profile,
@@ -939,17 +1177,39 @@ class GrowthJournalView(APIView):
             body        = request.data.get('body', ''),
             mood        = request.data.get('mood', 'ok'),
             photo_url   = request.data.get('photo_url'),
-            entry_date  = request.data.get('entry_date', date.today()),
+            entry_date  = entry_date,
         )
-        return Response({'status': 'success', 'id': entry.EntryID}, status=201)
+        return Response({'status': 'success', 'id': entry.EntryID, 'entry': self._serialize(entry)}, status=201)
+
+    def patch(self, request, entry_id=None):
+        if entry_id is None:
+            return Response({'error': 'entry_id required'}, status=400)
+        try:
+            entry = GrowthJournalEntry.objects.get(EntryID=entry_id, FarmerID=request.user)
+        except GrowthJournalEntry.DoesNotExist:
+            return Response({'error': 'Entry not found'}, status=404)
+
+        for field in ('title', 'body', 'mood', 'photo_url'):
+            val = request.data.get(field)
+            if val is not None:
+                setattr(entry, field, val)
+
+        raw_date = request.data.get('entry_date')
+        if raw_date:
+            try:
+                from datetime import datetime as dt
+                entry.entry_date = dt.fromisoformat(str(raw_date)).date()
+            except (ValueError, TypeError):
+                pass
+
+        entry.save()
+        return Response({'status': 'updated', 'entry': self._serialize(entry)})
 
     def delete(self, request, entry_id=None):
         if entry_id is None:
             return Response({'error': 'entry_id required'}, status=400)
         try:
-            entry = GrowthJournalEntry.objects.get(
-                EntryID=entry_id, FarmerID=request.user,
-            )
+            entry = GrowthJournalEntry.objects.get(EntryID=entry_id, FarmerID=request.user)
             entry.delete()
             return Response({'status': 'deleted'})
         except GrowthJournalEntry.DoesNotExist:
