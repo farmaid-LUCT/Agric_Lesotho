@@ -728,7 +728,6 @@
 
 # Masenya
 
-
 import dj_database_url
 import os
 from pathlib import Path
@@ -778,7 +777,7 @@ INSTALLED_APPS = [
 
 # --- MIDDLEWARE ---
 MIDDLEWARE = [
-    'farm_aid_project.middleware.CorsExceptionMiddleware',  # must be first
+    # 'farm_aid_project.middleware.CorsExceptionMiddleware',  # DISABLED - file not found
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
