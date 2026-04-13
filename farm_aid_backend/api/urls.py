@@ -1,76 +1,3 @@
-# # farm_aid_backend/api/urls.py
-# from django.urls import path
-# from .views import (
-#     register_farmer,
-#     login_farmer,
-#     resend_activation_email,
-#     activate_account,
-#     ProfileView,
-#     change_password,
-#     SaveScanView,
-#     FarmerHistoryView,
-#     FarmerReportsView,
-#     CropProfileView,
-#     FarmerAlertsView,
-#     LatestWeatherView,
-#     MarketPricesView,       # NEW
-#     DiagnosisFeedbackView,  # NEW
-#     FarmerInsightView,      # NEW
-#     GrowthJournalView,      # NEW
-# )
-
-# urlpatterns = [
-
-#     # --- 1. AUTHENTICATION ---
-#     path('register/',           register_farmer,          name='register'),
-#     path('login/',              login_farmer,             name='login'),
-#     path('resend-activation/',  resend_activation_email,  name='resend-activation'),
-#     path('activate/<uidb64>/<token>/', activate_account,  name='activate'),
-
-#     # --- 2. PROFILE & SECURITY ---
-#     path('auth/profile/',          ProfileView.as_view(), name='profile-detail'),
-#     path('auth/profile/update/',   ProfileView.as_view(), name='profile-update'),
-#     path('auth/profile/language/', ProfileView.as_view(), name='profile-language'),
-#     path('auth/change-password/',  change_password,       name='change-password'),
-#     # Legacy alias — keeps older app versions working
-#     path('auth/password/change/',  change_password,       name='change-password-legacy'),
-
-#     # --- 3. WEATHER ---
-#     path('weather/latest/', LatestWeatherView.as_view(), name='latest-weather'),
-
-#     # --- 4. CROP PROFILES ---
-#     path('crop-profiles/', CropProfileView.as_view(), name='crop-profiles'),
-
-#     # --- 5. ALERTS ---
-#     path('alerts/',           FarmerAlertsView.as_view(), name='alerts'),
-#     path('alerts/mark-read/', FarmerAlertsView.as_view(), name='mark-alerts-read'),
-
-#     # --- 6. AI SCAN (8-Factor Engine) ---
-#     path('save-scan/', SaveScanView.as_view(), name='save-scan'),
-
-#     # --- 7. HISTORY & REPORTS ---
-#     path('farmer-history/', FarmerHistoryView.as_view(), name='farmer-history'),
-#     path('farmer-reports/', FarmerReportsView.as_view(), name='farmer-reports'),
-
-#     # --- 8. MARKET PRICES ---
-#     # GET /api/market-prices/                   -> all prices
-#     # GET /api/market-prices/?district=Maseru   -> filtered by district
-#     path('market-prices/', MarketPricesView.as_view(), name='market-prices'),
-
-#     # --- 9. DIAGNOSIS FEEDBACK ---
-#     path('diagnosis/<int:diagnosis_id>/feedback/', DiagnosisFeedbackView.as_view(), name='diagnosis-feedback'),
-
-#     # --- 10. FARMER INSIGHTS ---
-#     path('farmer-insight/', FarmerInsightView.as_view(), name='farmer-insight'),
-
-#     # --- 11. GROWTH JOURNAL ---
-#     path('journal/',                    GrowthJournalView.as_view(), name='journal'),
-#     path('journal/<int:entry_id>/delete/', GrowthJournalView.as_view(), name='journal-delete'),
-# ]
-
-# api/urls.py  —  FarmAid Lesotho
-# Changes: added google_auth + AlertCountView imports and paths
-
 # from django.urls import path
 # from .views import (
 #     # Auth
@@ -96,6 +23,14 @@
 #     DiagnosisFeedbackView,
 #     FarmerInsightView,
 #     GrowthJournalView,
+#     # Community
+#     get_community_posts,
+#     create_community_post,
+#     like_community_post,
+#     delete_community_post,
+#     get_community_comments,
+#     add_community_comment,
+#     get_community_profile,
 # )
 
 # urlpatterns = [
@@ -144,13 +79,21 @@
 #     # ── 11. GROWTH JOURNAL ─────────────────────────────────────────────────
 #     path('journal/',                         GrowthJournalView.as_view(), name='journal'),
 #     path('journal/<int:entry_id>/delete/',   GrowthJournalView.as_view(), name='journal-delete'),
-# ]
 
-# Masenya
+#     # ── 12. COMMUNITY ──────────────────────────────────────────────────────
+#     path('community/posts/',                 get_community_posts,        name='community_posts'),
+#     path('community/posts/create/',          create_community_post,      name='create_community_post'),
+#     path('community/posts/<int:post_id>/like/', like_community_post,     name='like_community_post'),
+#     path('community/posts/<int:post_id>/delete/', delete_community_post, name='delete_community_post'),
+#     path('community/posts/<int:post_id>/comments/', get_community_comments, name='get_community_comments'),
+#     path('community/posts/<int:post_id>/comments/add/', add_community_comment, name='add_community_comment'),
+#     path('community/profile/',               get_community_profile,      name='community_profile'),
+# ]
 
 # api/urls.py  —  FarmAid Lesotho
 # Changes: added google_auth + AlertCountView imports and paths
 # Changes: added community endpoints
+# Changes: added image upload endpoints
 
 from django.urls import path
 from .views import (
@@ -185,6 +128,8 @@ from .views import (
     get_community_comments,
     add_community_comment,
     get_community_profile,
+    # Image Upload
+    UploadPlantImageView,     # NEW — image upload for disease detection
 )
 
 urlpatterns = [
@@ -216,6 +161,13 @@ urlpatterns = [
 
     # ── 6. AI SCAN ─────────────────────────────────────────────────────────
     path('save-scan/',                       SaveScanView.as_view(),      name='save-scan'),
+    # Image upload endpoints (multiple names for compatibility)
+    path('upload-image/',                    UploadPlantImageView.as_view(), name='upload-image'),
+    path('upload-plant-image/',              UploadPlantImageView.as_view(), name='upload-plant-image'),
+    path('predict/',                         UploadPlantImageView.as_view(), name='predict'),
+    path('detect/',                          UploadPlantImageView.as_view(), name='detect'),
+    path('analyze/',                         UploadPlantImageView.as_view(), name='analyze'),
+    path('scan/',                            UploadPlantImageView.as_view(), name='scan'),
 
     # ── 7. HISTORY & REPORTS ───────────────────────────────────────────────
     path('farmer-history/',                  FarmerHistoryView.as_view(), name='farmer-history'),
