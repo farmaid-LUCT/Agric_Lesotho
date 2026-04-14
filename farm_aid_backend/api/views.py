@@ -1340,8 +1340,15 @@ class SaveScanView(APIView):
         except Exception:
             return None
 
+    def _get_highland_temp(self, altitude):
+        """Estimate temperature based on altitude in Lesotho"""
+        # Lesotho: temperature drops ~0.65°C per 100m
+        base_temp = 22  # °C at sea level
+        temp = base_temp - (altitude / 100 * 0.65)
+        return int(temp)
+
     def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
-        """Generate personalized advice WITHOUT querying PersonalizedRule table"""
+        """Generate personalized advice USING GPS coordinates for real recommendations"""
         
         # Get farmer's data
         experience_level = farmer.experience_level
@@ -1386,86 +1393,192 @@ class SaveScanView(APIView):
         current_month = date.today().month
         if 5 <= current_month <= 9:
             season = "dry"
+            season_advice = "During this dry season, fungal diseases spread less. Focus on proper irrigation and soil moisture management."
         else:
             season = "wet"
+            season_advice = "During this wet season, fungal diseases spread rapidly. Apply preventive fungicides and ensure good drainage."
         
-        # Build personalized advice based on farmer's data
+        # Lesotho-specific climate zones based on latitude/longitude
+        is_western = False
+        is_eastern = False
+        is_northern = False
+        is_southern = False
+        
+        if gps_lat and gps_lon:
+            # Western Lesotho (Mafeteng, Mohale's Hoek, Quthing) - drier
+            if gps_lon < 27.5:
+                is_western = True
+            # Eastern Lesotho (Mokhotlong, Thaba-Tseka) - wetter, colder
+            elif gps_lon > 28.5:
+                is_eastern = True
+            
+            # Northern Lesotho (Berea, Leribe, Butha-Buthe) - warmer
+            if gps_lat > -29.0:
+                is_northern = True
+            # Southern Lesotho (Quthing, Qacha's Nek) - cooler
+            elif gps_lat < -30.0:
+                is_southern = True
+        
+        # Build personalized advice based on GPS and farmer's data
         advice_parts = []
         
-        # Location-specific opening
+        # ============================================================
+        # 1. LOCATION-SPECIFIC OPENING (using actual GPS)
+        # ============================================================
+        location_context = []
         if gps_lat and gps_lon:
-            advice_parts.append(f"Based on your location at {gps_lat}, {gps_lon} in {district}:")
-        elif district != 'your area':
-            advice_parts.append(f"Based on your location in {district}:")
+            location_context.append(f"Your farm at coordinates {gps_lat:.4f}°S, {gps_lon:.4f}°E")
+            if altitude_display:
+                location_context.append(f"at {altitude_display} elevation")
+            location_context.append(f"in {district} district")
+        else:
+            location_context.append(f"Your farm in {district} district")
         
-        # Disease-specific advice with altitude consideration
+        advice_parts.append(f"{' '.join(location_context)} faces specific conditions for {disease_name.replace('_', ' ')}.")
+        
+        # ============================================================
+        # 2. ALTITUDE-BASED RECOMMENDATIONS (using GPS altitude)
+        # ============================================================
+        if gps_alt:
+            if altitude_tier == 'highland':
+                temp = self._get_highland_temp(gps_alt)
+                advice_parts.append(f"At {int(gps_alt)}m elevation, nights are cold ({temp}°C). This slows down pathogen development but also slows plant growth. Apply treatments early morning when temperatures rise above 10°C.")
+                
+                if 'blight' in disease_name.lower():
+                    advice_parts.append(f"Highland conditions favor late blight development. Increase copper spray frequency to every 5 days during wet periods.")
+                elif 'mildew' in disease_name.lower():
+                    advice_parts.append(f"Highland humidity promotes powdery mildew. Ensure good air circulation by spacing plants wider (add 10-15cm to standard spacing).")
+                    
+            elif altitude_tier == 'midland':
+                advice_parts.append(f"Your midland altitude ({int(gps_alt)}m) provides good growing conditions. Standard treatment intervals work well here.")
+                
+            elif altitude_tier == 'lowland':
+                advice_parts.append(f"At {int(gps_alt)}m elevation, warmer temperatures accelerate disease spread. Reduce treatment intervals by 20-30% compared to highland recommendations.")
+        
+        # ============================================================
+        # 3. REGIONAL CLIMATE RECOMMENDATIONS (using GPS lat/lon)
+        # ============================================================
+        if is_western:
+            advice_parts.append("Western Lesotho (your area) receives less rainfall (600-800mm annually). During dry spells, focus on soil moisture conservation. Use mulch to retain soil moisture and reduce plant stress.")
+            if 'blight' in disease_name.lower():
+                advice_parts.append("Despite lower rainfall in western Lesotho, morning dew can still promote blight. Apply fungicides early morning before dew forms.")
+                
+        elif is_eastern:
+            advice_parts.append("Eastern Lesotho (your area) receives high rainfall (1000-1500mm annually). This high humidity creates perfect conditions for fungal diseases. Increase fungicide frequency and ensure excellent drainage.")
+            if 'mildew' in disease_name.lower():
+                advice_parts.append("Your high-rainfall area is a hotspot for powdery mildew. Consider using systemic fungicides and improve air circulation through proper pruning.")
+                
+        if is_northern:
+            advice_parts.append("Northern Lesotho (your area) has warmer temperatures, which can accelerate disease cycles. Monitor crops daily during peak growing season.")
+        elif is_southern:
+            advice_parts.append("Southern Lesotho (your area) experiences cooler temperatures. Diseases develop slower, but frost damage can weaken plants making them susceptible.")
+        
+        # ============================================================
+        # 4. SEASON-SPECIFIC ADVICE
+        # ============================================================
+        advice_parts.append(season_advice)
+        
+        # ============================================================
+        # 5. DISEASE-SPECIFIC TREATMENT (based on location)
+        # ============================================================
         disease_lower = disease_name.lower()
+        
         if 'blight' in disease_lower:
             if altitude_tier == 'highland':
-                advice_parts.append(f"In {district}'s highland conditions ({altitude_display or 'high altitude'}), blight spreads faster due to cool, moist nights. Apply copper fungicide every 5-7 days during wet season.")
+                advice_parts.append(f"BLIGHT TREATMENT for highlands: Apply copper hydroxide (250g/100L) every 5-7 days. In Mokhotlong/Thaba-Tseka highlands, late blight is the #1 potato disease.")
+            elif is_eastern:
+                advice_parts.append(f"BLIGHT TREATMENT for eastern Lesotho: Due to your high rainfall area ({gps_lon:.1f}°E), apply metalaxyl-based fungicides preventively every 7 days during rainy season.")
             else:
-                advice_parts.append(f"In {district}'s lowland conditions, apply copper fungicide every 10-14 days.")
-        
+                advice_parts.append(f"BLIGHT TREATMENT: Apply copper-based fungicide every 7-10 days. Remove infected leaves immediately and destroy them away from your field.")
+                
         elif 'mildew' in disease_lower:
-            if season == 'wet':
-                advice_parts.append(f"During this wet season in {district}, powdery mildew risk is high. Apply sulfur-based fungicide weekly. Ensure good air circulation around plants.")
+            if is_eastern or altitude_tier == 'highland':
+                advice_parts.append(f"MILDEW TREATMENT for your high-humidity location: Apply sulfur (200g/100L) weekly. Your area's morning fog creates ideal mildew conditions.")
             else:
-                advice_parts.append(f"During this dry season, water plants at base to reduce humidity. Apply neem oil as preventive.")
-        
+                advice_parts.append(f"MILDEW TREATMENT: Apply neem oil or sulfur weekly. Water plants at base, not overhead, to reduce leaf wetness.")
+                
         elif 'rust' in disease_lower:
-            advice_parts.append(f"For rust in {district}, remove affected leaves immediately. Apply fungicide containing azoxystrobin.")
-        
+            if is_western:
+                advice_parts.append(f"RUST TREATMENT for western Lesotho: Your drier conditions actually favor rust development. Apply azoxystrobin (100ml/100L) at first sign.")
+            else:
+                advice_parts.append(f"RUST TREATMENT: Remove affected leaves. Apply fungicide containing azoxystrobin or tebuconazole.")
+                
         elif 'aphid' in disease_lower:
-            advice_parts.append(f"Control aphids in {district} with neem oil or insecticidal soap. Release ladybugs if available.")
-        
+            advice_parts.append(f"APHID CONTROL: Based on your location, release ladybugs (available from Lesotho Agricultural Supply) or spray neem oil (30ml/10L). Aphids thrive in Lesotho's spring (September-October).")
+            
         elif 'rot' in disease_lower:
-            advice_parts.append(f"For rot in {district}, improve drainage immediately. Reduce watering and apply copper-based fungicide.")
+            if is_eastern:
+                advice_parts.append(f"ROT TREATMENT for eastern Lesotho: Your high rainfall area requires raised beds (30cm high) for drainage. Apply copper-based fungicide as soil drench.")
+            else:
+                advice_parts.append(f"ROT TREATMENT: Improve drainage immediately. Reduce watering. Apply copper-based fungicide.")
         
         elif 'virus' in disease_lower:
-            advice_parts.append(f"Viruses have no cure. Remove infected plants immediately from {district}. Control insect vectors and use virus-free seeds.")
+            advice_parts.append(f"VIRUS MANAGEMENT: Viruses have no cure. Remove infected plants immediately from {district}. Control insect vectors and use virus-free seeds. In Lesotho, tomato spotted wilt virus is common in lowlands.")
         
         elif 'healthy' in disease_lower:
-            advice_parts.append(f"Your {crop_type} appears healthy. Continue good agricultural practices in {district}.")
+            advice_parts.append(f"✅ Your {crop_type} appears healthy. Continue good agricultural practices in {district}.")
         
         else:
             advice_parts.append(f"For {disease_name} in {district}, consult your local agricultural extension officer for specific treatment.")
         
-        # Altitude-specific advice
-        if altitude_tier == 'highland':
-            advice_parts.append(f"At your altitude ({altitude_display or 'highland'}), nights are cooler. Monitor for frost damage and protect young plants.")
-        elif altitude_tier == 'midland':
-            advice_parts.append(f"Your midland altitude ({altitude_display}) provides good growing conditions. Ensure proper spacing for air circulation.")
-        
-        # Soil-specific advice
+        # ============================================================
+        # 6. SOIL-SPECIFIC ADVICE (using crop profile)
+        # ============================================================
         if soil_type and soil_type != 'your soil type':
             if 'clay' in soil_type.lower():
-                advice_parts.append(f"Your {soil_type} soil needs raised beds for better drainage. Add organic matter to improve structure.")
+                advice_parts.append(f"Your {soil_type} soil in {district} needs raised beds for better drainage. Add river sand and compost to improve soil structure.")
             elif 'sandy' in soil_type.lower():
-                advice_parts.append(f"Your {soil_type} soil drains quickly. Add compost to retain moisture and nutrients.")
+                advice_parts.append(f"Your {soil_type} soil in {district} drains quickly. Add compost to retain moisture. In dry areas like western Lesotho, this is especially important.")
             elif 'loam' in soil_type.lower():
-                advice_parts.append(f"Your {soil_type} soil is ideal. Maintain organic matter with regular compost addition.")
+                advice_parts.append(f"Your {soil_type} soil is ideal for {crop_type} in {district} conditions.")
         
-        # Irrigation-specific advice
+        # ============================================================
+        # 7. IRRIGATION ADVICE (based on location climate)
+        # ============================================================
         if irrigation and irrigation != 'your irrigation method':
             if irrigation.lower() == 'drip':
-                advice_parts.append("Your drip irrigation is ideal for this disease. Water early morning to allow leaves to dry.")
+                if is_western:
+                    advice_parts.append("Your drip irrigation is excellent for western Lesotho's drier conditions. Water early morning (6-8 AM) to minimize evaporation.")
+                else:
+                    advice_parts.append("Your drip irrigation is ideal. Water early morning to allow leaves to dry.")
             elif irrigation.lower() == 'overhead' or irrigation.lower() == 'sprinkler':
-                advice_parts.append("Switch to drip irrigation if possible. Overhead watering spreads many diseases.")
+                if is_eastern or altitude_tier == 'highland':
+                    advice_parts.append("⚠️ In your high-rainfall/high-humidity area, overhead watering spreads diseases. Switch to drip irrigation or water only at soil level.")
+                else:
+                    advice_parts.append("Switch to drip irrigation if possible. Overhead watering spreads many fungal diseases.")
         
-        # Growth stage-specific advice
+        # ============================================================
+        # 8. GROWTH STAGE ADVICE
+        # ============================================================
         if growth_stage != "Unknown":
             if growth_stage == "seedling":
-                advice_parts.append(f"Your {crop_type} is in seedling stage. Young plants are vulnerable. Monitor daily for disease spread.")
+                advice_parts.append(f"Your {crop_type} is in seedling stage. Young plants in {district} are vulnerable. Monitor daily for disease spread.")
             elif growth_stage == "flowering":
-                advice_parts.append(f"Your {crop_type} is flowering. Avoid spraying during peak flowering to protect pollinators. Spray early morning or late evening.")
+                advice_parts.append(f"Your {crop_type} is flowering. Avoid spraying during peak flowering (9 AM - 3 PM) to protect bees. Spray early morning or late evening.")
             elif growth_stage == "fruiting/harvest":
-                advice_parts.append(f"Your {crop_type} is in fruiting stage. Follow pre-harvest interval on all pesticides.")
+                advice_parts.append(f"Your {crop_type} is in fruiting stage. Follow pre-harvest interval on all pesticides - check label for days to wait after spraying before harvest.")
         
-        # Experience level adjustment
+        # ============================================================
+        # 9. FARMER EXPERIENCE LEVEL
+        # ============================================================
         if experience_level == 'beginner':
-            advice_parts.append("As a beginner farmer, start with smaller applications and always wear protective gear when spraying.")
+            advice_parts.append("👨‍🌾 Beginner tip: Start with a small test area first. Always wear gloves, mask, and protective clothing when spraying. Read all pesticide labels carefully.")
         elif experience_level == 'expert':
-            advice_parts.append("For expert farmers, consider rotating between different fungicide groups to prevent resistance.")
+            advice_parts.append("🔬 Expert recommendation: Rotate between different fungicide groups (FRAC codes) to prevent resistance development.")
+        
+        # ============================================================
+        # 10. LOCAL RESOURCE RECOMMENDATIONS (based on district)
+        # ============================================================
+        if district and district != 'your area':
+            advice_parts.append(f"📍 Local resources in {district}: Contact your nearest agricultural extension officer for site-specific advice and free soil testing.")
+        
+        # ============================================================
+        # 11. DOSAGE CALCULATION (using plot size from crop profile)
+        # ============================================================
+        if plot_size and plot_size > 0:
+            water_liters = int(plot_size * 200)
+            buckets = int(water_liters / 10)
+            advice_parts.append(f"📐 For your {plot_size} hectare plot, mix the recommended product with {water_liters}L water (approx. {buckets} buckets of 10L).")
         
         # Combine all advice
         personalized_advice = " ".join(advice_parts)
@@ -1483,6 +1596,7 @@ class SaveScanView(APIView):
                 'growth_stage': growth_stage,
                 'season': season,
                 'days_since_planting': days_since_planting,
+                'region': 'western' if is_western else 'eastern' if is_eastern else 'central',
             },
             'farmer_level': experience_level,
         }
@@ -1660,7 +1774,7 @@ class SaveScanView(APIView):
                         },
                     }
                 
-                logger.warning(f"[SaveScan] ✅ Personalized advice generated using GPS (lat: {gps_lat}, alt: {gps_alt})")
+                logger.warning(f"[SaveScan] ✅ Personalized advice generated using GPS (lat: {gps_lat}, lon: {gps_lon}, alt: {gps_alt})")
 
             personalized_block = None
             if wants_personalized and target_profile:
