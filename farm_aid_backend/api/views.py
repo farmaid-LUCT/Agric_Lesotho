@@ -1340,7 +1340,7 @@ class SaveScanView(APIView):
         except Exception:
             return None
 
-    def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_alt):
+    def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
         """Generate personalized advice WITHOUT querying PersonalizedRule table"""
         
         # Get farmer's data
@@ -1368,9 +1368,11 @@ class SaveScanView(APIView):
             else:
                 growth_stage = "fruiting/harvest"
         
-        # Determine altitude tier
+        # Determine altitude tier using GPS altitude
         altitude_tier = "lowland"
-        if gps_alt:
+        altitude_display = None
+        if gps_alt is not None:
+            altitude_display = f"{int(gps_alt)}m"
             if gps_alt < 1800:
                 altitude_tier = "lowland"
             elif gps_alt < 2200:
@@ -1390,11 +1392,17 @@ class SaveScanView(APIView):
         # Build personalized advice based on farmer's data
         advice_parts = []
         
-        # Disease-specific advice
+        # Location-specific opening
+        if gps_lat and gps_lon:
+            advice_parts.append(f"Based on your location at {gps_lat}, {gps_lon} in {district}:")
+        elif district != 'your area':
+            advice_parts.append(f"Based on your location in {district}:")
+        
+        # Disease-specific advice with altitude consideration
         disease_lower = disease_name.lower()
         if 'blight' in disease_lower:
             if altitude_tier == 'highland':
-                advice_parts.append(f"In {district}'s highland conditions ({int(gps_alt)}m), blight spreads faster due to cool, moist nights. Apply copper fungicide every 5-7 days during wet season.")
+                advice_parts.append(f"In {district}'s highland conditions ({altitude_display or 'high altitude'}), blight spreads faster due to cool, moist nights. Apply copper fungicide every 5-7 days during wet season.")
             else:
                 advice_parts.append(f"In {district}'s lowland conditions, apply copper fungicide every 10-14 days.")
         
@@ -1421,6 +1429,12 @@ class SaveScanView(APIView):
         
         else:
             advice_parts.append(f"For {disease_name} in {district}, consult your local agricultural extension officer for specific treatment.")
+        
+        # Altitude-specific advice
+        if altitude_tier == 'highland':
+            advice_parts.append(f"At your altitude ({altitude_display or 'highland'}), nights are cooler. Monitor for frost damage and protect young plants.")
+        elif altitude_tier == 'midland':
+            advice_parts.append(f"Your midland altitude ({altitude_display}) provides good growing conditions. Ensure proper spacing for air circulation.")
         
         # Soil-specific advice
         if soil_type and soil_type != 'your soil type':
@@ -1460,6 +1474,8 @@ class SaveScanView(APIView):
             'advice': personalized_advice,
             'matched_on': {
                 'district': district,
+                'latitude': gps_lat,
+                'longitude': gps_lon,
                 'altitude_tier': altitude_tier,
                 'altitude_m': gps_alt,
                 'soil': soil_type,
@@ -1478,7 +1494,7 @@ class SaveScanView(APIView):
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(f"[SaveScan] incoming data: {dict(request.data)}")
-            logger.warning(f"[SaveScan] scan_mode={request.data.get('scan_mode')} profileId={request.data.get('profileId')} ProfileID={request.data.get('ProfileID')}")
+            logger.warning(f"[SaveScan] scan_mode={request.data.get('scan_mode')} profileId={request.data.get('profileId')}")
 
             incoming_lang = request.data.get('language') or request.data.get('lang')
             if incoming_lang in ['st', 'en']:
@@ -1504,17 +1520,35 @@ class SaveScanView(APIView):
 
             profile_id   = (request.data.get('profileId')
                             or request.data.get('ProfileID'))
-            gps_lat      = request.data.get('latitude')
-            gps_lon      = request.data.get('longitude')
-            gps_alt      = request.data.get('altitude')
+            
+            # ═══════════════════════════════════════════════════════════════
+            # GPS DATA - Properly capture from request
+            # ═══════════════════════════════════════════════════════════════
+            gps_lat = request.data.get('latitude')
+            gps_lon = request.data.get('longitude')
+            gps_alt = request.data.get('altitude')
+            
+            # Convert to float if possible
+            try:
+                if gps_lat:
+                    gps_lat = float(gps_lat)
+                if gps_lon:
+                    gps_lon = float(gps_lon)
+                if gps_alt:
+                    gps_alt = float(gps_alt)
+            except (TypeError, ValueError):
+                pass
+            
             gps_district = (request.data.get('gps_district')
                             or request.data.get('district')
                             or user.district
                             or '')
+            
+            logger.warning(f"[SaveScan] GPS Data - lat: {gps_lat}, lon: {gps_lon}, alt: {gps_alt}, district: {gps_district}")
 
             scan_mode          = (request.data.get('scan_mode')
                                   or request.data.get('scanMode')
-                                  or 'personalized').lower()
+                                  or 'general').lower()
             wants_personalized = scan_mode == 'personalized'
 
             logger.warning(f"[SaveScan] wants_personalized={wants_personalized} scan_mode='{scan_mode}'")
@@ -1525,12 +1559,15 @@ class SaveScanView(APIView):
                     pk=profile_id, FarmerID=user
                 ).first()
 
-            logger.warning(f"[SaveScan] profile_id='{profile_id}' target_profile={target_profile} wants_personalized={wants_personalized}")
+            logger.warning(f"[SaveScan] profile_id='{profile_id}' target_profile={target_profile}")
 
             crop_type = (target_profile.VegetableType
                          if target_profile
                          else request.data.get('cropType', 'Vegetable'))
 
+            # ═══════════════════════════════════════════════════════════════
+            # SAVE PLANT WITH GPS DATA
+            # ═══════════════════════════════════════════════════════════════
             new_plant = Plant.objects.create(
                 FarmerID        = user,
                 CropProfile     = target_profile,
@@ -1541,6 +1578,8 @@ class SaveScanView(APIView):
                 altitude_meters = gps_alt,
                 gps_district    = gps_district,
             )
+            
+            logger.warning(f"[SaveScan] Plant saved with GPS - lat: {new_plant.latitude}, lon: {new_plant.longitude}, alt: {new_plant.altitude_meters}")
 
             urgent = any(w in clean_label.lower()
                          for w in ['blight', 'rot', 'wilt', 'mold', 'virus',
@@ -1555,7 +1594,7 @@ class SaveScanView(APIView):
             )
 
             # ═══════════════════════════════════════════════════════════════
-            # GENERAL MODE LOGIC - KEPT EXACTLY THE SAME (NO CHANGES)
+            # GENERAL MODE LOGIC - KEPT EXACTLY THE SAME
             # ═══════════════════════════════════════════════════════════════
             tq       = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
             treat    = Treatment.objects.filter(tq).first()
@@ -1586,19 +1625,21 @@ class SaveScanView(APIView):
                 if st_s: res_steps     = st_s
 
             # ═══════════════════════════════════════════════════════════════
-            # PERSONALIZED MODE - ADD GENERATED ADVICE (NO DB QUERY)
+            # PERSONALIZED MODE - USE GPS DATA
             # ═══════════════════════════════════════════════════════════════
             personalized_advice = None
             matched_context     = None
             personalized_dosage = None
 
             if wants_personalized and target_profile:
-                # Generate personalized advice WITHOUT querying PersonalizedRule table
+                # Generate personalized advice USING GPS DATA
                 personalized = self._generate_personalized_advice(
                     disease_name=clean_label,
                     farmer=user,
                     crop_profile=target_profile,
                     gps_district=gps_district,
+                    gps_lat=gps_lat,
+                    gps_lon=gps_lon,
                     gps_alt=gps_alt,
                 )
                 
@@ -1619,7 +1660,7 @@ class SaveScanView(APIView):
                         },
                     }
                 
-                logger.warning(f"[SaveScan] ✅ Personalized advice generated (no DB query to PersonalizedRule)")
+                logger.warning(f"[SaveScan] ✅ Personalized advice generated using GPS (lat: {gps_lat}, alt: {gps_alt})")
 
             personalized_block = None
             if wants_personalized and target_profile:
@@ -1636,12 +1677,19 @@ class SaveScanView(APIView):
                 'follow_up_date': follow_up_date.isoformat(),
                 'crop_type':      crop_type,
                 'scan_mode':      scan_mode,
+                'gps_data': {
+                    'latitude': gps_lat,
+                    'longitude': gps_lon,
+                    'altitude': gps_alt,
+                    'district': gps_district,
+                },
                 '_debug': {
                     'received_scan_mode':          scan_mode,
-                    'received_profile_id':          str(profile_id),
-                    'wants_personalized':           wants_personalized,
-                    'target_profile_found':         target_profile is not None,
-                    'target_profile_id':            str(target_profile.ProfileID) if target_profile else None,
+                    'received_profile_id':         str(profile_id),
+                    'wants_personalized':          wants_personalized,
+                    'target_profile_found':        target_profile is not None,
+                    'target_profile_id':           str(target_profile.ProfileID) if target_profile else None,
+                    'gps_received':                gps_lat is not None,
                     'personalized_advice_generated': bool(personalized_advice) if wants_personalized else False,
                 },
                 'personalized':   personalized_block,
