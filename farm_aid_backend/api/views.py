@@ -2022,6 +2022,281 @@ class GrowthJournalView(APIView):
             return Response({'error': 'Entry not found'}, status=404)
 
 
+# ── 13. INSIGHTS & TRENDS FOR PLOTLY CHARTS ───────────────────────────────────
+
+class FarmerInsightsTrendsView(APIView):
+    """Get comprehensive analytics data formatted for Plotly charts"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        today = timezone.now().date()
+        
+        # Get all plants and diagnoses
+        plants = Plant.objects.filter(FarmerID=user)
+        diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
+        
+        # ============================================================
+        # 1. Basic Statistics
+        # ============================================================
+        total_scans = plants.count()
+        total_diseases = diagnoses.exclude(DiseaseName__iexact='healthy').count()
+        total_healthy = diagnoses.filter(DiseaseName__iexact='healthy').count()
+        
+        # ============================================================
+        # 2. Get all diagnoses with dates for trend analysis
+        # ============================================================
+        from django.db.models.functions import TruncDate
+        from django.db.models import Count
+        
+        # Get daily scan counts for the last 30 days
+        last_30_days = today - timedelta(days=30)
+        
+        daily_healthy = diagnoses.filter(
+            DateDiagnosed__date__gte=last_30_days,
+            DiseaseName__iexact='healthy'
+        ).annotate(
+            date=TruncDate('DateDiagnosed')
+        ).values('date').annotate(
+            count=Count('DiagnosisID')
+        ).order_by('date')
+        
+        daily_diseased = diagnoses.filter(
+            DateDiagnosed__date__gte=last_30_days
+        ).exclude(
+            DiseaseName__iexact='healthy'
+        ).annotate(
+            date=TruncDate('DateDiagnosed')
+        ).values('date').annotate(
+            count=Count('DiagnosisID')
+        ).order_by('date')
+        
+        # Build daily trend data for the last 30 days
+        daily_trend = {}
+        for day in range(30):
+            date_key = (today - timedelta(days=29-day)).isoformat()
+            daily_trend[date_key] = {'healthy': 0, 'unhealthy': 0}
+        
+        for item in daily_healthy:
+            if item['date']:
+                date_key = item['date'].isoformat()
+                if date_key in daily_trend:
+                    daily_trend[date_key]['healthy'] = item['count']
+        
+        for item in daily_diseased:
+            if item['date']:
+                date_key = item['date'].isoformat()
+                if date_key in daily_trend:
+                    daily_trend[date_key]['unhealthy'] = item['count']
+        
+        # Format for chart
+        trend_data = []
+        for date_key, counts in daily_trend.items():
+            trend_data.append({
+                'date': date_key,
+                'healthy': counts['healthy'],
+                'unhealthy': counts['unhealthy']
+            })
+        
+        # ============================================================
+        # 3. Top Diseases (All time)
+        # ============================================================
+        top_diseases = diagnoses.exclude(
+            DiseaseName__iexact='healthy'
+        ).values('DiseaseName').annotate(
+            count=Count('DiagnosisID')
+        ).order_by('-count')[:10]
+        
+        top_diseases_list = []
+        for item in top_diseases:
+            top_diseases_list.append({
+                'name': item['DiseaseName'].replace('_', ' ').title(),
+                'count': item['count']
+            })
+        
+        # ============================================================
+        # 4. Scans by Crop Type
+        # ============================================================
+        scans_by_crop = plants.values('CropType').annotate(
+            count=Count('PlantID')
+        ).order_by('-count')[:10]
+        
+        crops_list = []
+        for item in scans_by_crop:
+            crops_list.append({
+                'name': item['CropType'],
+                'count': item['count']
+            })
+        
+        # ============================================================
+        # 5. Healthy vs Diseased Summary
+        # ============================================================
+        health_summary = {
+            'total_scans': total_scans,
+            'healthy': total_healthy,
+            'diseased': total_diseases,
+            'healthy_percentage': round((total_healthy / total_scans * 100), 1) if total_scans > 0 else 0,
+            'diseased_percentage': round((total_diseases / total_scans * 100), 1) if total_scans > 0 else 0,
+        }
+        
+        # ============================================================
+        # 6. Weekly Activity (Last 6 weeks)
+        # ============================================================
+        weekly_data = []
+        for i in range(5, -1, -1):
+            week_start = today - timedelta(days=i*7)
+            week_end = week_start + timedelta(days=6)
+            week_scans = plants.filter(
+                DateCaptured__date__gte=week_start,
+                DateCaptured__date__lte=week_end
+            ).count()
+            weekly_data.append({
+                'week_label': f"{week_start.strftime('%b %d')} - {week_end.strftime('%b %d')}",
+                'scans': week_scans
+            })
+        
+        # ============================================================
+        # 7. Confidence Distribution
+        # ============================================================
+        confidence_data = [
+            {'range': '90-100%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.9).count(), 'color': '#4CAF50'},
+            {'range': '70-89%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.7, ConfidenceLevel__lt=0.9).count(), 'color': '#8BC34A'},
+            {'range': '50-69%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.5, ConfidenceLevel__lt=0.7).count(), 'color': '#FFC107'},
+            {'range': 'Below 50%', 'count': diagnoses.filter(ConfidenceLevel__lt=0.5).count(), 'color': '#FF9800'},
+        ]
+        
+        # ============================================================
+        # 8. Recovery Rate
+        # ============================================================
+        diagnosed_with_feedback = diagnoses.filter(
+            treatment_outcome__isnull=False
+        ).exclude(treatment_outcome='')
+        
+        recovered = diagnosed_with_feedback.filter(treatment_outcome='recovered').count()
+        no_change = diagnosed_with_feedback.filter(treatment_outcome='no_change').count()
+        worsened = diagnosed_with_feedback.filter(treatment_outcome='worsened').count()
+        
+        recovery_rate = 0
+        if diagnosed_with_feedback.count() > 0:
+            recovery_rate = round((recovered / diagnosed_with_feedback.count()) * 100, 1)
+        
+        recovery_data = [
+            {'label': 'Recovered', 'value': recovered, 'color': '#4CAF50'},
+            {'label': 'No Change', 'value': no_change, 'color': '#FFC107'},
+            {'label': 'Worsened', 'value': worsened, 'color': '#F44336'}
+        ]
+        
+        # ============================================================
+        # 9. Severity Distribution
+        # ============================================================
+        severity_data = diagnoses.filter(
+            severity__isnull=False
+        ).exclude(severity='').values('severity').annotate(
+            count=Count('DiagnosisID')
+        )
+        
+        severity_map = {
+            'mild': {'label': 'Mild', 'color': '#8BC34A'},
+            'moderate': {'label': 'Moderate', 'color': '#FFC107'},
+            'severe': {'label': 'Severe', 'color': '#F44336'}
+        }
+        
+        severity_list = []
+        for item in severity_data:
+            sev = item['severity']
+            if sev in severity_map:
+                severity_list.append({
+                    'label': severity_map[sev]['label'],
+                    'value': item['count'],
+                    'color': severity_map[sev]['color']
+                })
+        
+        # ============================================================
+        # 10. District-wise Distribution
+        # ============================================================
+        district_data = diagnoses.filter(
+            PlantID__gps_district__isnull=False
+        ).exclude(
+            PlantID__gps_district=''
+        ).values('PlantID__gps_district').annotate(
+            count=Count('DiagnosisID')
+        ).order_by('-count')[:10]
+        
+        district_list = []
+        for item in district_data:
+            district_list.append({
+                'district': item['PlantID__gps_district'],
+                'total': item['count']
+            })
+        
+        # ============================================================
+        # 11. Crop Health Summary
+        # ============================================================
+        crop_health = []
+        for crop in scans_by_crop[:5]:
+            crop_name = crop['CropType']
+            crop_plants = plants.filter(CropType=crop_name)
+            crop_diagnoses = Diagnosis.objects.filter(PlantID__in=crop_plants)
+            healthy_count = crop_diagnoses.filter(DiseaseName__iexact='healthy').count()
+            diseased_count = crop_diagnoses.exclude(DiseaseName__iexact='healthy').count()
+            total = healthy_count + diseased_count
+            health_percentage = round((healthy_count / total * 100), 1) if total > 0 else 0
+            
+            crop_health.append({
+                'crop': crop_name,
+                'health_percentage': health_percentage
+            })
+        
+        # ============================================================
+        # 12. Seasonal Patterns (by month)
+        # ============================================================
+        seasonal_data = diagnoses.extra(
+            {'month': "EXTRACT(MONTH FROM DateDiagnosed)"}
+        ).values('month').annotate(
+            count=Count('DiagnosisID')
+        ).order_by('month')
+        
+        month_names = {
+            1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr',
+            5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug',
+            9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
+        }
+        
+        seasonal_counts = []
+        for item in seasonal_data:
+            month_num = int(item['month'])
+            seasonal_counts.append({
+                'month': month_names.get(month_num, 'Unknown'),
+                'count': item['count']
+            })
+        
+        return Response({
+            'statistics': {
+                'total_scans': total_scans,
+                'total_diseases': total_diseases,
+                'total_healthy': total_healthy,
+                'unique_crops': len(crops_list),
+                'unique_diseases': len(top_diseases_list),
+                'recovery_rate': recovery_rate,
+                'healthy_percentage': health_summary['healthy_percentage'],
+                'diseased_percentage': health_summary['diseased_percentage'],
+            },
+            'charts': {
+                'trend_data': trend_data,
+                'top_diseases': top_diseases_list,
+                'scans_by_crop': crops_list,
+                'health_summary': health_summary,
+                'weekly_activity': weekly_data,
+                'confidence_distribution': confidence_data,
+                'recovery_data': recovery_data,
+                'severity_distribution': severity_list,
+                'district_distribution': district_list,
+                'crop_health_summary': crop_health,
+                'seasonal_patterns': seasonal_counts,
+            }
+        })
+
+
 # ── 12. COMMUNITY ────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
