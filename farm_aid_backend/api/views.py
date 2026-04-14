@@ -45,8 +45,6 @@
 #             )
 
 #         # ── b. Password strength validation ──────────────────────────────
-#         # Runs ALL validators listed in AUTH_PASSWORD_VALIDATORS in settings.py
-#         # including our custom PasswordStrengthValidator & NoCommonPasswordValidator
 #         raw_password = data.get('password', '')
 #         try:
 #             validate_password(raw_password)
@@ -54,7 +52,7 @@
 #             return Response(
 #                 {
 #                     'error':   'Password is too weak.',
-#                     'details': list(exc.messages),   # e.g. ["Must contain uppercase", ...]
+#                     'details': list(exc.messages),
 #                 },
 #                 status=status.HTTP_400_BAD_REQUEST,
 #             )
@@ -162,13 +160,12 @@
 
 #     user.set_password(new_pw)
 #     user.save()
-#     # Re-issue token so Flutter app stays logged in after password change
 #     Token.objects.filter(user=user).delete()
 #     new_token, _ = Token.objects.get_or_create(user=user)
 #     return Response({
 #         'status':  'success',
 #         'message': 'Password updated!',
-#         'token':   new_token.key,   # Flutter should store this new token
+#         'token':   new_token.key,
 #     })
 
 
@@ -177,26 +174,12 @@
 # @api_view(['POST'])
 # @permission_classes([AllowAny])
 # def google_auth(request):
-#     """
-#     POST /api/auth/google/
-#     Body: { "id_token": "<Google ID token from Flutter google_sign_in>" }
-
-#     Flutter usage:
-#       final googleUser = await GoogleSignIn().signIn();
-#       final auth        = await googleUser!.authentication;
-#       // POST auth.idToken to this endpoint → receive { token, farmerName, ... }
-
-#     Requirements:
-#       pip install google-auth
-#       Set GOOGLE_CLIENT_ID in settings.py or as env variable.
-#     """
 #     from django.conf import settings as django_settings
 
 #     id_token_str = request.data.get('id_token', '').strip()
 #     if not id_token_str:
 #         return Response({'error': 'id_token is required.'}, status=400)
 
-#     # ── Verify the token with Google ──────────────────────────────────────
 #     try:
 #         from google.oauth2 import id_token as google_id_token
 #         from google.auth.transport import requests as google_requests
@@ -223,19 +206,18 @@
 #     if not email:
 #         return Response({'error': 'Google account has no email address.'}, status=400)
 
-#     # ── Get or create the Farmer account ─────────────────────────────────
 #     user, created = Farmer.objects.get_or_create(
 #         email=email,
 #         defaults={
 #             'username':   email,
 #             'first_name': first_name,
 #             'last_name':  last_name,
-#             'is_active':  True,   # Google already verified the email
+#             'is_active':  True,
 #         },
 #     )
 
 #     if created:
-#         user.set_unusable_password()   # Google-only login, no password needed
+#         user.set_unusable_password()
 #         if photo_url:
 #             user.profile_photo_url = photo_url
 #         user.save()
@@ -249,7 +231,7 @@
 #         'farmerName': f"{user.first_name} {user.last_name}".strip() or email,
 #         'is_staff':   user.is_staff,
 #         'email':      user.email,
-#         'created':    created,   # True = new account, False = existing account
+#         'created':    created,
 #     })
 
 
@@ -269,7 +251,7 @@
 #             'language_preferences': u.language_preferences,
 #             'experience_level':     u.experience_level,
 #             'profile_photo_url':    u.profile_photo_url,
-#             'farm_size_hectares':   u.farm_size_hectares  if hasattr(u, 'farm_size_hectares')  else None,
+#             'farm_size_hectares':   u.farm_size_hectares if hasattr(u, 'farm_size_hectares') else None,
 #             'onboarding_complete':  u.onboarding_complete if hasattr(u, 'onboarding_complete') else False,
 #         })
 
@@ -316,17 +298,6 @@
 # # ── 5. ALERTS ────────────────────────────────────────────────────────────────
 
 # class FarmerAlertsView(APIView):
-#     """
-#     GET  /api/alerts/            → list all alerts (with unread count)
-#     POST /api/alerts/mark-read/  → mark all unread alerts as read
-
-#     Response shape change:
-#       OLD: [ {...}, {...} ]              ← bare list
-#       NEW: { count, unread_count, alerts: [...] }  ← dict with meta
-
-#     Flutter: update your alerts page to read response['alerts'] instead of
-#     treating the response as a list directly.
-#     """
 #     permission_classes = [IsAuthenticated]
 
 #     def get(self, request):
@@ -338,10 +309,9 @@
 #             Q(FarmerID=user)
 #             | Q(district_target__iexact=user_dist)
 #         ).exclude(
-#             expires_at__lt=now     # hide expired alerts
+#             expires_at__lt=now
 #         ).order_by('-DateCreated')
 
-#         # Optional filter by type: GET /api/alerts/?type=weather
 #         alert_type = request.query_params.get('type')
 #         if alert_type:
 #             qs = qs.filter(alert_type=alert_type)
@@ -360,13 +330,6 @@
 
 
 # class AlertCountView(APIView):
-#     """
-#     GET /api/alerts/unread-count/
-#     Lightweight endpoint — returns just the badge number.
-#     Flutter bell icon polls this every 60 s without fetching full payloads.
-
-#     Response: { "unread_count": 3 }
-#     """
 #     permission_classes = [IsAuthenticated]
 
 #     def get(self, request):
@@ -587,7 +550,7 @@
 #                     'steps':      res_steps,
 #                     'confidence': confidence,
 #                     'treatment_dose_display': dosage_calc.get('product_display') if dosage_calc and wants_personalized else None,
-#                     'water_volume_display':   dosage_calc.get('water_display')   if dosage_calc and wants_personalized else None,
+#                     'water_volume_display':   dosage_calc.get('water_display') if dosage_calc and wants_personalized else None,
 #                 },
 #                 'treatment_product':   res_pesticide,
 #                 'personalized_advice': personalized_advice,
@@ -725,7 +688,7 @@
 #         insight.total_scans             = total_scans
 #         insight.total_diseases_detected = total_scans - healthy
 #         insight.total_healthy_scans     = healthy
-#         insight.most_common_disease     = top['DiseaseName']   if top      else None
+#         insight.most_common_disease     = top['DiseaseName'] if top else None
 #         insight.most_scanned_crop       = top_crop['CropType'] if top_crop else None
 #         insight.save()
 
@@ -911,13 +874,17 @@
 # @api_view(['DELETE'])
 # @permission_classes([IsAuthenticated])
 # def delete_community_post(request, post_id):
-#     """DELETE /api/community/posts/{id}/ - Delete a post (owner only)"""
+#     """
+#     DELETE /api/community/posts/{id}/ - Delete a post (owner only)
+#     Security: Only the post owner can delete their own post
+#     """
 #     try:
+#         # SECURITY: Ensure only the post owner can delete
 #         post = CommunityPost.objects.get(id=post_id, farmer=request.user)
 #         post.delete()
 #         return Response(status=204)
 #     except CommunityPost.DoesNotExist:
-#         return Response({'error': 'Post not found'}, status=404)
+#         return Response({'error': 'Post not found or you do not have permission'}, status=404)
 #     except Exception as e:
 #         return Response({'error': str(e)}, status=500)
 
@@ -1373,6 +1340,137 @@ class SaveScanView(APIView):
         except Exception:
             return None
 
+    def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_alt):
+        """Generate personalized advice WITHOUT querying PersonalizedRule table"""
+        
+        # Get farmer's data
+        experience_level = farmer.experience_level
+        district = gps_district or farmer.district or 'your area'
+        
+        # Get crop profile data
+        crop_type = crop_profile.VegetableType if crop_profile else 'your crop'
+        soil_type = crop_profile.SoilEnvironment or 'your soil type'
+        irrigation = crop_profile.irrigation_method or 'your irrigation method'
+        planting_date = crop_profile.PlantingDate
+        plot_size = crop_profile.plot_size_hectares
+        
+        # Calculate days since planting and growth stage
+        days_since_planting = 0
+        growth_stage = "Unknown"
+        if planting_date:
+            days_since_planting = (date.today() - planting_date).days
+            if days_since_planting < 14:
+                growth_stage = "seedling"
+            elif days_since_planting < 45:
+                growth_stage = "vegetative"
+            elif days_since_planting < 75:
+                growth_stage = "flowering"
+            else:
+                growth_stage = "fruiting/harvest"
+        
+        # Determine altitude tier
+        altitude_tier = "lowland"
+        if gps_alt:
+            if gps_alt < 1800:
+                altitude_tier = "lowland"
+            elif gps_alt < 2200:
+                altitude_tier = "midland"
+            elif gps_alt < 2800:
+                altitude_tier = "highland"
+            else:
+                altitude_tier = "alpine"
+        
+        # Determine current season
+        current_month = date.today().month
+        if 5 <= current_month <= 9:
+            season = "dry"
+        else:
+            season = "wet"
+        
+        # Build personalized advice based on farmer's data
+        advice_parts = []
+        
+        # Disease-specific advice
+        disease_lower = disease_name.lower()
+        if 'blight' in disease_lower:
+            if altitude_tier == 'highland':
+                advice_parts.append(f"In {district}'s highland conditions ({int(gps_alt)}m), blight spreads faster due to cool, moist nights. Apply copper fungicide every 5-7 days during wet season.")
+            else:
+                advice_parts.append(f"In {district}'s lowland conditions, apply copper fungicide every 10-14 days.")
+        
+        elif 'mildew' in disease_lower:
+            if season == 'wet':
+                advice_parts.append(f"During this wet season in {district}, powdery mildew risk is high. Apply sulfur-based fungicide weekly. Ensure good air circulation around plants.")
+            else:
+                advice_parts.append(f"During this dry season, water plants at base to reduce humidity. Apply neem oil as preventive.")
+        
+        elif 'rust' in disease_lower:
+            advice_parts.append(f"For rust in {district}, remove affected leaves immediately. Apply fungicide containing azoxystrobin.")
+        
+        elif 'aphid' in disease_lower:
+            advice_parts.append(f"Control aphids in {district} with neem oil or insecticidal soap. Release ladybugs if available.")
+        
+        elif 'rot' in disease_lower:
+            advice_parts.append(f"For rot in {district}, improve drainage immediately. Reduce watering and apply copper-based fungicide.")
+        
+        elif 'virus' in disease_lower:
+            advice_parts.append(f"Viruses have no cure. Remove infected plants immediately from {district}. Control insect vectors and use virus-free seeds.")
+        
+        elif 'healthy' in disease_lower:
+            advice_parts.append(f"Your {crop_type} appears healthy. Continue good agricultural practices in {district}.")
+        
+        else:
+            advice_parts.append(f"For {disease_name} in {district}, consult your local agricultural extension officer for specific treatment.")
+        
+        # Soil-specific advice
+        if soil_type and soil_type != 'your soil type':
+            if 'clay' in soil_type.lower():
+                advice_parts.append(f"Your {soil_type} soil needs raised beds for better drainage. Add organic matter to improve structure.")
+            elif 'sandy' in soil_type.lower():
+                advice_parts.append(f"Your {soil_type} soil drains quickly. Add compost to retain moisture and nutrients.")
+            elif 'loam' in soil_type.lower():
+                advice_parts.append(f"Your {soil_type} soil is ideal. Maintain organic matter with regular compost addition.")
+        
+        # Irrigation-specific advice
+        if irrigation and irrigation != 'your irrigation method':
+            if irrigation.lower() == 'drip':
+                advice_parts.append("Your drip irrigation is ideal for this disease. Water early morning to allow leaves to dry.")
+            elif irrigation.lower() == 'overhead' or irrigation.lower() == 'sprinkler':
+                advice_parts.append("Switch to drip irrigation if possible. Overhead watering spreads many diseases.")
+        
+        # Growth stage-specific advice
+        if growth_stage != "Unknown":
+            if growth_stage == "seedling":
+                advice_parts.append(f"Your {crop_type} is in seedling stage. Young plants are vulnerable. Monitor daily for disease spread.")
+            elif growth_stage == "flowering":
+                advice_parts.append(f"Your {crop_type} is flowering. Avoid spraying during peak flowering to protect pollinators. Spray early morning or late evening.")
+            elif growth_stage == "fruiting/harvest":
+                advice_parts.append(f"Your {crop_type} is in fruiting stage. Follow pre-harvest interval on all pesticides.")
+        
+        # Experience level adjustment
+        if experience_level == 'beginner':
+            advice_parts.append("As a beginner farmer, start with smaller applications and always wear protective gear when spraying.")
+        elif experience_level == 'expert':
+            advice_parts.append("For expert farmers, consider rotating between different fungicide groups to prevent resistance.")
+        
+        # Combine all advice
+        personalized_advice = " ".join(advice_parts)
+        
+        return {
+            'advice': personalized_advice,
+            'matched_on': {
+                'district': district,
+                'altitude_tier': altitude_tier,
+                'altitude_m': gps_alt,
+                'soil': soil_type,
+                'irrigation': irrigation,
+                'growth_stage': growth_stage,
+                'season': season,
+                'days_since_planting': days_since_planting,
+            },
+            'farmer_level': experience_level,
+        }
+
     def post(self, request):
         try:
             user = request.user
@@ -1456,6 +1554,9 @@ class SaveScanView(APIView):
                 follow_up_date  = follow_up_date,
             )
 
+            # ═══════════════════════════════════════════════════════════════
+            # GENERAL MODE LOGIC - KEPT EXACTLY THE SAME (NO CHANGES)
+            # ═══════════════════════════════════════════════════════════════
             tq       = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
             treat    = Treatment.objects.filter(tq).first()
             kb_entry = KnowledgeBase.objects.filter(tq).first()
@@ -1484,34 +1585,26 @@ class SaveScanView(APIView):
                 if st_d: res_dosage    = st_d
                 if st_s: res_steps     = st_s
 
+            # ═══════════════════════════════════════════════════════════════
+            # PERSONALIZED MODE - ADD GENERATED ADVICE (NO DB QUERY)
+            # ═══════════════════════════════════════════════════════════════
             personalized_advice = None
             matched_context     = None
             personalized_dosage = None
 
             if wants_personalized and target_profile:
-                try:
-                    weather     = WeatherData.objects.filter(
-                        district__iexact=gps_district
-                    ).order_by('-DateUpdated').first()
-                    rainfall_mm = weather.rainfall_last_7_days if weather else 0.0
-
-                    match = RuleMatchingService.get_best_match(
-                        disease_name    = clean_label,
-                        farmer          = user,
-                        crop_profile    = target_profile,
-                        gps_district    = gps_district,
-                        rainfall_mm     = rainfall_mm,
-                        altitude_meters = gps_alt,
-                    )
-                    if match.get('found'):
-                        personalized_advice = match['advice']
-                        matched_context     = match.get('matched_on')
-                        logger.warning(f"[SaveScan] ✅ Rule matched: rule_id={match.get('rule_id')} advice={personalized_advice[:60]}")
-                    else:
-                        logger.warning(f"[SaveScan] ❌ No rule matched for disease='{clean_label}' district='{gps_district}'")
-                except Exception:
-                    pass
-
+                # Generate personalized advice WITHOUT querying PersonalizedRule table
+                personalized = self._generate_personalized_advice(
+                    disease_name=clean_label,
+                    farmer=user,
+                    crop_profile=target_profile,
+                    gps_district=gps_district,
+                    gps_alt=gps_alt,
+                )
+                
+                personalized_advice = personalized['advice']
+                matched_context = personalized['matched_on']
+                
                 if dosage_calc:
                     personalized_dosage = {
                         'product':       res_pesticide,
@@ -1525,6 +1618,8 @@ class SaveScanView(APIView):
                             'buckets_10l':    dosage_calc.get('buckets_10l'),
                         },
                     }
+                
+                logger.warning(f"[SaveScan] ✅ Personalized advice generated (no DB query to PersonalizedRule)")
 
             personalized_block = None
             if wants_personalized and target_profile:
@@ -1547,8 +1642,7 @@ class SaveScanView(APIView):
                     'wants_personalized':           wants_personalized,
                     'target_profile_found':         target_profile is not None,
                     'target_profile_id':            str(target_profile.ProfileID) if target_profile else None,
-                    'rule_match_found':             bool(personalized_advice),
-                    'personalized_advice_preview':  personalized_advice[:80] if personalized_advice else None,
+                    'personalized_advice_generated': bool(personalized_advice) if wants_personalized else False,
                 },
                 'personalized':   personalized_block,
                 'results': {
@@ -1978,3 +2072,4 @@ def get_community_profile(request):
         })
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
