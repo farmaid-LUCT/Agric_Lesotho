@@ -365,6 +365,267 @@
 #         except Exception:
 #             return None
 
+#     def _get_highland_temp(self, altitude):
+#         """Estimate temperature based on altitude in Lesotho"""
+#         # Lesotho: temperature drops ~0.65°C per 100m
+#         base_temp = 22  # °C at sea level
+#         temp = base_temp - (altitude / 100 * 0.65)
+#         return int(temp)
+
+#     def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
+#         """Generate personalized advice USING GPS coordinates for real recommendations"""
+        
+#         # Get farmer's data
+#         experience_level = farmer.experience_level
+#         district = gps_district or farmer.district or 'your area'
+        
+#         # Get crop profile data
+#         crop_type = crop_profile.VegetableType if crop_profile else 'your crop'
+#         soil_type = crop_profile.SoilEnvironment or 'your soil type'
+#         irrigation = crop_profile.irrigation_method or 'your irrigation method'
+#         planting_date = crop_profile.PlantingDate
+#         plot_size = crop_profile.plot_size_hectares
+        
+#         # Calculate days since planting and growth stage
+#         days_since_planting = 0
+#         growth_stage = "Unknown"
+#         if planting_date:
+#             days_since_planting = (date.today() - planting_date).days
+#             if days_since_planting < 14:
+#                 growth_stage = "seedling"
+#             elif days_since_planting < 45:
+#                 growth_stage = "vegetative"
+#             elif days_since_planting < 75:
+#                 growth_stage = "flowering"
+#             else:
+#                 growth_stage = "fruiting/harvest"
+        
+#         # Determine altitude tier using GPS altitude
+#         altitude_tier = "lowland"
+#         altitude_display = None
+#         if gps_alt is not None:
+#             altitude_display = f"{int(gps_alt)}m"
+#             if gps_alt < 1800:
+#                 altitude_tier = "lowland"
+#             elif gps_alt < 2200:
+#                 altitude_tier = "midland"
+#             elif gps_alt < 2800:
+#                 altitude_tier = "highland"
+#             else:
+#                 altitude_tier = "alpine"
+        
+#         # Determine current season
+#         current_month = date.today().month
+#         if 5 <= current_month <= 9:
+#             season = "dry"
+#             season_advice = "During this dry season, fungal diseases spread less. Focus on proper irrigation and soil moisture management."
+#         else:
+#             season = "wet"
+#             season_advice = "During this wet season, fungal diseases spread rapidly. Apply preventive fungicides and ensure good drainage."
+        
+#         # Lesotho-specific climate zones based on latitude/longitude
+#         is_western = False
+#         is_eastern = False
+#         is_northern = False
+#         is_southern = False
+        
+#         if gps_lat and gps_lon:
+#             # Western Lesotho (Mafeteng, Mohale's Hoek, Quthing) - drier
+#             if gps_lon < 27.5:
+#                 is_western = True
+#             # Eastern Lesotho (Mokhotlong, Thaba-Tseka) - wetter, colder
+#             elif gps_lon > 28.5:
+#                 is_eastern = True
+            
+#             # Northern Lesotho (Berea, Leribe, Butha-Buthe) - warmer
+#             if gps_lat > -29.0:
+#                 is_northern = True
+#             # Southern Lesotho (Quthing, Qacha's Nek) - cooler
+#             elif gps_lat < -30.0:
+#                 is_southern = True
+        
+#         # Build personalized advice based on GPS and farmer's data
+#         advice_parts = []
+        
+#         # ============================================================
+#         # 1. LOCATION-SPECIFIC OPENING (using actual GPS)
+#         # ============================================================
+#         location_context = []
+#         if gps_lat and gps_lon:
+#             location_context.append(f"Your farm at coordinates {gps_lat:.4f}°S, {gps_lon:.4f}°E")
+#             if altitude_display:
+#                 location_context.append(f"at {altitude_display} elevation")
+#             location_context.append(f"in {district} district")
+#         else:
+#             location_context.append(f"Your farm in {district} district")
+        
+#         advice_parts.append(f"{' '.join(location_context)} faces specific conditions for {disease_name.replace('_', ' ')}.")
+        
+#         # ============================================================
+#         # 2. ALTITUDE-BASED RECOMMENDATIONS (using GPS altitude)
+#         # ============================================================
+#         if gps_alt:
+#             if altitude_tier == 'highland':
+#                 temp = self._get_highland_temp(gps_alt)
+#                 advice_parts.append(f"At {int(gps_alt)}m elevation, nights are cold ({temp}°C). This slows down pathogen development but also slows plant growth. Apply treatments early morning when temperatures rise above 10°C.")
+                
+#                 if 'blight' in disease_name.lower():
+#                     advice_parts.append(f"Highland conditions favor late blight development. Increase copper spray frequency to every 5 days during wet periods.")
+#                 elif 'mildew' in disease_name.lower():
+#                     advice_parts.append(f"Highland humidity promotes powdery mildew. Ensure good air circulation by spacing plants wider (add 10-15cm to standard spacing).")
+                    
+#             elif altitude_tier == 'midland':
+#                 advice_parts.append(f"Your midland altitude ({int(gps_alt)}m) provides good growing conditions. Standard treatment intervals work well here.")
+                
+#             elif altitude_tier == 'lowland':
+#                 advice_parts.append(f"At {int(gps_alt)}m elevation, warmer temperatures accelerate disease spread. Reduce treatment intervals by 20-30% compared to highland recommendations.")
+        
+#         # ============================================================
+#         # 3. REGIONAL CLIMATE RECOMMENDATIONS (using GPS lat/lon)
+#         # ============================================================
+#         if is_western:
+#             advice_parts.append("Western Lesotho (your area) receives less rainfall (600-800mm annually). During dry spells, focus on soil moisture conservation. Use mulch to retain soil moisture and reduce plant stress.")
+#             if 'blight' in disease_name.lower():
+#                 advice_parts.append("Despite lower rainfall in western Lesotho, morning dew can still promote blight. Apply fungicides early morning before dew forms.")
+                
+#         elif is_eastern:
+#             advice_parts.append("Eastern Lesotho (your area) receives high rainfall (1000-1500mm annually). This high humidity creates perfect conditions for fungal diseases. Increase fungicide frequency and ensure excellent drainage.")
+#             if 'mildew' in disease_name.lower():
+#                 advice_parts.append("Your high-rainfall area is a hotspot for powdery mildew. Consider using systemic fungicides and improve air circulation through proper pruning.")
+                
+#         if is_northern:
+#             advice_parts.append("Northern Lesotho (your area) has warmer temperatures, which can accelerate disease cycles. Monitor crops daily during peak growing season.")
+#         elif is_southern:
+#             advice_parts.append("Southern Lesotho (your area) experiences cooler temperatures. Diseases develop slower, but frost damage can weaken plants making them susceptible.")
+        
+#         # ============================================================
+#         # 4. SEASON-SPECIFIC ADVICE
+#         # ============================================================
+#         advice_parts.append(season_advice)
+        
+#         # ============================================================
+#         # 5. DISEASE-SPECIFIC TREATMENT (based on location)
+#         # ============================================================
+#         disease_lower = disease_name.lower()
+        
+#         if 'blight' in disease_lower:
+#             if altitude_tier == 'highland':
+#                 advice_parts.append(f"BLIGHT TREATMENT for highlands: Apply copper hydroxide (250g/100L) every 5-7 days. In Mokhotlong/Thaba-Tseka highlands, late blight is the #1 potato disease.")
+#             elif is_eastern:
+#                 advice_parts.append(f"BLIGHT TREATMENT for eastern Lesotho: Due to your high rainfall area ({gps_lon:.1f}°E), apply metalaxyl-based fungicides preventively every 7 days during rainy season.")
+#             else:
+#                 advice_parts.append(f"BLIGHT TREATMENT: Apply copper-based fungicide every 7-10 days. Remove infected leaves immediately and destroy them away from your field.")
+                
+#         elif 'mildew' in disease_lower:
+#             if is_eastern or altitude_tier == 'highland':
+#                 advice_parts.append(f"MILDEW TREATMENT for your high-humidity location: Apply sulfur (200g/100L) weekly. Your area's morning fog creates ideal mildew conditions.")
+#             else:
+#                 advice_parts.append(f"MILDEW TREATMENT: Apply neem oil or sulfur weekly. Water plants at base, not overhead, to reduce leaf wetness.")
+                
+#         elif 'rust' in disease_lower:
+#             if is_western:
+#                 advice_parts.append(f"RUST TREATMENT for western Lesotho: Your drier conditions actually favor rust development. Apply azoxystrobin (100ml/100L) at first sign.")
+#             else:
+#                 advice_parts.append(f"RUST TREATMENT: Remove affected leaves. Apply fungicide containing azoxystrobin or tebuconazole.")
+                
+#         elif 'aphid' in disease_lower:
+#             advice_parts.append(f"APHID CONTROL: Based on your location, release ladybugs (available from Lesotho Agricultural Supply) or spray neem oil (30ml/10L). Aphids thrive in Lesotho's spring (September-October).")
+            
+#         elif 'rot' in disease_lower:
+#             if is_eastern:
+#                 advice_parts.append(f"ROT TREATMENT for eastern Lesotho: Your high rainfall area requires raised beds (30cm high) for drainage. Apply copper-based fungicide as soil drench.")
+#             else:
+#                 advice_parts.append(f"ROT TREATMENT: Improve drainage immediately. Reduce watering. Apply copper-based fungicide.")
+        
+#         elif 'virus' in disease_lower:
+#             advice_parts.append(f"VIRUS MANAGEMENT: Viruses have no cure. Remove infected plants immediately from {district}. Control insect vectors and use virus-free seeds. In Lesotho, tomato spotted wilt virus is common in lowlands.")
+        
+#         elif 'healthy' in disease_lower:
+#             advice_parts.append(f"✅ Your {crop_type} appears healthy. Continue good agricultural practices in {district}.")
+        
+#         else:
+#             advice_parts.append(f"For {disease_name} in {district}, consult your local agricultural extension officer for specific treatment.")
+        
+#         # ============================================================
+#         # 6. SOIL-SPECIFIC ADVICE (using crop profile)
+#         # ============================================================
+#         if soil_type and soil_type != 'your soil type':
+#             if 'clay' in soil_type.lower():
+#                 advice_parts.append(f"Your {soil_type} soil in {district} needs raised beds for better drainage. Add river sand and compost to improve soil structure.")
+#             elif 'sandy' in soil_type.lower():
+#                 advice_parts.append(f"Your {soil_type} soil in {district} drains quickly. Add compost to retain moisture. In dry areas like western Lesotho, this is especially important.")
+#             elif 'loam' in soil_type.lower():
+#                 advice_parts.append(f"Your {soil_type} soil is ideal for {crop_type} in {district} conditions.")
+        
+#         # ============================================================
+#         # 7. IRRIGATION ADVICE (based on location climate)
+#         # ============================================================
+#         if irrigation and irrigation != 'your irrigation method':
+#             if irrigation.lower() == 'drip':
+#                 if is_western:
+#                     advice_parts.append("Your drip irrigation is excellent for western Lesotho's drier conditions. Water early morning (6-8 AM) to minimize evaporation.")
+#                 else:
+#                     advice_parts.append("Your drip irrigation is ideal. Water early morning to allow leaves to dry.")
+#             elif irrigation.lower() == 'overhead' or irrigation.lower() == 'sprinkler':
+#                 if is_eastern or altitude_tier == 'highland':
+#                     advice_parts.append("⚠️ In your high-rainfall/high-humidity area, overhead watering spreads diseases. Switch to drip irrigation or water only at soil level.")
+#                 else:
+#                     advice_parts.append("Switch to drip irrigation if possible. Overhead watering spreads many fungal diseases.")
+        
+#         # ============================================================
+#         # 8. GROWTH STAGE ADVICE
+#         # ============================================================
+#         if growth_stage != "Unknown":
+#             if growth_stage == "seedling":
+#                 advice_parts.append(f"Your {crop_type} is in seedling stage. Young plants in {district} are vulnerable. Monitor daily for disease spread.")
+#             elif growth_stage == "flowering":
+#                 advice_parts.append(f"Your {crop_type} is flowering. Avoid spraying during peak flowering (9 AM - 3 PM) to protect bees. Spray early morning or late evening.")
+#             elif growth_stage == "fruiting/harvest":
+#                 advice_parts.append(f"Your {crop_type} is in fruiting stage. Follow pre-harvest interval on all pesticides - check label for days to wait after spraying before harvest.")
+        
+#         # ============================================================
+#         # 9. FARMER EXPERIENCE LEVEL
+#         # ============================================================
+#         if experience_level == 'beginner':
+#             advice_parts.append("👨‍🌾 Beginner tip: Start with a small test area first. Always wear gloves, mask, and protective clothing when spraying. Read all pesticide labels carefully.")
+#         elif experience_level == 'expert':
+#             advice_parts.append("🔬 Expert recommendation: Rotate between different fungicide groups (FRAC codes) to prevent resistance development.")
+        
+#         # ============================================================
+#         # 10. LOCAL RESOURCE RECOMMENDATIONS (based on district)
+#         # ============================================================
+#         if district and district != 'your area':
+#             advice_parts.append(f"📍 Local resources in {district}: Contact your nearest agricultural extension officer for site-specific advice and free soil testing.")
+        
+#         # ============================================================
+#         # 11. DOSAGE CALCULATION (using plot size from crop profile)
+#         # ============================================================
+#         if plot_size and plot_size > 0:
+#             water_liters = int(plot_size * 200)
+#             buckets = int(water_liters / 10)
+#             advice_parts.append(f"📐 For your {plot_size} hectare plot, mix the recommended product with {water_liters}L water (approx. {buckets} buckets of 10L).")
+        
+#         # Combine all advice
+#         personalized_advice = " ".join(advice_parts)
+        
+#         return {
+#             'advice': personalized_advice,
+#             'matched_on': {
+#                 'district': district,
+#                 'latitude': gps_lat,
+#                 'longitude': gps_lon,
+#                 'altitude_tier': altitude_tier,
+#                 'altitude_m': gps_alt,
+#                 'soil': soil_type,
+#                 'irrigation': irrigation,
+#                 'growth_stage': growth_stage,
+#                 'season': season,
+#                 'days_since_planting': days_since_planting,
+#                 'region': 'western' if is_western else 'eastern' if is_eastern else 'central',
+#             },
+#             'farmer_level': experience_level,
+#         }
+
 #     def post(self, request):
 #         try:
 #             user = request.user
@@ -372,7 +633,7 @@
 #             import logging
 #             logger = logging.getLogger(__name__)
 #             logger.warning(f"[SaveScan] incoming data: {dict(request.data)}")
-#             logger.warning(f"[SaveScan] scan_mode={request.data.get('scan_mode')} profileId={request.data.get('profileId')} ProfileID={request.data.get('ProfileID')}")
+#             logger.warning(f"[SaveScan] scan_mode={request.data.get('scan_mode')} profileId={request.data.get('profileId')}")
 
 #             incoming_lang = request.data.get('language') or request.data.get('lang')
 #             if incoming_lang in ['st', 'en']:
@@ -398,17 +659,35 @@
 
 #             profile_id   = (request.data.get('profileId')
 #                             or request.data.get('ProfileID'))
-#             gps_lat      = request.data.get('latitude')
-#             gps_lon      = request.data.get('longitude')
-#             gps_alt      = request.data.get('altitude')
+            
+#             # ═══════════════════════════════════════════════════════════════
+#             # GPS DATA - Properly capture from request
+#             # ═══════════════════════════════════════════════════════════════
+#             gps_lat = request.data.get('latitude')
+#             gps_lon = request.data.get('longitude')
+#             gps_alt = request.data.get('altitude')
+            
+#             # Convert to float if possible
+#             try:
+#                 if gps_lat:
+#                     gps_lat = float(gps_lat)
+#                 if gps_lon:
+#                     gps_lon = float(gps_lon)
+#                 if gps_alt:
+#                     gps_alt = float(gps_alt)
+#             except (TypeError, ValueError):
+#                 pass
+            
 #             gps_district = (request.data.get('gps_district')
 #                             or request.data.get('district')
 #                             or user.district
 #                             or '')
+            
+#             logger.warning(f"[SaveScan] GPS Data - lat: {gps_lat}, lon: {gps_lon}, alt: {gps_alt}, district: {gps_district}")
 
 #             scan_mode          = (request.data.get('scan_mode')
 #                                   or request.data.get('scanMode')
-#                                   or 'personalized').lower()
+#                                   or 'general').lower()
 #             wants_personalized = scan_mode == 'personalized'
 
 #             logger.warning(f"[SaveScan] wants_personalized={wants_personalized} scan_mode='{scan_mode}'")
@@ -419,12 +698,15 @@
 #                     pk=profile_id, FarmerID=user
 #                 ).first()
 
-#             logger.warning(f"[SaveScan] profile_id='{profile_id}' target_profile={target_profile} wants_personalized={wants_personalized}")
+#             logger.warning(f"[SaveScan] profile_id='{profile_id}' target_profile={target_profile}")
 
 #             crop_type = (target_profile.VegetableType
 #                          if target_profile
 #                          else request.data.get('cropType', 'Vegetable'))
 
+#             # ═══════════════════════════════════════════════════════════════
+#             # SAVE PLANT WITH GPS DATA
+#             # ═══════════════════════════════════════════════════════════════
 #             new_plant = Plant.objects.create(
 #                 FarmerID        = user,
 #                 CropProfile     = target_profile,
@@ -435,6 +717,8 @@
 #                 altitude_meters = gps_alt,
 #                 gps_district    = gps_district,
 #             )
+            
+#             logger.warning(f"[SaveScan] Plant saved with GPS - lat: {new_plant.latitude}, lon: {new_plant.longitude}, alt: {new_plant.altitude_meters}")
 
 #             urgent = any(w in clean_label.lower()
 #                          for w in ['blight', 'rot', 'wilt', 'mold', 'virus',
@@ -448,6 +732,9 @@
 #                 follow_up_date  = follow_up_date,
 #             )
 
+#             # ═══════════════════════════════════════════════════════════════
+#             # GENERAL MODE LOGIC - KEPT EXACTLY THE SAME
+#             # ═══════════════════════════════════════════════════════════════
 #             tq       = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
 #             treat    = Treatment.objects.filter(tq).first()
 #             kb_entry = KnowledgeBase.objects.filter(tq).first()
@@ -476,34 +763,28 @@
 #                 if st_d: res_dosage    = st_d
 #                 if st_s: res_steps     = st_s
 
+#             # ═══════════════════════════════════════════════════════════════
+#             # PERSONALIZED MODE - USE GPS DATA
+#             # ═══════════════════════════════════════════════════════════════
 #             personalized_advice = None
 #             matched_context     = None
 #             personalized_dosage = None
 
 #             if wants_personalized and target_profile:
-#                 try:
-#                     weather     = WeatherData.objects.filter(
-#                         district__iexact=gps_district
-#                     ).order_by('-DateUpdated').first()
-#                     rainfall_mm = weather.rainfall_last_7_days if weather else 0.0
-
-#                     match = RuleMatchingService.get_best_match(
-#                         disease_name    = clean_label,
-#                         farmer          = user,
-#                         crop_profile    = target_profile,
-#                         gps_district    = gps_district,
-#                         rainfall_mm     = rainfall_mm,
-#                         altitude_meters = gps_alt,
-#                     )
-#                     if match.get('found'):
-#                         personalized_advice = match['advice']
-#                         matched_context     = match.get('matched_on')
-#                         logger.warning(f"[SaveScan] ✅ Rule matched: rule_id={match.get('rule_id')} advice={personalized_advice[:60]}")
-#                     else:
-#                         logger.warning(f"[SaveScan] ❌ No rule matched for disease='{clean_label}' district='{gps_district}'")
-#                 except Exception:
-#                     pass
-
+#                 # Generate personalized advice USING GPS DATA
+#                 personalized = self._generate_personalized_advice(
+#                     disease_name=clean_label,
+#                     farmer=user,
+#                     crop_profile=target_profile,
+#                     gps_district=gps_district,
+#                     gps_lat=gps_lat,
+#                     gps_lon=gps_lon,
+#                     gps_alt=gps_alt,
+#                 )
+                
+#                 personalized_advice = personalized['advice']
+#                 matched_context = personalized['matched_on']
+                
 #                 if dosage_calc:
 #                     personalized_dosage = {
 #                         'product':       res_pesticide,
@@ -517,6 +798,8 @@
 #                             'buckets_10l':    dosage_calc.get('buckets_10l'),
 #                         },
 #                     }
+                
+#                 logger.warning(f"[SaveScan] ✅ Personalized advice generated using GPS (lat: {gps_lat}, lon: {gps_lon}, alt: {gps_alt})")
 
 #             personalized_block = None
 #             if wants_personalized and target_profile:
@@ -533,14 +816,20 @@
 #                 'follow_up_date': follow_up_date.isoformat(),
 #                 'crop_type':      crop_type,
 #                 'scan_mode':      scan_mode,
+#                 'gps_data': {
+#                     'latitude': gps_lat,
+#                     'longitude': gps_lon,
+#                     'altitude': gps_alt,
+#                     'district': gps_district,
+#                 },
 #                 '_debug': {
 #                     'received_scan_mode':          scan_mode,
-#                     'received_profile_id':          str(profile_id),
-#                     'wants_personalized':           wants_personalized,
-#                     'target_profile_found':         target_profile is not None,
-#                     'target_profile_id':            str(target_profile.ProfileID) if target_profile else None,
-#                     'rule_match_found':             bool(personalized_advice),
-#                     'personalized_advice_preview':  personalized_advice[:80] if personalized_advice else None,
+#                     'received_profile_id':         str(profile_id),
+#                     'wants_personalized':          wants_personalized,
+#                     'target_profile_found':        target_profile is not None,
+#                     'target_profile_id':           str(target_profile.ProfileID) if target_profile else None,
+#                     'gps_received':                gps_lat is not None,
+#                     'personalized_advice_generated': bool(personalized_advice) if wants_personalized else False,
 #                 },
 #                 'personalized':   personalized_block,
 #                 'results': {
@@ -756,6 +1045,370 @@
 #             return Response({'status': 'deleted'})
 #         except GrowthJournalEntry.DoesNotExist:
 #             return Response({'error': 'Entry not found'}, status=404)
+
+
+# # ── 13. INSIGHTS & TRENDS FOR PLOTLY CHARTS ───────────────────────────────────
+
+# class FarmerInsightsTrendsView(APIView):
+#     """Get comprehensive analytics data formatted for Plotly charts"""
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         try:
+#             import logging
+#             logger = logging.getLogger(__name__)
+            
+#             user = request.user
+#             today = timezone.now().date()
+            
+#             # Get all plants and diagnoses
+#             plants = Plant.objects.filter(FarmerID=user)
+#             diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
+            
+#             logger.warning(f"User: {user.username}, Plants: {plants.count()}, Diagnoses: {diagnoses.count()}")
+            
+#             # ============================================================
+#             # 1. Basic Statistics
+#             # ============================================================
+#             total_scans = plants.count()
+#             total_diseases = diagnoses.exclude(DiseaseName__iexact='healthy').count()
+#             total_healthy = diagnoses.filter(DiseaseName__iexact='healthy').count()
+            
+#             # ============================================================
+#             # 2. Get all diagnoses with dates for trend analysis
+#             # ============================================================
+#             from django.db.models.functions import TruncDate
+#             from django.db.models import Count
+            
+#             # Get daily scan counts for the last 30 days
+#             last_30_days = today - timedelta(days=30)
+            
+#             # Create a date range for the last 30 days
+#             trend_data = []
+#             for i in range(29, -1, -1):
+#                 date_key = (today - timedelta(days=i)).isoformat()
+#                 trend_data.append({
+#                     'date': date_key,
+#                     'healthy': 0,
+#                     'unhealthy': 0
+#                 })
+            
+#             # Fill healthy counts
+#             daily_healthy = diagnoses.filter(
+#                 DateDiagnosed__date__gte=last_30_days,
+#                 DiseaseName__iexact='healthy'
+#             ).annotate(
+#                 date=TruncDate('DateDiagnosed')
+#             ).values('date').annotate(
+#                 count=Count('DiagnosisID')
+#             ).order_by('date')
+            
+#             for item in daily_healthy:
+#                 if item['date']:
+#                     date_key = item['date'].isoformat()
+#                     for td in trend_data:
+#                         if td['date'] == date_key:
+#                             td['healthy'] = item['count']
+#                             break
+            
+#             # Fill unhealthy counts
+#             daily_diseased = diagnoses.filter(
+#                 DateDiagnosed__date__gte=last_30_days
+#             ).exclude(
+#                 DiseaseName__iexact='healthy'
+#             ).annotate(
+#                 date=TruncDate('DateDiagnosed')
+#             ).values('date').annotate(
+#                 count=Count('DiagnosisID')
+#             ).order_by('date')
+            
+#             for item in daily_diseased:
+#                 if item['date']:
+#                     date_key = item['date'].isoformat()
+#                     for td in trend_data:
+#                         if td['date'] == date_key:
+#                             td['unhealthy'] = item['count']
+#                             break
+            
+#             # ============================================================
+#             # 3. Top Diseases (All time)
+#             # ============================================================
+#             top_diseases = diagnoses.exclude(
+#                 DiseaseName__iexact='healthy'
+#             ).values('DiseaseName').annotate(
+#                 count=Count('DiagnosisID')
+#             ).order_by('-count')[:10]
+            
+#             top_diseases_list = []
+#             for item in top_diseases:
+#                 top_diseases_list.append({
+#                     'name': item['DiseaseName'].replace('_', ' ').title(),
+#                     'count': item['count']
+#                 })
+            
+#             # ============================================================
+#             # 4. Scans by Crop Type
+#             # ============================================================
+#             scans_by_crop = plants.values('CropType').annotate(
+#                 count=Count('PlantID')
+#             ).order_by('-count')[:10]
+            
+#             crops_list = []
+#             for item in scans_by_crop:
+#                 crops_list.append({
+#                     'name': item['CropType'] or 'Unknown',
+#                     'count': item['count']
+#                 })
+            
+#             # ============================================================
+#             # 5. Healthy vs Diseased Summary
+#             # ============================================================
+#             health_summary = {
+#                 'total_scans': total_scans,
+#                 'healthy': total_healthy,
+#                 'diseased': total_diseases,
+#                 'healthy_percentage': round((total_healthy / total_scans * 100), 1) if total_scans > 0 else 0,
+#                 'diseased_percentage': round((total_diseases / total_scans * 100), 1) if total_scans > 0 else 0,
+#             }
+            
+#             # ============================================================
+#             # 6. Weekly Activity (Last 6 weeks)
+#             # ============================================================
+#             weekly_data = []
+#             for i in range(5, -1, -1):
+#                 week_start = today - timedelta(days=i*7)
+#                 week_end = week_start + timedelta(days=6)
+#                 week_scans = plants.filter(
+#                     DateCaptured__date__gte=week_start,
+#                     DateCaptured__date__lte=week_end
+#                 ).count()
+#                 weekly_data.append({
+#                     'week_label': f"{week_start.strftime('%b %d')} - {week_end.strftime('%b %d')}",
+#                     'scans': week_scans
+#                 })
+            
+#             # ============================================================
+#             # 7. Confidence Distribution
+#             # ============================================================
+#             confidence_data = [
+#                 {'range': '90-100%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.9).count(), 'color': '#4CAF50'},
+#                 {'range': '70-89%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.7, ConfidenceLevel__lt=0.9).count(), 'color': '#8BC34A'},
+#                 {'range': '50-69%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.5, ConfidenceLevel__lt=0.7).count(), 'color': '#FFC107'},
+#                 {'range': 'Below 50%', 'count': diagnoses.filter(ConfidenceLevel__lt=0.5).count(), 'color': '#FF9800'},
+#             ]
+            
+#             # ============================================================
+#             # 8. Recovery Rate
+#             # ============================================================
+#             diagnosed_with_feedback = diagnoses.filter(
+#                 treatment_outcome__isnull=False
+#             ).exclude(treatment_outcome='')
+            
+#             recovered = diagnosed_with_feedback.filter(treatment_outcome='recovered').count()
+#             no_change = diagnosed_with_feedback.filter(treatment_outcome='no_change').count()
+#             worsened = diagnosed_with_feedback.filter(treatment_outcome='worsened').count()
+            
+#             recovery_rate = 0
+#             if diagnosed_with_feedback.count() > 0:
+#                 recovery_rate = round((recovered / diagnosed_with_feedback.count()) * 100, 1)
+            
+#             recovery_data = [
+#                 {'label': 'Recovered', 'value': recovered, 'color': '#4CAF50'},
+#                 {'label': 'No Change', 'value': no_change, 'color': '#FFC107'},
+#                 {'label': 'Worsened', 'value': worsened, 'color': '#F44336'}
+#             ]
+            
+#             # ============================================================
+#             # 9. Severity Distribution
+#             # ============================================================
+#             severity_data = diagnoses.filter(
+#                 severity__isnull=False
+#             ).exclude(severity='').values('severity').annotate(
+#                 count=Count('DiagnosisID')
+#             )
+            
+#             severity_map = {
+#                 'mild': {'label': 'Mild', 'color': '#8BC34A'},
+#                 'moderate': {'label': 'Moderate', 'color': '#FFC107'},
+#                 'severe': {'label': 'Severe', 'color': '#F44336'}
+#             }
+            
+#             severity_list = []
+#             for item in severity_data:
+#                 sev = item['severity']
+#                 if sev in severity_map:
+#                     severity_list.append({
+#                         'label': severity_map[sev]['label'],
+#                         'value': item['count'],
+#                         'color': severity_map[sev]['color']
+#                     })
+            
+#             # ============================================================
+#             # 10. District-wise Distribution
+#             # ============================================================
+#             district_data = diagnoses.filter(
+#                 PlantID__gps_district__isnull=False
+#             ).exclude(
+#                 PlantID__gps_district=''
+#             ).values('PlantID__gps_district').annotate(
+#                 count=Count('DiagnosisID')
+#             ).order_by('-count')[:10]
+            
+#             district_list = []
+#             for item in district_data:
+#                 district_list.append({
+#                     'district': item['PlantID__gps_district'],
+#                     'total': item['count']
+#                 })
+            
+#             # ============================================================
+#             # 11. Crop Health Summary
+#             # ============================================================
+#             crop_health = []
+#             for crop in scans_by_crop[:5]:
+#                 crop_name = crop['CropType'] or 'Unknown'
+#                 crop_plants = plants.filter(CropType=crop_name)
+#                 crop_diagnoses = Diagnosis.objects.filter(PlantID__in=crop_plants)
+#                 healthy_count = crop_diagnoses.filter(DiseaseName__iexact='healthy').count()
+#                 diseased_count = crop_diagnoses.exclude(DiseaseName__iexact='healthy').count()
+#                 total = healthy_count + diseased_count
+#                 health_percentage = round((healthy_count / total * 100), 1) if total > 0 else 0
+                
+#                 crop_health.append({
+#                     'crop': crop_name,
+#                     'health_percentage': health_percentage
+#                 })
+            
+#             # ============================================================
+#             # 12. Seasonal Patterns (by month)
+#             # ============================================================
+#             from django.db.models.functions import ExtractMonth
+            
+#             seasonal_data = diagnoses.annotate(
+#                 month=ExtractMonth('DateDiagnosed')
+#             ).values('month').annotate(
+#                 count=Count('DiagnosisID')
+#             ).order_by('month')
+            
+#             month_names = {
+#                 1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr',
+#                 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug',
+#                 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'
+#             }
+            
+#             seasonal_counts = []
+#             for item in seasonal_data:
+#                 month_num = item['month']
+#                 if month_num:
+#                     seasonal_counts.append({
+#                         'month': month_names.get(month_num, 'Unknown'),
+#                         'count': item['count']
+#                     })
+            
+#             response_data = {
+#                 'statistics': {
+#                     'total_scans': total_scans,
+#                     'total_diseases': total_diseases,
+#                     'total_healthy': total_healthy,
+#                     'unique_crops': len(crops_list),
+#                     'unique_diseases': len(top_diseases_list),
+#                     'recovery_rate': recovery_rate,
+#                     'healthy_percentage': health_summary['healthy_percentage'],
+#                     'diseased_percentage': health_summary['diseased_percentage'],
+#                 },
+#                 'charts': {
+#                     'trend_data': trend_data,
+#                     'top_diseases': top_diseases_list,
+#                     'scans_by_crop': crops_list,
+#                     'health_summary': health_summary,
+#                     'weekly_activity': weekly_data,
+#                     'confidence_distribution': confidence_data,
+#                     'recovery_data': recovery_data,
+#                     'severity_distribution': severity_list,
+#                     'district_distribution': district_list,
+#                     'crop_health_summary': crop_health,
+#                     'seasonal_patterns': seasonal_counts,
+#                 }
+#             }
+            
+#             logger.warning(f"Response generated successfully")
+#             return Response(response_data)
+            
+#         except Exception as e:
+#             import traceback
+#             error_detail = traceback.format_exc()
+#             print(f"ERROR in FarmerInsightsTrendsView: {str(e)}")
+#             print(error_detail)
+#             return Response(
+#                 {'error': str(e), 'detail': error_detail},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
+
+# # ── 14. ADMIN DASHBOARD LIST VIEWS ────────────────────────────────────────────
+
+# class FarmerListView(APIView):
+#     """List all farmers for admin dashboard"""
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         # Only allow admin/staff users
+#         if not request.user.is_staff:
+#             return Response({'error': 'Admin access required'}, status=403)
+        
+#         farmers = Farmer.objects.all().values('id', 'username', 'email', 'first_name', 'last_name', 'district')
+#         return Response(list(farmers))
+
+
+# class TreatmentListView(APIView):
+#     """List all treatments for admin dashboard"""
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         if not request.user.is_staff:
+#             return Response({'error': 'Admin access required'}, status=403)
+        
+#         treatments = Treatment.objects.all().values('TreatmentID', 'DiseaseName', 'RecommendedPesticide')
+#         return Response(list(treatments))
+
+
+# class KnowledgeBaseListView(APIView):
+#     """List all knowledge base entries for admin dashboard"""
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         if not request.user.is_staff:
+#             return Response({'error': 'Admin access required'}, status=403)
+        
+#         entries = KnowledgeBase.objects.all().values('EntryID', 'DiseaseName')
+#         return Response(list(entries))
+
+
+# class DiagnosisListView(APIView):
+#     """List all diagnoses for admin dashboard"""
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         if not request.user.is_staff:
+#             return Response({'error': 'Admin access required'}, status=403)
+        
+#         diagnoses = Diagnosis.objects.all().values(
+#             'DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 
+#             'severity', 'treatment_outcome', 'DateDiagnosed'
+#         )
+#         return Response(list(diagnoses))
+
+
+# class PlantListView(APIView):
+#     """List all plants for admin dashboard"""
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         if not request.user.is_staff:
+#             return Response({'error': 'Admin access required'}, status=403)
+        
+#         plants = Plant.objects.all().values('PlantID', 'CropType', 'DateCaptured', 'gps_district')
+#         return Response(list(plants))
 
 
 # # ── 12. COMMUNITY ────────────────────────────────────────────────────────────
@@ -1085,7 +1738,7 @@ def resend_activation_email(request):
 @permission_classes([AllowAny])
 def activate_account(request, uidb64, token):
     try:
-        uid  = force_str(urlsafe_base64_decode(uidb64))
+        uid = force_str(urlsafe_base64_decode(uidb64))
         user = Farmer.objects.get(pk=uid)
     except (TypeError, ValueError, OverflowError, Farmer.DoesNotExist):
         user = None
@@ -1093,8 +1746,28 @@ def activate_account(request, uidb64, token):
     if user is not None and default_token_generator.check_token(user, token):
         user.is_active = True
         user.save()
-        return render(request, 'api/activation_success.html')
-    return HttpResponse("<h2>Activation link is invalid.</h2>", status=400)
+        # Return a simple HTML success page
+        return HttpResponse("""
+        <html>
+        <head><title>Account Activated</title></head>
+        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1 style="color: green;">✅ Account Activated!</h1>
+            <p>Your FarmAid account has been successfully activated.</p>
+            <p>You can now close this window and log in to the app.</p>
+            <a href="#" onclick="window.close(); return false;" style="color: green;">Close Window</a>
+        </body>
+        </html>
+        """)
+    return HttpResponse("""
+    <html>
+    <head><title>Activation Failed</title></head>
+    <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+        <h1 style="color: red;">❌ Activation Failed</h1>
+        <p>The activation link is invalid or has expired.</p>
+        <p>Please request a new activation email from the FarmAid app.</p>
+    </body>
+    </html>
+    """, status=400)
 
 
 @api_view(['POST'])
@@ -2598,4 +3271,5 @@ def get_community_profile(request):
         })
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
 
