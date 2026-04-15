@@ -574,17 +574,17 @@ if RENDER_EXTERNAL_URL:
 # SITE CONFIGURATION FOR ACTIVATION LINKS
 # ============================================================
 
-# This is used by Django to generate absolute URLs
-if RENDER_EXTERNAL_URL:
-    # For Render, set the site URL
-    from django.contrib.sites.models import Site
-    try:
-        current_site = Site.objects.get_current()
-        current_site.domain = RENDER_DOMAIN
-        current_site.name = 'FarmAid'
-        current_site.save()
-    except:
-        pass
+# # This is used by Django to generate absolute URLs
+# if RENDER_EXTERNAL_URL:
+#     # For Render, set the site URL
+#     from django.contrib.sites.models import Site
+#     try:
+#         current_site = Site.objects.get_current()
+#         current_site.domain = RENDER_DOMAIN
+#         current_site.name = 'FarmAid'
+#         current_site.save()
+#     except:
+#         pass
 
 # --- TIMEZONE ---
 LANGUAGE_CODE = 'en-us'
