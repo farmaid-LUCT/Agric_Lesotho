@@ -154,3 +154,14 @@ class WeatherDataSerializer(serializers.ModelSerializer):
             'AlertMessage',
             'DateUpdated',
         ]
+
+# --- 6. ADMIN DASHBOARD SERIALIZER ---
+class AdminDashboardStatsSerializer(serializers.Serializer):
+    total_scans = serializers.IntegerField()
+    diseases_detected = serializers.IntegerField()
+    identification_accuracy = serializers.FloatField()
+    new_diseases_logged = serializers.IntegerField()
+    weekly_scans = serializers.DictField()
+    unverified_reports = serializers.ListField()
+    disease_distribution = serializers.DictField()
+    system_health = serializers.DictField()
