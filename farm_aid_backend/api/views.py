@@ -2320,6 +2320,72 @@ class FarmerInsightsTrendsView(APIView):
             )
 
 
+# ── 14. ADMIN DASHBOARD LIST VIEWS ────────────────────────────────────────────
+
+class FarmerListView(APIView):
+    """List all farmers for admin dashboard"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Only allow admin/staff users
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=403)
+        
+        farmers = Farmer.objects.all().values('id', 'username', 'email', 'first_name', 'last_name', 'district')
+        return Response(list(farmers))
+
+
+class TreatmentListView(APIView):
+    """List all treatments for admin dashboard"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=403)
+        
+        treatments = Treatment.objects.all().values('TreatmentID', 'DiseaseName', 'RecommendedPesticide')
+        return Response(list(treatments))
+
+
+class KnowledgeBaseListView(APIView):
+    """List all knowledge base entries for admin dashboard"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=403)
+        
+        entries = KnowledgeBase.objects.all().values('EntryID', 'DiseaseName')
+        return Response(list(entries))
+
+
+class DiagnosisListView(APIView):
+    """List all diagnoses for admin dashboard"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=403)
+        
+        diagnoses = Diagnosis.objects.all().values(
+            'DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 
+            'severity', 'treatment_outcome', 'DateDiagnosed'
+        )
+        return Response(list(diagnoses))
+
+
+class PlantListView(APIView):
+    """List all plants for admin dashboard"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=403)
+        
+        plants = Plant.objects.all().values('PlantID', 'CropType', 'DateCaptured', 'gps_district')
+        return Response(list(plants))
+
+
 # ── 12. COMMUNITY ────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
