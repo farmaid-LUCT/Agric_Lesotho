@@ -31,6 +31,8 @@
 #     get_community_comments,
 #     add_community_comment,
 #     get_community_profile,
+#     # Insights & Trends
+#     FarmerInsightsTrendsView,  # ADD THIS
 # )
 
 # urlpatterns = [
@@ -88,7 +90,11 @@
 #     path('community/posts/<int:post_id>/comments/', get_community_comments, name='get_community_comments'),
 #     path('community/posts/<int:post_id>/comments/add/', add_community_comment, name='add_community_comment'),
 #     path('community/profile/',               get_community_profile,      name='community_profile'),
+
+#     # ── 13. INSIGHTS & TRENDS ───────────────────────────────────────────────
+#     path('insights-trends/',                 FarmerInsightsTrendsView.as_view(), name='insights-trends'),  # ADD THIS
 # ]
+
 
 from django.urls import path
 from .views import (
@@ -124,7 +130,13 @@ from .views import (
     add_community_comment,
     get_community_profile,
     # Insights & Trends
-    FarmerInsightsTrendsView,  # ADD THIS
+    FarmerInsightsTrendsView,
+    # Admin Dashboard
+    FarmerListView,
+    TreatmentListView,
+    KnowledgeBaseListView,
+    DiagnosisListView,
+    PlantListView,
 )
 
 urlpatterns = [
@@ -132,7 +144,7 @@ urlpatterns = [
     # ── 1. AUTHENTICATION ──────────────────────────────────────────────────
     path('register/',                        register_farmer,         name='register'),
     path('login/',                           login_farmer,            name='login'),
-    path('auth/google/',                     google_auth,             name='google-auth'),   # NEW
+    path('auth/google/',                     google_auth,             name='google-auth'),
     path('resend-activation/',               resend_activation_email, name='resend-activation'),
     path('activate/<uidb64>/<token>/',       activate_account,        name='activate'),
 
@@ -152,7 +164,7 @@ urlpatterns = [
     # ── 5. ALERTS ──────────────────────────────────────────────────────────
     path('alerts/',                          FarmerAlertsView.as_view(),  name='alerts'),
     path('alerts/mark-read/',                FarmerAlertsView.as_view(),  name='mark-alerts-read'),
-    path('alerts/unread-count/',             AlertCountView.as_view(),    name='alerts-unread-count'),  # NEW
+    path('alerts/unread-count/',             AlertCountView.as_view(),    name='alerts-unread-count'),
 
     # ── 6. AI SCAN ─────────────────────────────────────────────────────────
     path('save-scan/',                       SaveScanView.as_view(),      name='save-scan'),
@@ -184,5 +196,12 @@ urlpatterns = [
     path('community/profile/',               get_community_profile,      name='community_profile'),
 
     # ── 13. INSIGHTS & TRENDS ───────────────────────────────────────────────
-    path('insights-trends/',                 FarmerInsightsTrendsView.as_view(), name='insights-trends'),  # ADD THIS
+    path('insights-trends/',                 FarmerInsightsTrendsView.as_view(), name='insights-trends'),
+
+    # ── 14. ADMIN DASHBOARD ─────────────────────────────────────────────────
+    path('admin/farmers/',                   FarmerListView.as_view(),       name='admin-farmers'),
+    path('admin/treatments/',                TreatmentListView.as_view(),    name='admin-treatments'),
+    path('admin/knowledgebase/',             KnowledgeBaseListView.as_view(), name='admin-knowledgebase'),
+    path('admin/diagnoses/',                 DiagnosisListView.as_view(),    name='admin-diagnoses'),
+    path('admin/plants/',                    PlantListView.as_view(),        name='admin-plants'),
 ]
