@@ -63,11 +63,19 @@
 #     search_fields = ('VegetableType', 'seed_variety', 'FarmerID__username')
 
 #     def get_farmer(self, obj):
-#         return obj.FarmerID.username
+#         try:
+#             if obj.FarmerID:
+#                 return obj.FarmerID.username
+#             return 'No Farmer'
+#         except Exception:
+#             return 'Unknown'
 #     get_farmer.short_description = 'Farmer'
 
 #     def growth_stage(self, obj):
-#         return obj.growth_stage_label
+#         try:
+#             return obj.growth_stage_label
+#         except Exception:
+#             return 'Unknown'
 #     growth_stage.short_description = 'Growth Stage'
 
 
@@ -84,12 +92,17 @@
 #     search_fields = ('CropType', 'FarmerID__username', 'gps_district')
 
 #     def get_farmer(self, obj):
-#         return obj.FarmerID.username
+#         try:
+#             if obj.FarmerID:
+#                 return obj.FarmerID.username
+#             return 'No Farmer'
+#         except Exception:
+#             return 'Unknown'
 #     get_farmer.short_description = 'Farmer'
 
 
 # # ============================================================
-# # --- 4. DIAGNOSIS ---
+# # --- 4. DIAGNOSIS (FIXED WITH NULL SAFETY) ---
 # # ============================================================
 # @admin.register(Diagnosis)
 # class DiagnosisAdmin(admin.ModelAdmin):
@@ -105,13 +118,23 @@
 #     search_fields = ('DiseaseName', 'PlantID__FarmerID__username')
 
 #     def get_farmer(self, obj):
-#         return obj.PlantID.FarmerID.username
+#         try:
+#             if obj.PlantID and obj.PlantID.FarmerID:
+#                 return obj.PlantID.FarmerID.username
+#             return 'No Farmer'
+#         except Exception:
+#             return 'Unknown'
 #     get_farmer.short_description = 'Farmer'
 
 #     def confidence_display(self, obj):
-#         pct = int(obj.ConfidenceLevel * 100)
-#         color = 'green' if pct >= 75 else 'orange' if pct >= 50 else 'red'
-#         return format_html('<b style="color:{}">{:.0f}%</b>', color, obj.ConfidenceLevel * 100)
+#         try:
+#             if obj.ConfidenceLevel is None:
+#                 return 'N/A'
+#             pct = int(obj.ConfidenceLevel * 100)
+#             color = 'green' if pct >= 75 else 'orange' if pct >= 50 else 'red'
+#             return format_html('<b style="color:{}">{:.0f}%</b>', color, obj.ConfidenceLevel * 100)
+#         except Exception:
+#             return 'N/A'
 #     confidence_display.short_description = 'Confidence'
 
 
@@ -137,7 +160,12 @@
 #     search_fields = ('Title', 'Message', 'FarmerID__username')
 
 #     def get_farmer(self, obj):
-#         return obj.FarmerID.username
+#         try:
+#             if obj.FarmerID:
+#                 return obj.FarmerID.username
+#             return 'No Farmer'
+#         except Exception:
+#             return 'Unknown'
 #     get_farmer.short_description = 'Farmer'
 
 
@@ -198,7 +226,12 @@
 #     )
 
 #     def get_farmer(self, obj):
-#         return obj.FarmerID.username
+#         try:
+#             if obj.FarmerID:
+#                 return obj.FarmerID.username
+#             return 'No Farmer'
+#         except Exception:
+#             return 'Unknown'
 #     get_farmer.short_description = 'Farmer'
 
 
@@ -215,13 +248,22 @@
 #     search_fields = ('title', 'body', 'FarmerID__username')
 
 #     def get_farmer(self, obj):
-#         return obj.FarmerID.username
+#         try:
+#             if obj.FarmerID:
+#                 return obj.FarmerID.username
+#             return 'No Farmer'
+#         except Exception:
+#             return 'Unknown'
 #     get_farmer.short_description = 'Farmer'
 
 #     def get_crop(self, obj):
-#         return obj.CropProfile.VegetableType
+#         try:
+#             if obj.CropProfile:
+#                 return obj.CropProfile.VegetableType
+#             return 'No Crop'
+#         except Exception:
+#             return 'Unknown'
 #     get_crop.short_description = 'Crop'
-
 
 
 from django.contrib import admin
@@ -233,6 +275,37 @@ from .models import (
     CropProfile, Plant, AppAlert, WeatherData,
     FarmerInsight, GrowthJournalEntry,
 )
+
+# Unregister default models that might cause duplicates
+from django.contrib.auth.models import Group
+from allauth.account.models import EmailAddress
+from allauth.socialaccount.models import SocialAccount, SocialToken, SocialApp
+
+# Unregister these to prevent duplicates
+try:
+    admin.site.unregister(Group)
+except admin.sites.NotRegistered:
+    pass
+
+try:
+    admin.site.unregister(EmailAddress)
+except admin.sites.NotRegistered:
+    pass
+
+try:
+    admin.site.unregister(SocialAccount)
+except admin.sites.NotRegistered:
+    pass
+
+try:
+    admin.site.unregister(SocialToken)
+except admin.sites.NotRegistered:
+    pass
+
+try:
+    admin.site.unregister(SocialApp)
+except admin.sites.NotRegistered:
+    pass
 
 
 # ============================================================
@@ -328,7 +401,7 @@ class PlantAdmin(admin.ModelAdmin):
 
 
 # ============================================================
-# --- 4. DIAGNOSIS (FIXED WITH NULL SAFETY) ---
+# --- 4. DIAGNOSIS ---
 # ============================================================
 @admin.register(Diagnosis)
 class DiagnosisAdmin(admin.ModelAdmin):
@@ -490,4 +563,3 @@ class GrowthJournalEntryAdmin(admin.ModelAdmin):
         except Exception:
             return 'Unknown'
     get_crop.short_description = 'Crop'
-
