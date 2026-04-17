@@ -2066,7 +2066,6 @@ class SaveScanView(APIView):
             }
             result = translations.get(field)
             
-            # Add debug logging
             import logging
             logger = logging.getLogger(__name__)
             if result:
@@ -2093,20 +2092,16 @@ class SaveScanView(APIView):
         return int(temp)
 
     def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
-        """Generate personalized advice USING GPS coordinates for real recommendations"""
+        """Generate personalized advice in English USING GPS coordinates"""
         
-        # Get farmer's data
         experience_level = farmer.experience_level
         district = gps_district or farmer.district or 'your area'
-        
-        # Get crop profile data
         crop_type = crop_profile.VegetableType if crop_profile else 'your crop'
         soil_type = crop_profile.SoilEnvironment or 'your soil type'
         irrigation = crop_profile.irrigation_method or 'your irrigation method'
         planting_date = crop_profile.PlantingDate
         plot_size = crop_profile.plot_size_hectares
         
-        # Calculate days since planting and growth stage
         days_since_planting = 0
         growth_stage = "Unknown"
         if planting_date:
@@ -2120,7 +2115,6 @@ class SaveScanView(APIView):
             else:
                 growth_stage = "fruiting/harvest"
         
-        # Determine altitude tier using GPS altitude
         altitude_tier = "lowland"
         altitude_display = None
         if gps_alt is not None:
@@ -2134,7 +2128,6 @@ class SaveScanView(APIView):
             else:
                 altitude_tier = "alpine"
         
-        # Determine current season
         current_month = date.today().month
         if 5 <= current_month <= 9:
             season = "dry"
@@ -2143,7 +2136,6 @@ class SaveScanView(APIView):
             season = "wet"
             season_advice = "During this wet season, fungal diseases spread rapidly. Apply preventive fungicides and ensure good drainage."
         
-        # Lesotho-specific climate zones based on latitude/longitude
         is_western = False
         is_eastern = False
         is_northern = False
@@ -2154,13 +2146,11 @@ class SaveScanView(APIView):
                 is_western = True
             elif gps_lon > 28.5:
                 is_eastern = True
-            
             if gps_lat > -29.0:
                 is_northern = True
             elif gps_lat < -30.0:
                 is_southern = True
         
-        # Build personalized advice based on GPS and farmer's data
         advice_parts = []
         
         # 1. LOCATION-SPECIFIC OPENING
@@ -2299,7 +2289,6 @@ class SaveScanView(APIView):
             buckets = int(water_liters / 10)
             advice_parts.append(f"📐 For your {plot_size} hectare plot, mix the recommended product with {water_liters}L water (approx. {buckets} buckets of 10L).")
         
-        # Combine all advice
         personalized_advice = " ".join(advice_parts)
         
         return {
@@ -2316,6 +2305,234 @@ class SaveScanView(APIView):
                 'season': season,
                 'days_since_planting': days_since_planting,
                 'region': 'western' if is_western else 'eastern' if is_eastern else 'central',
+            },
+            'farmer_level': experience_level,
+        }
+
+    def _generate_personalized_advice_sesotho(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
+        """Generate personalized advice in Sesotho USING GPS coordinates"""
+        
+        # Get farmer's data
+        experience_level = farmer.experience_level
+        district = gps_district or farmer.district or 'sebaka sa heno'
+        
+        # Get crop profile data
+        crop_type = crop_profile.VegetableType if crop_profile else 'sejalo sa heno'
+        soil_type = crop_profile.SoilEnvironment or 'mobu oa heno'
+        irrigation = crop_profile.irrigation_method or 'mokhoa oa heno oa nosetso'
+        planting_date = crop_profile.PlantingDate
+        plot_size = crop_profile.plot_size_hectares
+        
+        # Calculate days since planting and growth stage
+        days_since_planting = 0
+        growth_stage = "Unknown"
+        if planting_date:
+            days_since_planting = (date.today() - planting_date).days
+            if days_since_planting < 14:
+                growth_stage = "seedling"
+            elif days_since_planting < 45:
+                growth_stage = "vegetative"
+            elif days_since_planting < 75:
+                growth_stage = "flowering"
+            else:
+                growth_stage = "fruiting/harvest"
+        
+        # Determine altitude tier using GPS altitude
+        altitude_tier = "lowland"
+        altitude_display = None
+        if gps_alt is not None:
+            altitude_display = f"{int(gps_alt)}m"
+            if gps_alt < 1800:
+                altitude_tier = "lowland"
+            elif gps_alt < 2200:
+                altitude_tier = "midland"
+            elif gps_alt < 2800:
+                altitude_tier = "highland"
+            else:
+                altitude_tier = "alpine"
+        
+        # Determine current season
+        current_month = date.today().month
+        if 5 <= current_month <= 9:
+            season = "dry"
+            season_advice = "Nakong ena ea komello, mafu a fungal ha a hlaselle haholo. Tsepamisa mohopolo nosetsong e nepahetseng le taolong ea mongobo oa mobu."
+        else:
+            season = "wet"
+            season_advice = "Nakong ena ea lipula, mafu a fungal a hasana ka potlako. Sebelisa meriana ea thibelo 'me u netefatse hore metsi a phalla hantle."
+        
+        # Lesotho-specific climate zones based on latitude/longitude
+        is_western = False
+        is_eastern = False
+        is_northern = False
+        is_southern = False
+        
+        if gps_lat and gps_lon:
+            if gps_lon < 27.5:
+                is_western = True
+            elif gps_lon > 28.5:
+                is_eastern = True
+            
+            if gps_lat > -29.0:
+                is_northern = True
+            elif gps_lat < -30.0:
+                is_southern = True
+        
+        # Build personalized advice in Sesotho
+        advice_parts = []
+        
+        # 1. LOCATION-SPECIFIC OPENING
+        location_context = []
+        if gps_lat and gps_lon:
+            location_context.append(f"Polasi ea hao e likhokahanong tsa {gps_lat:.4f}°S, {gps_lon:.4f}°E")
+            if altitude_display:
+                location_context.append(f"bophahamong ba {altitude_display}")
+            location_context.append(f"seterekeng sa {district}")
+        else:
+            location_context.append(f"Polasi ea hao e seterekeng sa {district}")
+        
+        advice_parts.append(f"{' '.join(location_context)} e tobane le maemo a khethehileng bakeng sa {disease_name.replace('_', ' ')}.")
+        
+        # 2. ALTITUDE-BASED RECOMMENDATIONS
+        if gps_alt:
+            if altitude_tier == 'highland':
+                temp = self._get_highland_temp(gps_alt)
+                advice_parts.append(f"Bophahamong ba {int(gps_alt)}m, masiu a bata ({temp}°C). Sena se liehisa kholo ea likokoana-hloko empa se liehisa kholo ea semela. Sebelisa meriana hoseng haholo ha mocheso o phahama ho feta 10°C.")
+                
+                if 'blight' in disease_name.lower():
+                    advice_parts.append(f"Maemo a lithaba a thusa nts'etsopele ea 'bola ea morao'. Eketsa ho fafatsa ka koporo ho ea matsatsing a mang le a mang a 5 nakong ea lipula.")
+                elif 'mildew' in disease_name.lower():
+                    advice_parts.append(f"Mongobo oa lithaba o khothalletsa 'phofshoana e tšoeu'. Netefatsa phepelo e ntle ea moea ka ho fapanya limela (eketsa 10-15cm ho sebaka se tloaelehileng).")
+                    
+            elif altitude_tier == 'midland':
+                advice_parts.append(f"Bophahamo ba heno ba bohareng ({int(gps_alt)}m) bo fana ka maemo a matle a kholo. Nako e tloaelehileng ea kalafo e sebetsa hantle mona.")
+                
+            elif altitude_tier == 'lowland':
+                advice_parts.append(f"Bophahamong ba {int(gps_alt)}m, mocheso o futhumetseng o potlakisa ho hasana ha mafu. Fokotsa nako ea kalafo ka 20-30% ha o bapisa le likhothaletso tsa lithaba.")
+        
+        # 3. REGIONAL CLIMATE RECOMMENDATIONS
+        if is_western:
+            advice_parts.append("Bophirima ba Lesotho (sebaka sa heno) se fumana pula e fokolang (600-800mm ka selemo). Nakong ea komello, tsepamisa mohopolo ho baballeng mongobo oa mobu. Sebelisa boea ba limela ho boloka mongobo oa mobu le ho fokotsa khatello ea semela.")
+            if 'blight' in disease_name.lower():
+                advice_parts.append("Leha pula e fokola bophirima ba Lesotho, phoka ea hoseng e ntse e ka hlohlelletsa 'bola ea morao'. Sebelisa meriana ea fungal hoseng haholo pele phoka e qhibidoha.")
+                
+        elif is_eastern:
+            advice_parts.append("Bochabela ba Lesotho (sebaka sa heno) bo fumana pula e ngata (1000-1500mm ka selemo). Mongobo ona o mongata o baka maemo a loketseng mafu a fungal. Eketsa nako ea ho sebelisa meriana ea fungal 'me u netefatse hore metsi a phalla hantle.")
+            if 'mildew' in disease_name.lower():
+                advice_parts.append("Sebaka sa heno sa pula e ngata ke sebaka se nang le 'phofshoana e tšoeu' haholo. Nahana ka ho sebelisa meriana ea fungal e tsamaeang ka har'a semela le ho ntlafatsa phepelo ea moea ka ho faola makala ka nepo.")
+                
+        if is_northern:
+            advice_parts.append("Leboea la Lesotho (sebaka sa heno) le na le mocheso o futhumetseng, o ka potlakisang mehlolo ea mafu. Hlahloba limela letsatsi le letsatsi nakong ea kholo e phahameng.")
+        elif is_southern:
+            advice_parts.append("Boroa ba Lesotho (sebaka sa heno) bo na le mocheso o batang. Mafu a hola butle, empa tšenyo ea serame e ka fokolisa limela tsa heno.")
+        
+        # 4. SEASON-SPECIFIC ADVICE
+        advice_parts.append(season_advice)
+        
+        # 5. DISEASE-SPECIFIC TREATMENT
+        disease_lower = disease_name.lower()
+        
+        if 'blight' in disease_lower:
+            if altitude_tier == 'highland':
+                advice_parts.append(f"KALAFO EA BOLA EA MORAO bakeng sa lithaba: Sebelisa copper hydroxide (250g/100L) matsatsing a mang le a mang a 5-7. Lithabeng tsa Mokhotlong/Thaba-Tseka, 'bola ea morao' ke lefu la #1 la litapole.")
+            elif is_eastern:
+                advice_parts.append(f"KALAFO EA BOLA EA MORAO bakeng sa bochabela ba Lesotho: Ka lebaka la sebaka sa heno sa pula e ngata ({gps_lon:.1f}°E), sebelisa meriana ea fungal ea metalaxyl e thibelang matsatsing a mang le a mang a 7 nakong ea lipula.")
+            else:
+                advice_parts.append(f"KALAFO EA BOLA EA MORAO: Sebelisa meriana ea fungal e thehiloeng ho koporo matsatsing a mang le a mang a 7-10. Tlosa makhasi a kulang hanghang 'me u a senye hole le tšimo ea hao.")
+                
+        elif 'mildew' in disease_lower:
+            if is_eastern or altitude_tier == 'highland':
+                advice_parts.append(f"KALAFO EA PHOFSHOANA E TŠOEU bakeng sa sebaka sa heno se nang le mongobo o mongata: Sebelisa sebabole (200g/100L) beke le beke. Phoka ea hoseng sebakeng sa heno e baka maemo a loketseng 'phofshoana e tšoeu'.")
+            else:
+                advice_parts.append(f"KALAFO EA PHOFSHOANA E TŠOEU: Sebelisa oli ea neem kapa sebabole beke le beke. Nosetsa limela motso, eseng holimo, ho fokotsa mongobo oa makhasi.")
+                
+        elif 'rust' in disease_lower:
+            if is_western:
+                advice_parts.append(f"KALAFO EA KUTU bakeng sa bophirima ba Lesotho: Maemo a heno a omileng a thusa nts'etsopele ea kutu. Sebelisa azoxystrobin (100ml/100L) ha u qala ho bona matšoao.")
+            else:
+                advice_parts.append(f"KALAFO EA KUTU: Tlosa makhasi a amehileng. Sebelisa meriana ea fungal e nang le azoxystrobin kapa tebuconazole.")
+                
+        elif 'aphid' in disease_lower:
+            advice_parts.append(f"TAOLO EA LITSUTSU: Ho latela sebaka sa heno, lokolla likokoanyana tse thusang (ladybugs) tse fumanehang Lesotho Agricultural Supply kapa fafatsa ka oli ea neem (30ml/10L). Litsutsu li ata haholo nakong ea selemo sa Lesotho (September-Okastase).")
+            
+        elif 'rot' in disease_lower:
+            if is_eastern:
+                advice_parts.append(f"KALAFO EA HO BOLA bakeng sa bochabela ba Lesotho: Sebaka sa heno sa pula e ngata se hloka libethe tse phahamisitsoeng (30cm) bakeng sa ho phalla ha metsi. Sebelisa meriana ea fungal e thehiloeng ho koporo e kenngoa mobung.")
+            else:
+                advice_parts.append(f"KALAFO EA HO BOLA: Ntlafatsa phallo ea metsi hanghang. Fokotsa ho nosetsa. Sebelisa meriana ea fungal e thehiloeng ho koporo.")
+        
+        elif 'virus' in disease_lower:
+            advice_parts.append(f"TAOLO EA VAERASE: Vaerase ha e na pheko. Tlosa limela tse tšoaelitsoeng hanghang seterekeng sa {district}. Laola likokoanyana tse tsamaisang vaerase 'me u sebelise peo e se nang vaerase. Lesotho, vaerase ea tomato spotted wilt e tloaelehile libakeng tse tlase.")
+        
+        elif 'healthy' in disease_lower:
+            advice_parts.append(f"✅ {crop_type} ea hao e bonahala e phetse hantle. Tsoela pele ka mekhoa e metle ea temo seterekeng sa {district}.")
+        
+        else:
+            advice_parts.append(f"Bakeng sa {disease_name} seterekeng sa {district}, ikopanye le ofisiri ea temo ea sebaka sa heno bakeng sa kalafo e tobileng.")
+        
+        # 6. SOIL-SPECIFIC ADVICE
+        if soil_type and soil_type != 'mobu oa heno':
+            if 'clay' in soil_type.lower():
+                advice_parts.append(f"Mobu oa heno oa {soil_type} seterekeng sa {district} o hloka libethe tse phahamisitsoeng bakeng sa phallo e betere ea metsi. Eketsa lehlabathe la noka le manyolo a manyolo ho ntlafatsa sebopeho sa mobu.")
+            elif 'sandy' in soil_type.lower():
+                advice_parts.append(f"Mobu oa heno oa {soil_type} seterekeng sa {district} o phalla kapele. Eketsa manyolo a manyolo ho boloka mongobo. Libakeng tse omeletseng joalo ka bophirima ba Lesotho, sena se bohlokoa haholo.")
+            elif 'loam' in soil_type.lower():
+                advice_parts.append(f"Mobu oa heno oa {soil_type} o loketse {crop_type} maemong a setereke sa {district}.")
+        
+        # 7. IRRIGATION ADVICE
+        if irrigation and irrigation != 'mokhoa oa heno oa nosetso':
+            if irrigation.lower() == 'drip':
+                if is_western:
+                    advice_parts.append("Nosetso ea hao ea drip e ntle haholo bakeng sa maemo a omileng a bophirima ba Lesotho. Nosetsa hoseng haholo (6-8 AM) ho fokotsa mouoane.")
+                else:
+                    advice_parts.append("Nosetso ea hao ea drip e nepahetse. Nosetsa hoseng haholo ho lumella makhasi ho omella.")
+            elif irrigation.lower() == 'overhead' or irrigation.lower() == 'sprinkler':
+                if is_eastern or altitude_tier == 'highland':
+                    advice_parts.append("⚠️ Sebakeng sa heno sa pula e ngata / mongobo o mongata, nosetso ea holimo e hasanya mafu. Fetela ho nosetso ea drip kapa nosetsa feela boemong ba mobu.")
+                else:
+                    advice_parts.append("Fetela ho nosetso ea drip ha ho khoneha. Nosetso ea holimo e hasanya mafu a mangata a fungal.")
+        
+        # 8. GROWTH STAGE ADVICE
+        if growth_stage != "Unknown":
+            if growth_stage == "seedling":
+                advice_parts.append(f"{crop_type} ea hao e boemong ba mahlomela. Limela tse nyane seterekeng sa {district} li kotsing. Hlahloba letsatsi le letsatsi bakeng sa ho hasana ha mafu.")
+            elif growth_stage == "flowering":
+                advice_parts.append(f"{crop_type} ea hao e thunya. Qoba ho fafatsa nakong ea thunyo e phahameng (9 AM - 3 PM) ho sireletsa linotši. Fafatsa hoseng haholo kapa mantsiboea.")
+            elif growth_stage == "fruiting/harvest":
+                advice_parts.append(f"{crop_type} ea hao e boemong ba litholoana. Latela nako ea pele ho kotulo ho meriana eohle ea likokonyana - sheba letšoao la matsatsi a ho emela kamora ho fafatsa pele ho kotulo.")
+        
+        # 9. FARMER EXPERIENCE LEVEL
+        if experience_level == 'beginner':
+            advice_parts.append("👨‍🌾 Keletso ea moqali: Qala ka sebaka se senyenyane sa teko pele. Kamehla apara liatlana, mask, le liaparo tsa ho itšireletsa ha u fafatsa. Bala mangolo a meriana eohle ka hloko.")
+        elif experience_level == 'expert':
+            advice_parts.append("🔬 Khothaletso ea setsebi: Fapanyetsana pakeng tsa lihlopha tse fapaneng tsa meriana ea fungal (FRAC codes) ho thibela nts'etsopele ea khanyetso.")
+        
+        # 10. LOCAL RESOURCE RECOMMENDATIONS
+        if district and district != 'sebaka sa heno':
+            advice_parts.append(f"📍 Lisebelisoa tsa sebaka sa heno seterekeng sa {district}: Ikopanye le ofisiri ea temo ea sebaka sa heno bakeng sa keletso e tobileng le tlhahlobo ea mobu ea mahala.")
+        
+        # 11. DOSAGE CALCULATION
+        if plot_size and plot_size > 0:
+            water_liters = int(plot_size * 200)
+            buckets = int(water_liters / 10)
+            advice_parts.append(f"📐 Bakeng sa tšimo ea heno ea {plot_size} hectare, kopanya sehlahisoa se khothaletsoang le metsi a {water_liters}L (hoo e ka bang linkho tse {buckets} tsa 10L).")
+        
+        # Combine all advice
+        personalized_advice = " ".join(advice_parts)
+        
+        return {
+            'advice': personalized_advice,
+            'matched_on': {
+                'district': district,
+                'latitude': gps_lat,
+                'longitude': gps_lon,
+                'altitude_tier': altitude_tier,
+                'altitude_m': gps_alt,
+                'soil': soil_type,
+                'irrigation': irrigation,
+                'growth_stage': growth_stage,
+                'season': season,
+                'days_since_planting': days_since_planting,
+                'region': 'bophirima' if is_western else 'bochabela' if is_eastern else 'bohareng',
             },
             'farmer_level': experience_level,
         }
@@ -2446,38 +2663,33 @@ class SaveScanView(APIView):
                 dosage_calc = treat.calculate_for_plot(plot_ha)
 
             # ============================================================
-            # 🔥 CRITICAL: APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
+            # 🔥 APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
             # ============================================================
             if lang == 'st':
                 logger.warning(f"[SaveScan] 🎯 APPLYING SESOTHO TRANSLATION for disease: '{clean_label}'")
                 
-                # Get translations from cache
                 st_pesticide = self._get_sesotho(clean_label, 'pesticide')
                 st_dosage = self._get_sesotho(clean_label, 'dosage')
                 st_steps = self._get_sesotho(clean_label, 'steps')
                 
-                # Apply translations if found
                 if st_pesticide:
                     res_pesticide = st_pesticide
-                    logger.warning(f"[SaveScan] ✅ Sesotho PESTICIDE applied: '{st_pesticide[:100]}'")
+                    logger.warning(f"[SaveScan] ✅ Sesotho PESTICIDE applied")
                 else:
                     logger.warning(f"[SaveScan] ⚠️ No Sesotho pesticide found for '{clean_label}'")
                     
                 if st_dosage:
                     res_dosage = st_dosage
-                    logger.warning(f"[SaveScan] ✅ Sesotho DOSAGE applied: '{st_dosage}'")
+                    logger.warning(f"[SaveScan] ✅ Sesotho DOSAGE applied")
                 else:
                     logger.warning(f"[SaveScan] ⚠️ No Sesotho dosage found for '{clean_label}'")
                     
                 if st_steps:
                     res_steps = st_steps
-                    logger.warning(f"[SaveScan] ✅ Sesotho STEPS applied (length: {len(st_steps)} chars)")
-                    logger.warning(f"[SaveScan] Steps preview: {st_steps[:200]}...")
-                else:
-                    logger.warning(f"[SaveScan] ⚠️ No Sesotho steps found for '{clean_label}'")
+                    logger.warning(f"[SaveScan] ✅ Sesotho STEPS applied")
 
             # ============================================================
-            # PERSONALIZED MODE
+            # PERSONALIZED MODE - Use Sesotho version when language is 'st'
             # ============================================================
             personalized_advice = None
             matched_context = None
@@ -2486,26 +2698,34 @@ class SaveScanView(APIView):
             if wants_personalized and target_profile:
                 logger.warning(f"[SaveScan] 📝 Generating personalized advice...")
                 
-                # Generate personalized advice in English
-                personalized = self._generate_personalized_advice(
-                    disease_name=clean_label,
-                    farmer=user,
-                    crop_profile=target_profile,
-                    gps_district=gps_district,
-                    gps_lat=gps_lat,
-                    gps_lon=gps_lon,
-                    gps_alt=gps_alt,
-                )
+                # Choose the appropriate language version
+                if lang == 'st':
+                    # Generate personalized advice in Sesotho
+                    personalized = self._generate_personalized_advice_sesotho(
+                        disease_name=clean_label,
+                        farmer=user,
+                        crop_profile=target_profile,
+                        gps_district=gps_district,
+                        gps_lat=gps_lat,
+                        gps_lon=gps_lon,
+                        gps_alt=gps_alt,
+                    )
+                    logger.warning(f"[SaveScan] ✅ Generated personalized advice in SESOTHO")
+                else:
+                    # Generate personalized advice in English
+                    personalized = self._generate_personalized_advice(
+                        disease_name=clean_label,
+                        farmer=user,
+                        crop_profile=target_profile,
+                        gps_district=gps_district,
+                        gps_lat=gps_lat,
+                        gps_lon=gps_lon,
+                        gps_alt=gps_alt,
+                    )
+                    logger.warning(f"[SaveScan] ✅ Generated personalized advice in ENGLISH")
                 
                 personalized_advice = personalized['advice']
                 matched_context = personalized['matched_on']
-                
-                # If Sesotho mode, replace with Sesotho steps
-                if lang == 'st':
-                    st_steps = self._get_sesotho(clean_label, 'steps')
-                    if st_steps:
-                        personalized_advice = st_steps
-                        logger.warning(f"[SaveScan] ✅ Personalized advice replaced with Sesotho steps")
                 
                 if dosage_calc:
                     personalized_dosage = {
@@ -2573,12 +2793,9 @@ class SaveScanView(APIView):
                 'personalized_advice': personalized_advice if wants_personalized else None,
             }
 
-            # Log the response summary
             logger.warning(f"[SaveScan] 📤 RESPONSE SUMMARY:")
             logger.warning(f"[SaveScan]   - Language: {lang}")
-            logger.warning(f"[SaveScan]   - Pesticide: {res_pesticide[:100] if res_pesticide else 'None'}...")
-            logger.warning(f"[SaveScan]   - Dosage: {res_dosage}")
-            logger.warning(f"[SaveScan]   - Steps length: {len(res_steps) if res_steps else 0} chars")
+            logger.warning(f"[SaveScan]   - Personalized advice length: {len(personalized_advice) if personalized_advice else 0} chars")
             logger.warning(f"[SaveScan] ========== SCAN COMPLETE ==========")
             
             return Response(response_data)
