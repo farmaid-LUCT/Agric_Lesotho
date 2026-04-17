@@ -1720,27 +1720,24 @@ from .serializers import CropProfileSerializer, AppAlertSerializer, WeatherDataS
 def register_farmer(request):
     data = request.data
     try:
-        # ── a. Duplicate email check ──────────────────────────────────────
         if Farmer.objects.filter(email=data.get('email', '').lower()).exists():
             return Response(
                 {'error': 'Email already exists'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── b. Password strength validation ──────────────────────────────
         raw_password = data.get('password', '')
         try:
             validate_password(raw_password)
         except DjangoValidationError as exc:
             return Response(
                 {
-                    'error':   'Password is too weak.',
+                    'error': 'Password is too weak.',
                     'details': list(exc.messages),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── c. Create user (inactive until email verified) ───────────────
         user = Farmer.objects.create_user(
             username=data.get('email'),
             email=data.get('email'),
@@ -1755,9 +1752,9 @@ def register_farmer(request):
         user.save()
         send_activation_email(request, user)
         return Response({
-            'status':  'success',
+            'status': 'success',
             'message': 'Verification email sent.',
-            'email':   user.email,
+            'email': user.email,
         }, status=status.HTTP_201_CREATED)
 
     except Exception as e:
@@ -1765,9 +1762,9 @@ def register_farmer(request):
 
 
 def send_activation_email(request, user):
-    current_site    = get_current_site(request)
-    uid             = urlsafe_base64_encode(force_bytes(user.pk))
-    token           = default_token_generator.make_token(user)
+    current_site = get_current_site(request)
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    token = default_token_generator.make_token(user)
     activation_link = f"http://{current_site.domain}/api/activate/{uid}/{token}/"
     EmailMessage(
         'Activate your FarmAid Lesotho Account',
@@ -1801,7 +1798,6 @@ def activate_account(request, uidb64, token):
     if user is not None and default_token_generator.check_token(user, token):
         user.is_active = True
         user.save()
-        # Return a simple HTML success page
         return HttpResponse("""
         <html>
         <head><title>Account Activated</title></head>
@@ -1837,9 +1833,9 @@ def login_farmer(request):
             return Response({'error': 'unverified'}, status=403)
         token, _ = Token.objects.get_or_create(user=user)
         return Response({
-            'token':      token.key,
+            'token': token.key,
             'farmerName': f"{user.first_name} {user.last_name}".strip(),
-            'is_staff':   user.is_staff,
+            'is_staff': user.is_staff,
         })
     return Response({'error': 'Invalid credentials'}, status=401)
 
@@ -1866,9 +1862,9 @@ def change_password(request):
     Token.objects.filter(user=user).delete()
     new_token, _ = Token.objects.get_or_create(user=user)
     return Response({
-        'status':  'success',
+        'status': 'success',
         'message': 'Password updated!',
-        'token':   new_token.key,
+        'token': new_token.key,
     })
 
 
@@ -1888,7 +1884,7 @@ def google_auth(request):
         from google.auth.transport import requests as google_requests
 
         client_id = getattr(django_settings, 'GOOGLE_CLIENT_ID', '')
-        id_info   = google_id_token.verify_oauth2_token(
+        id_info = google_id_token.verify_oauth2_token(
             id_token_str,
             google_requests.Request(),
             client_id,
@@ -1901,10 +1897,10 @@ def google_auth(request):
     except ValueError as exc:
         return Response({'error': f'Invalid Google token: {exc}'}, status=401)
 
-    email      = id_info.get('email', '').lower()
+    email = id_info.get('email', '').lower()
     first_name = id_info.get('given_name', '')
-    last_name  = id_info.get('family_name', '')
-    photo_url  = id_info.get('picture', '')
+    last_name = id_info.get('family_name', '')
+    photo_url = id_info.get('picture', '')
 
     if not email:
         return Response({'error': 'Google account has no email address.'}, status=400)
@@ -1912,10 +1908,10 @@ def google_auth(request):
     user, created = Farmer.objects.get_or_create(
         email=email,
         defaults={
-            'username':   email,
+            'username': email,
             'first_name': first_name,
-            'last_name':  last_name,
-            'is_active':  True,
+            'last_name': last_name,
+            'is_active': True,
         },
     )
 
@@ -1930,11 +1926,11 @@ def google_auth(request):
 
     token, _ = Token.objects.get_or_create(user=user)
     return Response({
-        'token':      token.key,
+        'token': token.key,
         'farmerName': f"{user.first_name} {user.last_name}".strip() or email,
-        'is_staff':   user.is_staff,
-        'email':      user.email,
-        'created':    created,
+        'is_staff': user.is_staff,
+        'email': user.email,
+        'created': created,
     })
 
 
@@ -1946,16 +1942,16 @@ class ProfileView(APIView):
     def get(self, request):
         u = request.user
         return Response({
-            'first_name':           u.first_name,
-            'last_name':            u.last_name,
-            'email':                u.email,
-            'district':             u.district,
-            'phone_number':         u.phone_number,
+            'first_name': u.first_name,
+            'last_name': u.last_name,
+            'email': u.email,
+            'district': u.district,
+            'phone_number': u.phone_number,
             'language_preferences': u.language_preferences,
-            'experience_level':     u.experience_level,
-            'profile_photo_url':    u.profile_photo_url,
-            'farm_size_hectares':   u.farm_size_hectares if hasattr(u, 'farm_size_hectares') else None,
-            'onboarding_complete':  u.onboarding_complete if hasattr(u, 'onboarding_complete') else False,
+            'experience_level': u.experience_level,
+            'profile_photo_url': u.profile_photo_url,
+            'farm_size_hectares': u.farm_size_hectares if hasattr(u, 'farm_size_hectares') else None,
+            'onboarding_complete': u.onboarding_complete if hasattr(u, 'onboarding_complete') else False,
         })
 
     def patch(self, request):
@@ -1965,7 +1961,7 @@ class ProfileView(APIView):
                 setattr(user, attr, value)
         user.save()
         return Response({
-            'status':     'success',
+            'status': 'success',
             'farmerName': f"{user.first_name} {user.last_name}",
         })
 
@@ -2004,9 +2000,9 @@ class FarmerAlertsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user      = request.user
+        user = request.user
         user_dist = (user.district or '').strip()
-        now       = timezone.now()
+        now = timezone.now()
 
         qs = AppAlert.objects.filter(
             Q(FarmerID=user)
@@ -2020,9 +2016,9 @@ class FarmerAlertsView(APIView):
             qs = qs.filter(alert_type=alert_type)
 
         return Response({
-            'count':        qs.count(),
+            'count': qs.count(),
             'unread_count': qs.filter(IsRead=False).count(),
-            'alerts':       AppAlertSerializer(qs, many=True).data,
+            'alerts': AppAlertSerializer(qs, many=True).data,
         })
 
     def post(self, request):
@@ -2036,7 +2032,7 @@ class AlertCountView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        now       = timezone.now()
+        now = timezone.now()
         user_dist = (request.user.district or '').strip()
 
         count = AppAlert.objects.filter(
@@ -2094,14 +2090,18 @@ class SaveScanView(APIView):
     def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
         """Generate personalized advice in English USING GPS coordinates"""
         
+        # Get farmer's data
         experience_level = farmer.experience_level
         district = gps_district or farmer.district or 'your area'
+        
+        # Get crop profile data
         crop_type = crop_profile.VegetableType if crop_profile else 'your crop'
         soil_type = crop_profile.SoilEnvironment or 'your soil type'
         irrigation = crop_profile.irrigation_method or 'your irrigation method'
         planting_date = crop_profile.PlantingDate
         plot_size = crop_profile.plot_size_hectares
         
+        # Calculate days since planting and growth stage
         days_since_planting = 0
         growth_stage = "Unknown"
         if planting_date:
@@ -2115,6 +2115,7 @@ class SaveScanView(APIView):
             else:
                 growth_stage = "fruiting/harvest"
         
+        # Determine altitude tier using GPS altitude
         altitude_tier = "lowland"
         altitude_display = None
         if gps_alt is not None:
@@ -2128,6 +2129,7 @@ class SaveScanView(APIView):
             else:
                 altitude_tier = "alpine"
         
+        # Determine current season
         current_month = date.today().month
         if 5 <= current_month <= 9:
             season = "dry"
@@ -2136,6 +2138,7 @@ class SaveScanView(APIView):
             season = "wet"
             season_advice = "During this wet season, fungal diseases spread rapidly. Apply preventive fungicides and ensure good drainage."
         
+        # Lesotho-specific climate zones based on latitude/longitude
         is_western = False
         is_eastern = False
         is_northern = False
@@ -2146,11 +2149,13 @@ class SaveScanView(APIView):
                 is_western = True
             elif gps_lon > 28.5:
                 is_eastern = True
+            
             if gps_lat > -29.0:
                 is_northern = True
             elif gps_lat < -30.0:
                 is_southern = True
         
+        # Build personalized advice based on GPS and farmer's data
         advice_parts = []
         
         # 1. LOCATION-SPECIFIC OPENING
@@ -2289,7 +2294,8 @@ class SaveScanView(APIView):
             buckets = int(water_liters / 10)
             advice_parts.append(f"📐 For your {plot_size} hectare plot, mix the recommended product with {water_liters}L water (approx. {buckets} buckets of 10L).")
         
-       personalized_advice = "\n\n".join(advice_parts)
+        # Combine all advice with double newlines for paragraph separation
+        personalized_advice = "\n\n".join(advice_parts)
         
         return {
             'advice': personalized_advice,
@@ -2516,8 +2522,8 @@ class SaveScanView(APIView):
             buckets = int(water_liters / 10)
             advice_parts.append(f"📐 Bakeng sa tšimo ea heno ea {plot_size} hectare, kopanya sehlahisoa se khothaletsoang le metsi a {water_liters}L (hoo e ka bang linkho tse {buckets} tsa 10L).")
         
-        # Combine all advice
-            personalized_advice = "\n\n".join(advice_parts)
+        # Combine all advice with double newlines for paragraph separation
+        personalized_advice = "\n\n".join(advice_parts)
         
         return {
             'advice': personalized_advice,
@@ -2663,7 +2669,7 @@ class SaveScanView(APIView):
                 dosage_calc = treat.calculate_for_plot(plot_ha)
 
             # ============================================================
-            # 🔥 APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
+            # APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
             # ============================================================
             if lang == 'st':
                 logger.warning(f"[SaveScan] 🎯 APPLYING SESOTHO TRANSLATION for disease: '{clean_label}'")
@@ -2689,7 +2695,7 @@ class SaveScanView(APIView):
                     logger.warning(f"[SaveScan] ✅ Sesotho STEPS applied")
 
             # ============================================================
-            # PERSONALIZED MODE - Use Sesotho version when language is 'st'
+            # PERSONALIZED MODE - Use appropriate language version
             # ============================================================
             personalized_advice = None
             matched_context = None
@@ -2700,7 +2706,6 @@ class SaveScanView(APIView):
                 
                 # Choose the appropriate language version
                 if lang == 'st':
-                    # Generate personalized advice in Sesotho
                     personalized = self._generate_personalized_advice_sesotho(
                         disease_name=clean_label,
                         farmer=user,
@@ -2712,7 +2717,6 @@ class SaveScanView(APIView):
                     )
                     logger.warning(f"[SaveScan] ✅ Generated personalized advice in SESOTHO")
                 else:
-                    # Generate personalized advice in English
                     personalized = self._generate_personalized_advice(
                         disease_name=clean_label,
                         farmer=user,
@@ -2809,23 +2813,25 @@ class SaveScanView(APIView):
                 {'error': str(e), 'detail': traceback.format_exc()},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+
 # ── 7. HISTORY & REPORTS ─────────────────────────────────────────────────────
 
 class FarmerHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        plants  = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
+        plants = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
         history = []
         for p in plants:
             diag = Diagnosis.objects.filter(PlantID=p).first()
             if diag:
                 history.append({
                     'plant_id': p.PlantID,
-                    'crop':     p.CropType,
-                    'image':    p.ImageFile,
-                    'disease':  diag.DiseaseName,
-                    'date':     p.DateCaptured.strftime('%d %b, %Y'),
+                    'crop': p.CropType,
+                    'image': p.ImageFile,
+                    'disease': diag.DiseaseName,
+                    'date': p.DateCaptured.strftime('%d %b, %Y'),
                 })
         return Response(history)
 
@@ -2834,7 +2840,7 @@ class FarmerReportsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        plants      = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
+        plants = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
         report_data = []
         for p in plants:
             diag = Diagnosis.objects.filter(PlantID=p).first()
@@ -2843,12 +2849,12 @@ class FarmerReportsView(APIView):
                     DiseaseName__iexact=diag.DiseaseName
                 ).first()
                 report_data.append({
-                    'FarmerID_id':      request.user.id,
-                    'ReportDate':       p.DateCaptured.isoformat(),
+                    'FarmerID_id': request.user.id,
+                    'ReportDate': p.DateCaptured.isoformat(),
                     'DiagnosisSummary': diag.DiseaseName.replace('_', ' ').upper(),
                     'TreatmentSummary': (treat.ApplicationSteps
                                          if treat else 'Isolate plant immediately.'),
-                    'ImageURL':         p.ImageFile,
+                    'ImageURL': p.ImageFile,
                 })
         return Response(report_data)
 
@@ -2860,18 +2866,18 @@ class MarketPricesView(APIView):
 
     def get(self, request):
         district = request.query_params.get('district')
-        prices   = MarketPrice.objects.all().order_by('-date_recorded')
+        prices = MarketPrice.objects.all().order_by('-date_recorded')
         if district:
             prices = prices.filter(district__iexact=district)
         return Response([{
-            'id':             p.PriceID,
+            'id': p.PriceID,
             'vegetable_name': p.vegetable_name,
-            'market_name':    p.market_name,
-            'district':       p.district,
-            'price_per_kg':   float(p.price_per_kg),
-            'currency':       p.currency,
-            'date_recorded':  p.date_recorded.isoformat(),
-            'price_trend':    p.price_trend,
+            'market_name': p.market_name,
+            'district': p.district,
+            'price_per_kg': float(p.price_per_kg),
+            'currency': p.currency,
+            'date_recorded': p.date_recorded.isoformat(),
+            'price_trend': p.price_trend,
         } for p in prices])
 
 
@@ -2896,9 +2902,9 @@ class DiagnosisFeedbackView(APIView):
         diag.save()
 
         return Response({
-            'status':  'success',
+            'status': 'success',
             'message': 'Feedback recorded. Thank you!',
-            'id':      diag.DiagnosisID,
+            'id': diag.DiagnosisID,
         })
 
 
@@ -2911,10 +2917,10 @@ class FarmerInsightView(APIView):
         from django.db.models import Count
         insight, _ = FarmerInsight.objects.get_or_create(FarmerID=request.user)
 
-        plants      = Plant.objects.filter(FarmerID=request.user)
+        plants = Plant.objects.filter(FarmerID=request.user)
         total_scans = plants.count()
-        diagnoses   = Diagnosis.objects.filter(PlantID__in=plants)
-        healthy     = diagnoses.filter(DiseaseName__iexact='healthy').count()
+        diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
+        healthy = diagnoses.filter(DiseaseName__iexact='healthy').count()
 
         top = (diagnoses
                .exclude(DiseaseName__iexact='healthy')
@@ -2930,21 +2936,21 @@ class FarmerInsightView(APIView):
                     .order_by('-c')
                     .first())
 
-        insight.total_scans             = total_scans
+        insight.total_scans = total_scans
         insight.total_diseases_detected = total_scans - healthy
-        insight.total_healthy_scans     = healthy
-        insight.most_common_disease     = top['DiseaseName'] if top else None
-        insight.most_scanned_crop       = top_crop['CropType'] if top_crop else None
+        insight.total_healthy_scans = healthy
+        insight.most_common_disease = top['DiseaseName'] if top else None
+        insight.most_scanned_crop = top_crop['CropType'] if top_crop else None
         insight.save()
 
         return Response({
-            'total_scans':             insight.total_scans,
+            'total_scans': insight.total_scans,
             'total_diseases_detected': insight.total_diseases_detected,
-            'total_healthy_scans':     insight.total_healthy_scans,
-            'most_common_disease':     insight.most_common_disease,
-            'most_scanned_crop':       insight.most_scanned_crop,
-            'streak_healthy_days':     insight.streak_healthy_days,
-            'last_updated':            insight.last_updated.isoformat(),
+            'total_healthy_scans': insight.total_healthy_scans,
+            'most_common_disease': insight.most_common_disease,
+            'most_scanned_crop': insight.most_scanned_crop,
+            'streak_healthy_days': insight.streak_healthy_days,
+            'last_updated': insight.last_updated.isoformat(),
         })
 
 
@@ -2955,19 +2961,19 @@ class GrowthJournalView(APIView):
 
     def get(self, request):
         profile_id = request.query_params.get('crop_profile_id')
-        entries    = GrowthJournalEntry.objects.filter(FarmerID=request.user)
+        entries = GrowthJournalEntry.objects.filter(FarmerID=request.user)
         if profile_id:
             entries = entries.filter(CropProfile__ProfileID=profile_id)
         return Response([{
-            'id':              e.EntryID,
+            'id': e.EntryID,
             'crop_profile_id': e.CropProfile.ProfileID,
-            'crop_name':       e.CropProfile.VegetableType,
-            'entry_date':      e.entry_date.isoformat(),
-            'title':           e.title,
-            'body':            e.body,
-            'mood':            e.mood,
-            'photo_url':       e.photo_url,
-            'created_at':      e.DateCreated.isoformat(),
+            'crop_name': e.CropProfile.VegetableType,
+            'entry_date': e.entry_date.isoformat(),
+            'title': e.title,
+            'body': e.body,
+            'mood': e.mood,
+            'photo_url': e.photo_url,
+            'created_at': e.DateCreated.isoformat(),
         } for e in entries])
 
     def post(self, request):
@@ -2980,13 +2986,13 @@ class GrowthJournalView(APIView):
             return Response({'error': 'Crop profile not found'}, status=404)
 
         entry = GrowthJournalEntry.objects.create(
-            FarmerID    = request.user,
-            CropProfile = profile,
-            title       = request.data.get('title', ''),
-            body        = request.data.get('body', ''),
-            mood        = request.data.get('mood', 'ok'),
-            photo_url   = request.data.get('photo_url'),
-            entry_date  = request.data.get('entry_date', date.today()),
+            FarmerID=request.user,
+            CropProfile=profile,
+            title=request.data.get('title', ''),
+            body=request.data.get('body', ''),
+            mood=request.data.get('mood', 'ok'),
+            photo_url=request.data.get('photo_url'),
+            entry_date=request.data.get('entry_date', date.today()),
         )
         return Response({'status': 'success', 'id': entry.EntryID}, status=201)
 
@@ -3003,10 +3009,212 @@ class GrowthJournalView(APIView):
             return Response({'error': 'Entry not found'}, status=404)
 
 
+# ── 12. COMMUNITY ────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_community_posts(request):
+    try:
+        page = int(request.query_params.get('page', 1))
+        limit = int(request.query_params.get('limit', 20))
+        crop_type = request.query_params.get('crop_type')
+        
+        queryset = CommunityPost.objects.select_related('farmer').all()
+        
+        if crop_type:
+            queryset = queryset.filter(crop_type__iexact=crop_type)
+        
+        total_posts = queryset.count()
+        total_pages = (total_posts + limit - 1) // limit
+        offset = (page - 1) * limit
+        
+        posts = queryset[offset:offset + limit]
+        
+        user = request.user
+        liked_post_ids = set(PostLike.objects.filter(
+            farmer=user, post__in=posts
+        ).values_list('post_id', flat=True))
+        
+        data = []
+        for post in posts:
+            data.append({
+                'id': post.id,
+                'userId': post.farmer.id,
+                'username': post.farmer.username,
+                'userPhotoUrl': post.farmer.profile_photo_url,
+                'content': post.content,
+                'imageUrl': post.image_url,
+                'likes': post.likes_count,
+                'commentsCount': post.comments_count,
+                'isLikedByUser': post.id in liked_post_ids,
+                'createdAt': post.created_at.isoformat(),
+                'postType': post.post_type,
+                'cropType': post.crop_type,
+            })
+        
+        return Response({
+            'posts': data,
+            'page': page,
+            'limit': limit,
+            'totalPages': total_pages,
+            'totalPosts': total_posts,
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_community_post(request):
+    try:
+        content = request.data.get('content')
+        if not content:
+            return Response({'error': 'Content is required'}, status=400)
+        
+        post = CommunityPost.objects.create(
+            farmer=request.user,
+            content=content,
+            image_url=request.data.get('imageUrl'),
+            post_type=request.data.get('post_type', 'general'),
+            crop_type=request.data.get('crop_type'),
+        )
+        
+        return Response({
+            'id': post.id,
+            'userId': post.farmer.id,
+            'username': post.farmer.username,
+            'userPhotoUrl': post.farmer.profile_photo_url,
+            'content': post.content,
+            'imageUrl': post.image_url,
+            'likes': 0,
+            'commentsCount': 0,
+            'isLikedByUser': False,
+            'createdAt': post.created_at.isoformat(),
+            'postType': post.post_type,
+            'cropType': post.crop_type,
+        }, status=201)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def like_community_post(request, post_id):
+    try:
+        post = CommunityPost.objects.get(id=post_id)
+        like, created = PostLike.objects.get_or_create(post=post, farmer=request.user)
+        
+        if not created:
+            like.delete()
+            post.likes_count = post.likes.count()
+            post.save()
+            return Response({'liked': False, 'likes_count': post.likes_count})
+        
+        post.likes_count = post.likes.count()
+        post.save()
+        return Response({'liked': True, 'likes_count': post.likes_count})
+    except CommunityPost.DoesNotExist:
+        return Response({'error': 'Post not found'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_community_post(request, post_id):
+    try:
+        post = CommunityPost.objects.get(id=post_id, farmer=request.user)
+        post.delete()
+        return Response(status=204)
+    except CommunityPost.DoesNotExist:
+        return Response({'error': 'Post not found or you do not have permission'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_community_comments(request, post_id):
+    try:
+        post = CommunityPost.objects.get(id=post_id)
+        comments = post.comments.select_related('farmer')
+        
+        data = []
+        for comment in comments:
+            data.append({
+                'id': comment.id,
+                'postId': comment.post.id,
+                'userId': comment.farmer.id,
+                'username': comment.farmer.username,
+                'userPhotoUrl': comment.farmer.profile_photo_url,
+                'content': comment.content,
+                'likes': 0,
+                'createdAt': comment.created_at.isoformat(),
+            })
+        return Response(data)
+    except CommunityPost.DoesNotExist:
+        return Response({'error': 'Post not found'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_community_comment(request, post_id):
+    try:
+        post = CommunityPost.objects.get(id=post_id)
+        content = request.data.get('content')
+        
+        if not content:
+            return Response({'error': 'Content is required'}, status=400)
+        
+        comment = CommunityComment.objects.create(
+            post=post,
+            farmer=request.user,
+            content=content
+        )
+        
+        post.comments_count = post.comments.count()
+        post.save()
+        
+        return Response({
+            'id': comment.id,
+            'postId': comment.post.id,
+            'userId': comment.farmer.id,
+            'username': comment.farmer.username,
+            'userPhotoUrl': comment.farmer.profile_photo_url,
+            'content': comment.content,
+            'likes': 0,
+            'createdAt': comment.created_at.isoformat(),
+        }, status=201)
+    except CommunityPost.DoesNotExist:
+        return Response({'error': 'Post not found'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_community_profile(request):
+    try:
+        farmer = request.user
+        return Response({
+            'id': farmer.id,
+            'username': farmer.username,
+            'first_name': farmer.first_name,
+            'last_name': farmer.last_name,
+            'email': farmer.email,
+            'district': farmer.district,
+            'profile_photo_url': farmer.profile_photo_url,
+            'experience_level': farmer.experience_level,
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
 # ── 13. INSIGHTS & TRENDS FOR PLOTLY CHARTS ───────────────────────────────────
 
 class FarmerInsightsTrendsView(APIView):
-    """Get comprehensive analytics data formatted for Plotly charts"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
@@ -3017,29 +3225,20 @@ class FarmerInsightsTrendsView(APIView):
             user = request.user
             today = timezone.now().date()
             
-            # Get all plants and diagnoses
             plants = Plant.objects.filter(FarmerID=user)
             diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
             
             logger.warning(f"User: {user.username}, Plants: {plants.count()}, Diagnoses: {diagnoses.count()}")
             
-            # ============================================================
-            # 1. Basic Statistics
-            # ============================================================
             total_scans = plants.count()
             total_diseases = diagnoses.exclude(DiseaseName__iexact='healthy').count()
             total_healthy = diagnoses.filter(DiseaseName__iexact='healthy').count()
             
-            # ============================================================
-            # 2. Get all diagnoses with dates for trend analysis
-            # ============================================================
             from django.db.models.functions import TruncDate
             from django.db.models import Count
             
-            # Get daily scan counts for the last 30 days
             last_30_days = today - timedelta(days=30)
             
-            # Create a date range for the last 30 days
             trend_data = []
             for i in range(29, -1, -1):
                 date_key = (today - timedelta(days=i)).isoformat()
@@ -3049,7 +3248,6 @@ class FarmerInsightsTrendsView(APIView):
                     'unhealthy': 0
                 })
             
-            # Fill healthy counts
             daily_healthy = diagnoses.filter(
                 DateDiagnosed__date__gte=last_30_days,
                 DiseaseName__iexact='healthy'
@@ -3067,7 +3265,6 @@ class FarmerInsightsTrendsView(APIView):
                             td['healthy'] = item['count']
                             break
             
-            # Fill unhealthy counts
             daily_diseased = diagnoses.filter(
                 DateDiagnosed__date__gte=last_30_days
             ).exclude(
@@ -3086,9 +3283,6 @@ class FarmerInsightsTrendsView(APIView):
                             td['unhealthy'] = item['count']
                             break
             
-            # ============================================================
-            # 3. Top Diseases (All time)
-            # ============================================================
             top_diseases = diagnoses.exclude(
                 DiseaseName__iexact='healthy'
             ).values('DiseaseName').annotate(
@@ -3102,9 +3296,6 @@ class FarmerInsightsTrendsView(APIView):
                     'count': item['count']
                 })
             
-            # ============================================================
-            # 4. Scans by Crop Type
-            # ============================================================
             scans_by_crop = plants.values('CropType').annotate(
                 count=Count('PlantID')
             ).order_by('-count')[:10]
@@ -3116,9 +3307,6 @@ class FarmerInsightsTrendsView(APIView):
                     'count': item['count']
                 })
             
-            # ============================================================
-            # 5. Healthy vs Diseased Summary
-            # ============================================================
             health_summary = {
                 'total_scans': total_scans,
                 'healthy': total_healthy,
@@ -3127,9 +3315,6 @@ class FarmerInsightsTrendsView(APIView):
                 'diseased_percentage': round((total_diseases / total_scans * 100), 1) if total_scans > 0 else 0,
             }
             
-            # ============================================================
-            # 6. Weekly Activity (Last 6 weeks)
-            # ============================================================
             weekly_data = []
             for i in range(5, -1, -1):
                 week_start = today - timedelta(days=i*7)
@@ -3143,9 +3328,6 @@ class FarmerInsightsTrendsView(APIView):
                     'scans': week_scans
                 })
             
-            # ============================================================
-            # 7. Confidence Distribution
-            # ============================================================
             confidence_data = [
                 {'range': '90-100%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.9).count(), 'color': '#4CAF50'},
                 {'range': '70-89%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.7, ConfidenceLevel__lt=0.9).count(), 'color': '#8BC34A'},
@@ -3153,9 +3335,6 @@ class FarmerInsightsTrendsView(APIView):
                 {'range': 'Below 50%', 'count': diagnoses.filter(ConfidenceLevel__lt=0.5).count(), 'color': '#FF9800'},
             ]
             
-            # ============================================================
-            # 8. Recovery Rate
-            # ============================================================
             diagnosed_with_feedback = diagnoses.filter(
                 treatment_outcome__isnull=False
             ).exclude(treatment_outcome='')
@@ -3174,9 +3353,6 @@ class FarmerInsightsTrendsView(APIView):
                 {'label': 'Worsened', 'value': worsened, 'color': '#F44336'}
             ]
             
-            # ============================================================
-            # 9. Severity Distribution
-            # ============================================================
             severity_data = diagnoses.filter(
                 severity__isnull=False
             ).exclude(severity='').values('severity').annotate(
@@ -3199,9 +3375,6 @@ class FarmerInsightsTrendsView(APIView):
                         'color': severity_map[sev]['color']
                     })
             
-            # ============================================================
-            # 10. District-wise Distribution
-            # ============================================================
             district_data = diagnoses.filter(
                 PlantID__gps_district__isnull=False
             ).exclude(
@@ -3217,9 +3390,6 @@ class FarmerInsightsTrendsView(APIView):
                     'total': item['count']
                 })
             
-            # ============================================================
-            # 11. Crop Health Summary
-            # ============================================================
             crop_health = []
             for crop in scans_by_crop[:5]:
                 crop_name = crop['CropType'] or 'Unknown'
@@ -3235,9 +3405,6 @@ class FarmerInsightsTrendsView(APIView):
                     'health_percentage': health_percentage
                 })
             
-            # ============================================================
-            # 12. Seasonal Patterns (by month)
-            # ============================================================
             from django.db.models.functions import ExtractMonth
             
             seasonal_data = diagnoses.annotate(
@@ -3304,11 +3471,9 @@ class FarmerInsightsTrendsView(APIView):
 # ── 14. ADMIN DASHBOARD LIST VIEWS ────────────────────────────────────────────
 
 class FarmerListView(APIView):
-    """List all farmers for admin dashboard"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        # Only allow admin/staff users
         if not request.user.is_staff:
             return Response({'error': 'Admin access required'}, status=403)
         
@@ -3317,7 +3482,6 @@ class FarmerListView(APIView):
 
 
 class TreatmentListView(APIView):
-    """List all treatments for admin dashboard"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
@@ -3329,7 +3493,6 @@ class TreatmentListView(APIView):
 
 
 class KnowledgeBaseListView(APIView):
-    """List all knowledge base entries for admin dashboard"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
@@ -3340,21 +3503,7 @@ class KnowledgeBaseListView(APIView):
         return Response(list(entries))
 
 
-# class DiagnosisListView(APIView):
-#     """List all diagnoses for admin dashboard"""
-#     permission_classes = [IsAuthenticated]
-    
-#     def get(self, request):
-#         if not request.user.is_staff:
-#             return Response({'error': 'Admin access required'}, status=403)
-        
-#         diagnoses = Diagnosis.objects.all().values(
-#             'DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 
-#             'severity', 'treatment_outcome', 'DateDiagnosed'
-#         )
-#         return Response(list(diagnoses))
 class DiagnosisListView(APIView):
-    """List all diagnoses for admin dashboard"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
@@ -3362,10 +3511,8 @@ class DiagnosisListView(APIView):
             return Response({'error': 'Admin access required'}, status=403)
         
         try:
-            # Get all diagnoses
             diagnoses = Diagnosis.objects.all()
             
-            # Build result manually to handle NULL values
             result = []
             for d in diagnoses:
                 result.append({
@@ -3390,7 +3537,6 @@ class DiagnosisListView(APIView):
 
 
 class PlantListView(APIView):
-    """List all plants for admin dashboard"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
@@ -3399,220 +3545,6 @@ class PlantListView(APIView):
         
         plants = Plant.objects.all().values('PlantID', 'CropType', 'DateCaptured', 'gps_district')
         return Response(list(plants))
-
-
-# ── 12. COMMUNITY ────────────────────────────────────────────────────────────
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_community_posts(request):
-    """GET /api/community/posts/ - Get paginated community posts"""
-    try:
-        page = int(request.query_params.get('page', 1))
-        limit = int(request.query_params.get('limit', 20))
-        crop_type = request.query_params.get('crop_type')
-        
-        queryset = CommunityPost.objects.select_related('farmer').all()
-        
-        if crop_type:
-            queryset = queryset.filter(crop_type__iexact=crop_type)
-        
-        total_posts = queryset.count()
-        total_pages = (total_posts + limit - 1) // limit
-        offset = (page - 1) * limit
-        
-        posts = queryset[offset:offset + limit]
-        
-        user = request.user
-        liked_post_ids = set(PostLike.objects.filter(
-            farmer=user, post__in=posts
-        ).values_list('post_id', flat=True))
-        
-        data = []
-        for post in posts:
-            data.append({
-                'id': post.id,
-                'userId': post.farmer.id,
-                'username': post.farmer.username,
-                'userPhotoUrl': post.farmer.profile_photo_url,
-                'content': post.content,
-                'imageUrl': post.image_url,
-                'likes': post.likes_count,
-                'commentsCount': post.comments_count,
-                'isLikedByUser': post.id in liked_post_ids,
-                'createdAt': post.created_at.isoformat(),
-                'postType': post.post_type,
-                'cropType': post.crop_type,
-            })
-        
-        return Response({
-            'posts': data,
-            'page': page,
-            'limit': limit,
-            'totalPages': total_pages,
-            'totalPosts': total_posts,
-        })
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def create_community_post(request):
-    """POST /api/community/posts/ - Create a new post"""
-    try:
-        content = request.data.get('content')
-        if not content:
-            return Response({'error': 'Content is required'}, status=400)
-        
-        post = CommunityPost.objects.create(
-            farmer=request.user,
-            content=content,
-            image_url=request.data.get('imageUrl'),
-            post_type=request.data.get('post_type', 'general'),
-            crop_type=request.data.get('crop_type'),
-        )
-        
-        return Response({
-            'id': post.id,
-            'userId': post.farmer.id,
-            'username': post.farmer.username,
-            'userPhotoUrl': post.farmer.profile_photo_url,
-            'content': post.content,
-            'imageUrl': post.image_url,
-            'likes': 0,
-            'commentsCount': 0,
-            'isLikedByUser': False,
-            'createdAt': post.created_at.isoformat(),
-            'postType': post.post_type,
-            'cropType': post.crop_type,
-        }, status=201)
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def like_community_post(request, post_id):
-    """POST /api/community/posts/{id}/like/ - Like or unlike a post"""
-    try:
-        post = CommunityPost.objects.get(id=post_id)
-        like, created = PostLike.objects.get_or_create(post=post, farmer=request.user)
-        
-        if not created:
-            like.delete()
-            post.likes_count = post.likes.count()
-            post.save()
-            return Response({'liked': False, 'likes_count': post.likes_count})
-        
-        post.likes_count = post.likes.count()
-        post.save()
-        return Response({'liked': True, 'likes_count': post.likes_count})
-    except CommunityPost.DoesNotExist:
-        return Response({'error': 'Post not found'}, status=404)
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
-
-
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def delete_community_post(request, post_id):
-    """
-    DELETE /api/community/posts/{id}/ - Delete a post (owner only)
-    Security: Only the post owner can delete their own post
-    """
-    try:
-        # SECURITY: Ensure only the post owner can delete
-        post = CommunityPost.objects.get(id=post_id, farmer=request.user)
-        post.delete()
-        return Response(status=204)
-    except CommunityPost.DoesNotExist:
-        return Response({'error': 'Post not found or you do not have permission'}, status=404)
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_community_comments(request, post_id):
-    """GET /api/community/posts/{id}/comments/ - Get all comments for a post"""
-    try:
-        post = CommunityPost.objects.get(id=post_id)
-        comments = post.comments.select_related('farmer')
-        
-        data = []
-        for comment in comments:
-            data.append({
-                'id': comment.id,
-                'postId': comment.post.id,
-                'userId': comment.farmer.id,
-                'username': comment.farmer.username,
-                'userPhotoUrl': comment.farmer.profile_photo_url,
-                'content': comment.content,
-                'likes': 0,
-                'createdAt': comment.created_at.isoformat(),
-            })
-        return Response(data)
-    except CommunityPost.DoesNotExist:
-        return Response({'error': 'Post not found'}, status=404)
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def add_community_comment(request, post_id):
-    """POST /api/community/posts/{id}/comments/ - Add a comment to a post"""
-    try:
-        post = CommunityPost.objects.get(id=post_id)
-        content = request.data.get('content')
-        
-        if not content:
-            return Response({'error': 'Content is required'}, status=400)
-        
-        comment = CommunityComment.objects.create(
-            post=post,
-            farmer=request.user,
-            content=content
-        )
-        
-        post.comments_count = post.comments.count()
-        post.save()
-        
-        return Response({
-            'id': comment.id,
-            'postId': comment.post.id,
-            'userId': comment.farmer.id,
-            'username': comment.farmer.username,
-            'userPhotoUrl': comment.farmer.profile_photo_url,
-            'content': comment.content,
-            'likes': 0,
-            'createdAt': comment.created_at.isoformat(),
-        }, status=201)
-    except CommunityPost.DoesNotExist:
-        return Response({'error': 'Post not found'}, status=404)
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_community_profile(request):
-    """GET /api/community/profile/ - Get current user's profile for community"""
-    try:
-        farmer = request.user
-        return Response({
-            'id': farmer.id,
-            'username': farmer.username,
-            'first_name': farmer.first_name,
-            'last_name': farmer.last_name,
-            'email': farmer.email,
-            'district': farmer.district,
-            'profile_photo_url': farmer.profile_photo_url,
-            'experience_level': farmer.experience_level,
-        })
-    except Exception as e:
-        return Response({'error': str(e)}, status=500)
 
 
 
