@@ -1680,6 +1680,7 @@
 
 
 
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -2053,7 +2054,7 @@ class SaveScanView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_sesotho(self, disease_name, field='pesticide'):
-        """Get Sesotho translation from cache for a specific field"""
+        """Get Sesotho translation from cache"""
         if not disease_name:
             return None
         try:
@@ -2063,54 +2064,33 @@ class SaveScanView(APIView):
                 'dosage': cache.dosage_st,
                 'steps': cache.steps_st,
             }
-            return translations.get(field) or None
+            result = translations.get(field)
+            
+            # Add debug logging
+            import logging
+            logger = logging.getLogger(__name__)
+            if result:
+                logger.warning(f"[Sesotho] ✓ Found '{field}' for '{disease_name}': {result[:100]}...")
+            else:
+                logger.warning(f"[Sesotho] ✗ No '{field}' found for '{disease_name}'")
+            
+            return result
         except TranslationCache.DoesNotExist:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"[Sesotho] ✗ No translation cache entry for '{disease_name}'")
             return None
-        except Exception:
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"[Sesotho] Error: {e}")
             return None
 
     def _get_highland_temp(self, altitude):
         """Estimate temperature based on altitude in Lesotho"""
-        base_temp = 22  # °C at sea level
+        base_temp = 22
         temp = base_temp - (altitude / 100 * 0.65)
         return int(temp)
-
-    def _translate_personalized_advice_to_sesotho(self, disease_name, farmer_district):
-        """Get full Sesotho personalized advice from TranslationCache"""
-        if not disease_name:
-            return None
-        
-        try:
-            cache = TranslationCache.objects.get(disease_name_en__iexact=disease_name)
-            
-            # If steps_st contains full Sesotho advice, use it
-            if cache.steps_st and len(cache.steps_st) > 50:
-                return cache.steps_st
-            
-            # Otherwise build from available translations
-            sesotho_parts = []
-            
-            # Add pesticide info
-            if cache.pesticide_st:
-                sesotho_parts.append(f"**Moriana o khothaletsoang:** {cache.pesticide_st}")
-            
-            # Add dosage info
-            if cache.dosage_st:
-                sesotho_parts.append(f"**Tekanyo:** {cache.dosage_st}")
-            
-            # Add district-specific note
-            if farmer_district:
-                sesotho_parts.append(f"\n📍 **Setereke sa {farmer_district}:** Ikopanye le ofisiri ea temo ea sebaka sa heno bakeng sa keletso e tobileng.")
-            
-            # Add general Sesotho footer
-            sesotho_parts.append("\n🔬 **Kelello ea bohlokoa:** Sebelisa moriana hoseng haholo. Apara liatlana le mask. Boloka meriana sebakeng se pholileng, se omileng.")
-            
-            return "\n".join(sesotho_parts)
-            
-        except TranslationCache.DoesNotExist:
-            return None
-        except Exception:
-            return None
 
     def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
         """Generate personalized advice USING GPS coordinates for real recommendations"""
@@ -2346,8 +2326,8 @@ class SaveScanView(APIView):
 
             import logging
             logger = logging.getLogger(__name__)
+            logger.warning(f"[SaveScan] ========== NEW SCAN REQUEST ==========")
             logger.warning(f"[SaveScan] incoming data: {dict(request.data)}")
-            logger.warning(f"[SaveScan] scan_mode={request.data.get('scan_mode')} profileId={request.data.get('profileId')}")
 
             # Handle language preference
             incoming_lang = request.data.get('language') or request.data.get('lang')
@@ -2355,13 +2335,14 @@ class SaveScanView(APIView):
                 user.language_preferences = incoming_lang
                 user.save(update_fields=['language_preferences'])
             lang = user.language_preferences
-            logger.warning(f"[SaveScan] Language preference: {lang}")
+            logger.warning(f"[SaveScan] 🌐 LANGUAGE PREFERENCE: '{lang}'")
 
             # Get disease name from request
             raw_label = (request.data.get('diseaseName')
                         or request.data.get('DiseaseName')
                         or 'Healthy')
             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
+            logger.warning(f"[SaveScan] 🦠 Disease: '{clean_label}'")
 
             image_url = (request.data.get('imageUrl')
                         or request.data.get('image_url')
@@ -2395,14 +2376,14 @@ class SaveScanView(APIView):
                            or user.district
                            or '')
             
-            logger.warning(f"[SaveScan] GPS Data - lat: {gps_lat}, lon: {gps_lon}, alt: {gps_alt}, district: {gps_district}")
+            logger.warning(f"[SaveScan] 📍 GPS: lat={gps_lat}, lon={gps_lon}, alt={gps_alt}, district={gps_district}")
 
             scan_mode = (request.data.get('scan_mode')
                         or request.data.get('scanMode')
                         or 'general').lower()
             wants_personalized = scan_mode == 'personalized'
 
-            logger.warning(f"[SaveScan] wants_personalized={wants_personalized} scan_mode='{scan_mode}'")
+            logger.warning(f"[SaveScan] 📱 Mode: scan_mode='{scan_mode}', wants_personalized={wants_personalized}")
 
             # Get crop profile
             target_profile = None
@@ -2410,8 +2391,6 @@ class SaveScanView(APIView):
                 target_profile = CropProfile.objects.filter(
                     pk=profile_id, FarmerID=user
                 ).first()
-
-            logger.warning(f"[SaveScan] profile_id='{profile_id}' target_profile={target_profile}")
 
             crop_type = (target_profile.VegetableType
                         if target_profile
@@ -2429,8 +2408,6 @@ class SaveScanView(APIView):
                 gps_district=gps_district,
             )
             
-            logger.warning(f"[SaveScan] Plant saved with GPS")
-
             # Create diagnosis
             urgent = any(w in clean_label.lower()
                         for w in ['blight', 'rot', 'wilt', 'mold', 'virus',
@@ -2449,7 +2426,7 @@ class SaveScanView(APIView):
             treat = Treatment.objects.filter(tq).first()
             kb_entry = KnowledgeBase.objects.filter(tq).first()
 
-            # Default values
+            # Default values (English)
             res_pesticide = treat.RecommendedPesticide if treat else 'Consult local expert'
             res_dosage = treat.Dosage if treat else 'N/A'
             
@@ -2469,32 +2446,46 @@ class SaveScanView(APIView):
                 dosage_calc = treat.calculate_for_plot(plot_ha)
 
             # ============================================================
-            # SESOTHO TRANSLATION - For GENERAL mode
+            # 🔥 CRITICAL: APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
             # ============================================================
             if lang == 'st':
-                st_p = self._get_sesotho(clean_label, 'pesticide')
-                st_d = self._get_sesotho(clean_label, 'dosage')
-                st_s = self._get_sesotho(clean_label, 'steps')
+                logger.warning(f"[SaveScan] 🎯 APPLYING SESOTHO TRANSLATION for disease: '{clean_label}'")
                 
-                if st_p:
-                    res_pesticide = st_p
-                    logger.warning(f"[SaveScan] Translated pesticide to Sesotho: {st_p[:50]}...")
-                if st_d:
-                    res_dosage = st_d
-                    logger.warning(f"[SaveScan] Translated dosage to Sesotho: {st_d}")
-                if st_s:
-                    res_steps = st_s
-                    logger.warning(f"[SaveScan] Translated steps to Sesotho: {st_s[:100]}...")
+                # Get translations from cache
+                st_pesticide = self._get_sesotho(clean_label, 'pesticide')
+                st_dosage = self._get_sesotho(clean_label, 'dosage')
+                st_steps = self._get_sesotho(clean_label, 'steps')
+                
+                # Apply translations if found
+                if st_pesticide:
+                    res_pesticide = st_pesticide
+                    logger.warning(f"[SaveScan] ✅ Sesotho PESTICIDE applied: '{st_pesticide[:100]}'")
+                else:
+                    logger.warning(f"[SaveScan] ⚠️ No Sesotho pesticide found for '{clean_label}'")
+                    
+                if st_dosage:
+                    res_dosage = st_dosage
+                    logger.warning(f"[SaveScan] ✅ Sesotho DOSAGE applied: '{st_dosage}'")
+                else:
+                    logger.warning(f"[SaveScan] ⚠️ No Sesotho dosage found for '{clean_label}'")
+                    
+                if st_steps:
+                    res_steps = st_steps
+                    logger.warning(f"[SaveScan] ✅ Sesotho STEPS applied (length: {len(st_steps)} chars)")
+                    logger.warning(f"[SaveScan] Steps preview: {st_steps[:200]}...")
+                else:
+                    logger.warning(f"[SaveScan] ⚠️ No Sesotho steps found for '{clean_label}'")
 
             # ============================================================
-            # PERSONALIZED MODE - With Sesotho translation support
+            # PERSONALIZED MODE
             # ============================================================
             personalized_advice = None
             matched_context = None
             personalized_dosage = None
-            personalized_advice_sesotho = None
 
             if wants_personalized and target_profile:
+                logger.warning(f"[SaveScan] 📝 Generating personalized advice...")
+                
                 # Generate personalized advice in English
                 personalized = self._generate_personalized_advice(
                     disease_name=clean_label,
@@ -2509,24 +2500,12 @@ class SaveScanView(APIView):
                 personalized_advice = personalized['advice']
                 matched_context = personalized['matched_on']
                 
-                # Translate to Sesotho if needed
+                # If Sesotho mode, replace with Sesotho steps
                 if lang == 'st':
-                    sesotho_advice = self._translate_personalized_advice_to_sesotho(
-                        clean_label, 
-                        gps_district or user.district
-                    )
-                    if sesotho_advice:
-                        personalized_advice_sesotho = sesotho_advice
-                        logger.warning(f"[SaveScan] ✅ Personalized advice translated to Sesotho")
-                    else:
-                        # Fallback: Use the translated steps from cache
-                        st_steps = self._get_sesotho(clean_label, 'steps')
-                        if st_steps:
-                            personalized_advice_sesotho = st_steps
-                            logger.warning(f"[SaveScan] Using cached steps_st as fallback for Sesotho")
-                        else:
-                            personalized_advice_sesotho = f"[Keletso ha e fumanehe ka Sesotho]\n{personalized_advice}"
-                            logger.warning(f"[SaveScan] No Sesotho translation available, using English")
+                    st_steps = self._get_sesotho(clean_label, 'steps')
+                    if st_steps:
+                        personalized_advice = st_steps
+                        logger.warning(f"[SaveScan] ✅ Personalized advice replaced with Sesotho steps")
                 
                 if dosage_calc:
                     personalized_dosage = {
@@ -2541,24 +2520,19 @@ class SaveScanView(APIView):
                             'buckets_10l': dosage_calc.get('buckets_10l'),
                         },
                     }
-                
-                logger.warning(f"[SaveScan] ✅ Personalized advice generated using GPS")
 
             # Build personalized block
             personalized_block = None
             if wants_personalized and target_profile:
                 personalized_block = {
-                    'advice': personalized_advice_sesotho if (lang == 'st' and personalized_advice_sesotho) else personalized_advice,
-                    'advice_english': personalized_advice if lang == 'st' else None,
-                    'advice_sesotho': personalized_advice_sesotho if lang == 'st' else None,
+                    'advice': personalized_advice,
                     'dosage': personalized_dosage,
                     'matched_on': matched_context,
                     'farmer_level': user.experience_level,
-                    'language': lang,
                 }
 
             # ============================================================
-            # RESPONSE
+            # PREPARE RESPONSE
             # ============================================================
             response_data = {
                 'status': 'success',
@@ -2566,7 +2540,7 @@ class SaveScanView(APIView):
                 'follow_up_date': follow_up_date.isoformat(),
                 'crop_type': crop_type,
                 'scan_mode': scan_mode,
-                'language': lang,
+                'language_used': lang,
                 'gps_data': {
                     'latitude': gps_lat,
                     'longitude': gps_lon,
@@ -2575,14 +2549,15 @@ class SaveScanView(APIView):
                 },
                 '_debug': {
                     'received_scan_mode': scan_mode,
-                    'received_profile_id': str(profile_id),
                     'wants_personalized': wants_personalized,
                     'target_profile_found': target_profile is not None,
-                    'target_profile_id': str(target_profile.ProfileID) if target_profile else None,
                     'gps_received': gps_lat is not None,
-                    'personalized_advice_generated': bool(personalized_advice) if wants_personalized else False,
-                    'sesotho_translation_applied': lang == 'st',
-                    'sesotho_advice_found': bool(personalized_advice_sesotho) if wants_personalized and lang == 'st' else False,
+                    'language': lang,
+                    'sesotho_translations_available': {
+                        'pesticide': self._get_sesotho(clean_label, 'pesticide') is not None,
+                        'dosage': self._get_sesotho(clean_label, 'dosage') is not None,
+                        'steps': self._get_sesotho(clean_label, 'steps') is not None,
+                    } if lang == 'st' else None,
                 },
                 'personalized': personalized_block,
                 'results': {
@@ -2595,23 +2570,28 @@ class SaveScanView(APIView):
                     'water_volume_display': dosage_calc.get('water_display') if dosage_calc and wants_personalized else None,
                 },
                 'treatment_product': res_pesticide,
-                'personalized_advice': personalized_advice_sesotho if (lang == 'st' and personalized_advice_sesotho) else personalized_advice,
+                'personalized_advice': personalized_advice if wants_personalized else None,
             }
 
-            logger.warning(f"[SaveScan] Response prepared successfully with language: {lang}")
+            # Log the response summary
+            logger.warning(f"[SaveScan] 📤 RESPONSE SUMMARY:")
+            logger.warning(f"[SaveScan]   - Language: {lang}")
+            logger.warning(f"[SaveScan]   - Pesticide: {res_pesticide[:100] if res_pesticide else 'None'}...")
+            logger.warning(f"[SaveScan]   - Dosage: {res_dosage}")
+            logger.warning(f"[SaveScan]   - Steps length: {len(res_steps) if res_steps else 0} chars")
+            logger.warning(f"[SaveScan] ========== SCAN COMPLETE ==========")
+            
             return Response(response_data)
 
         except Exception as e:
             import traceback
             logger = logging.getLogger(__name__)
-            logger.error(f"[SaveScan] Error: {str(e)}")
+            logger.error(f"[SaveScan] ❌ ERROR: {str(e)}")
             logger.error(traceback.format_exc())
             return Response(
                 {'error': str(e), 'detail': traceback.format_exc()},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-
 # ── 7. HISTORY & REPORTS ─────────────────────────────────────────────────────
 
 class FarmerHistoryView(APIView):
@@ -3416,6 +3396,9 @@ def get_community_profile(request):
         })
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
+
+
 
 
 
