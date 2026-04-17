@@ -2289,7 +2289,7 @@ class SaveScanView(APIView):
             buckets = int(water_liters / 10)
             advice_parts.append(f"📐 For your {plot_size} hectare plot, mix the recommended product with {water_liters}L water (approx. {buckets} buckets of 10L).")
         
-        personalized_advice = " ".join(advice_parts)
+       personalized_advice = "\n\n".join(advice_parts)
         
         return {
             'advice': personalized_advice,
@@ -2517,7 +2517,7 @@ class SaveScanView(APIView):
             advice_parts.append(f"📐 Bakeng sa tšimo ea heno ea {plot_size} hectare, kopanya sehlahisoa se khothaletsoang le metsi a {water_liters}L (hoo e ka bang linkho tse {buckets} tsa 10L).")
         
         # Combine all advice
-        personalized_advice = " ".join(advice_parts)
+            personalized_advice = "\n\n".join(advice_parts)
         
         return {
             'advice': personalized_advice,
