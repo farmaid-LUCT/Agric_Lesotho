@@ -2759,22 +2759,32 @@ def change_password(request):
 @permission_classes([AllowAny])
 def request_password_reset(request):
     """Send password reset email to user"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     email = request.data.get('email', '').strip().lower()
     
     if not email:
         return Response({'error': 'Email is required'}, status=400)
     
+    logger.warning(f"[Password Reset] Request received for email: {email}")
+    
     try:
         user = Farmer.objects.get(email=email)
         
+        # Generate token
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user)
         
+        # Get domain from settings
         domain = getattr(settings, 'SITE_DOMAIN', 'farmaid-backend.onrender.com')
         protocol = getattr(settings, 'SITE_PROTOCOL', 'https')
         
         reset_link = f"{protocol}://{domain}/api/reset-password/{uid}/{token}/"
         
+        logger.warning(f"[Password Reset] Generated link for {email}: {reset_link}")
+        
+        # HTML email with button
         html_message = f"""
         <!DOCTYPE html>
         <html>
@@ -2801,8 +2811,13 @@ def request_password_reset(request):
                     font-size: 18px;
                     box-shadow: 0 4px 10px rgba(46,125,50,0.3);
                 }}
+                .reset-button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 15px rgba(46,125,50,0.4);
+                }}
                 .expiry-note {{ font-size: 12px; color: #888; margin: 20px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px; }}
-                .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #777; }}
+                .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #eee; }}
+                .footer p {{ margin: 5px 0; }}
             </style>
         </head>
         <body>
@@ -2813,17 +2828,31 @@ def request_password_reset(request):
                 </div>
                 <div class="content">
                     <div class="greeting"><strong>Dumela {user.first_name or user.email}!</strong></div>
-                    <div class="message"><p>We received a request to reset your password.</p><p>Click the button below to create a new password:</p></div>
-                    <div class="button-container"><a href="{reset_link}" class="reset-button">🔐 RESET MY PASSWORD</a></div>
-                    <div class="expiry-note">⏰ This reset link will expire in <strong>24 hours</strong></div>
-                    <div class="message"><p>If you didn't request a password reset, please ignore this email.</p></div>
+                    <div class="message">
+                        <p>We received a request to reset your password.</p>
+                        <p>Click the button below to create a new password:</p>
+                    </div>
+                    <div class="button-container">
+                        <a href="{reset_link}" class="reset-button">🔐 RESET MY PASSWORD</a>
+                    </div>
+                    <div class="expiry-note">
+                        ⏰ This reset link will expire in <strong>24 hours</strong>
+                    </div>
+                    <div class="message">
+                        <p>If you didn't request a password reset, please ignore this email.</p>
+                        <p>Your password will remain unchanged.</p>
+                    </div>
                 </div>
-                <div class="footer"><p>&copy; 2025 FarmAid Lesotho. All rights reserved.</p></div>
+                <div class="footer">
+                    <p>&copy; 2025 FarmAid Lesotho. All rights reserved.</p>
+                    <p>🌍 Empowering Lesotho's farmers through technology</p>
+                </div>
             </div>
         </body>
         </html>
         """
         
+        # Plain text fallback
         plain_message = f"""
 Dumela {user.first_name or user.email}!
 
@@ -2835,14 +2864,21 @@ Click or copy this link to reset your password:
 This reset link will expire in 24 hours.
 
 If you didn't request a password reset, please ignore this email.
+Your password will remain unchanged.
+
+Thank you,
+FarmAid Lesotho Team
 """
         
-        email = EmailMessage(
+        # Send email
+        email_msg = EmailMessage(
             'Reset Your FarmAid Password',
             plain_message,
             to=[user.email],
         )
-        email.send()
+        email_msg.send(fail_silently=False)
+        
+        logger.warning(f"[Password Reset] Email sent successfully to {email}")
         
         return Response({
             'success': True,
@@ -2850,15 +2886,19 @@ If you didn't request a password reset, please ignore this email.
         })
         
     except Farmer.DoesNotExist:
+        logger.warning(f"[Password Reset] Email not found: {email}")
+        # Don't reveal that email doesn't exist for security
         return Response({
             'success': True,
             'message': 'If an account exists with that email, a reset link has been sent.'
         })
     except Exception as e:
-        print(f"Password reset error: {e}")
+        logger.error(f"[Password Reset] Error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return Response({
             'success': False,
-            'error': 'Failed to send reset link. Please try again.'
+            'error': 'Failed to send reset link. Please try again later.'
         }, status=500)
 
 
@@ -2866,10 +2906,15 @@ If you didn't request a password reset, please ignore this email.
 @permission_classes([AllowAny])
 def reset_password_confirm(request, uidb64, token):
     """Confirm password reset and set new password"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
         user = Farmer.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, Farmer.DoesNotExist):
+        logger.warning(f"[Password Reset Confirm] User found: {user.email}")
+    except (TypeError, ValueError, OverflowError, Farmer.DoesNotExist) as e:
+        logger.error(f"[Password Reset Confirm] User lookup failed: {e}")
         user = None
     
     if user is not None and default_token_generator.check_token(user, token):
@@ -2888,18 +2933,23 @@ def reset_password_confirm(request, uidb64, token):
                 'details': list(exc.messages)
             }, status=400)
         
+        # Set new password
         user.set_password(new_password)
         user.save()
         
+        # Delete all existing tokens for this user
         Token.objects.filter(user=user).delete()
+        
+        logger.warning(f"[Password Reset Confirm] Password reset successful for {user.email}")
         
         return Response({
             'success': True,
-            'message': 'Password has been reset successfully.'
+            'message': 'Password has been reset successfully. You can now log in with your new password.'
         })
     
+    logger.error(f"[Password Reset Confirm] Invalid or expired token for user")
     return Response({
-        'error': 'Invalid or expired reset link.'
+        'error': 'Invalid or expired reset link. Please request a new password reset.'
     }, status=400)
 
 
@@ -2907,16 +2957,22 @@ def reset_password_confirm(request, uidb64, token):
 @permission_classes([AllowAny])
 def reset_password_verify(request, uidb64, token):
     """Verify if reset token is valid"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
         user = Farmer.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, Farmer.DoesNotExist):
+    except (TypeError, ValueError, OverflowError, Farmer.DoesNotExist) as e:
+        logger.error(f"[Password Reset Verify] User lookup failed: {e}")
         user = None
     
     if user is not None and default_token_generator.check_token(user, token):
-        return Response({'valid': True})
+        logger.warning(f"[Password Reset Verify] Token valid for {user.email}")
+        return Response({'valid': True, 'email': user.email})
     
-    return Response({'valid': False}, status=400)
+    logger.error(f"[Password Reset Verify] Token invalid")
+    return Response({'valid': False, 'error': 'Invalid or expired reset link'}, status=400)
 
 
 # ── 2. GOOGLE SIGN-IN ─────────────────────────────────────────────────────────
