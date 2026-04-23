@@ -20,6 +20,7 @@
 # from django.contrib.auth.tokens import default_token_generator
 # from django.shortcuts import render
 # from django.http import HttpResponse
+# from django.conf import settings
 
 # from .models import (
 #     Farmer, Plant, Diagnosis, Treatment,
@@ -78,17 +79,397 @@
 #         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# # def send_activation_email(request, user):
+# #     """
+# #     Send activation email with HTML button and correct domain
+# #     """
+# #     uid = urlsafe_base64_encode(force_bytes(user.pk))
+# #     token = default_token_generator.make_token(user)
+    
+# #     # Use the domain from settings (set on Render)
+# #     domain = getattr(settings, 'SITE_DOMAIN', 'farmaid-backend.onrender.com')
+# #     protocol = getattr(settings, 'SITE_PROTOCOL', 'https')
+    
+# #     activation_link = f"{protocol}://{domain}/api/activate/{uid}/{token}/"
+    
+# #     # HTML email with button
+# #     html_message = f"""
+# #     <!DOCTYPE html>
+# #     <html>
+# #     <head>
+# #         <meta charset="UTF-8">
+# #         <title>FarmAid Email Verification</title>
+# #         <style>
+# #             body {{
+# #                 font-family: Arial, sans-serif;
+# #                 line-height: 1.6;
+# #                 color: #333;
+# #                 background-color: #f4f4f4;
+# #                 margin: 0;
+# #                 padding: 0;
+# #             }}
+# #             .container {{
+# #                 max-width: 600px;
+# #                 margin: 20px auto;
+# #                 background-color: #ffffff;
+# #                 border-radius: 10px;
+# #                 overflow: hidden;
+# #                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+# #             }}
+# #             .header {{
+# #                 background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+# #                 color: white;
+# #                 padding: 30px 20px;
+# #                 text-align: center;
+# #             }}
+# #             .header h1 {{
+# #                 margin: 0;
+# #                 font-size: 28px;
+# #             }}
+# #             .content {{
+# #                 padding: 30px;
+# #                 background-color: #ffffff;
+# #             }}
+# #             .greeting {{
+# #                 font-size: 18px;
+# #                 margin-bottom: 20px;
+# #             }}
+# #             .message {{
+# #                 margin-bottom: 20px;
+# #                 color: #555;
+# #             }}
+# #             .button-container {{
+# #                 text-align: center;
+# #                 margin: 30px 0;
+# #             }}
+# #             .button {{
+# #                 display: inline-block;
+# #                 padding: 14px 32px;
+# #                 background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+# #                 color: white !important;
+# #                 text-decoration: none;
+# #                 border-radius: 50px;
+# #                 font-weight: bold;
+# #                 font-size: 16px;
+# #                 transition: transform 0.2s ease, box-shadow 0.2s ease;
+# #                 box-shadow: 0 4px 10px rgba(46,125,50,0.3);
+# #             }}
+# #             .button:hover {{
+# #                 transform: translateY(-2px);
+# #                 box-shadow: 0 6px 15px rgba(46,125,50,0.4);
+# #             }}
+# #             .button:active {{
+# #                 transform: translateY(0);
+# #             }}
+# #             .link-text {{
+# #                 text-align: center;
+# #                 margin-top: 20px;
+# #                 padding-top: 20px;
+# #                 border-top: 1px solid #eee;
+# #             }}
+# #             .link-text p {{
+# #                 font-size: 12px;
+# #                 color: #999;
+# #                 word-break: break-all;
+# #             }}
+# #             .footer {{
+# #                 background-color: #f8f9fa;
+# #                 padding: 20px;
+# #                 text-align: center;
+# #                 font-size: 12px;
+# #                 color: #777;
+# #                 border-top: 1px solid #eee;
+# #             }}
+# #             .footer p {{
+# #                 margin: 5px 0;
+# #             }}
+# #             .expiry-note {{
+# #                 font-size: 12px;
+# #                 color: #888;
+# #                 text-align: center;
+# #                 margin-top: 20px;
+# #             }}
+# #         </style>
+# #     </head>
+# #     <body>
+# #         <div class="container">
+# #             <div class="header">
+# #                 <h1>🌱 FarmAid Lesotho</h1>
+# #                 <p>Grow Smarter. Feed the Nation.</p>
+# #             </div>
+            
+# #             <div class="content">
+# #                 <div class="greeting">
+# #                     <strong>Dumela {user.first_name or user.email}!</strong>
+# #                 </div>
+                
+# #                 <div class="message">
+# #                     <p>Thank you for registering with <strong>FarmAid Lesotho</strong>.</p>
+# #                     <p>Please verify your email address to activate your account and start using our services. You'll be able to:</p>
+# #                     <ul>
+# #                         <li>📸 Scan crops for disease detection</li>
+# #                         <li>📊 Track your farm analytics</li>
+# #                         <li>💬 Join the farming community</li>
+# #                         <li>📈 Get personalized recommendations</li>
+# #                     </ul>
+# #                 </div>
+                
+# #                 <div class="button-container">
+# #                     <a href="{activation_link}" class="button">✅ Verify Email Address</a>
+# #                 </div>
+                
+# #                 <div class="expiry-note">
+# #                     <p>⏰ This verification link will expire in <strong>24 hours</strong>.</p>
+# #                 </div>
+                
+# #                 <div class="link-text">
+# #                     <p>If the button doesn't work, copy and paste this link into your browser:</p>
+# #                     <p><strong>{activation_link}</strong></p>
+# #                 </div>
+                
+# #                 <div class="message">
+# #                     <p>If you did not create an account with FarmAid, please ignore this email.</p>
+# #                 </div>
+# #             </div>
+            
+# #             <div class="footer">
+# #                 <p>&copy; 2025 FarmAid Lesotho. All rights reserved.</p>
+# #                 <p>🌍 Empowering Lesotho's farmers through technology</p>
+# #                 <p>📧 Contact us: support@farmaid.co.ls</p>
+# #             </div>
+# #         </div>
+# #     </body>
+# #     </html>
+# #     """
+    
+# #     # Plain text fallback
+# #     plain_message = f"""
+# # Dumela {user.first_name or user.email}!
+
+# # Thank you for registering with FarmAid Lesotho.
+
+# # Please click the link below to verify your email address and activate your account:
+
+# # {activation_link}
+
+# # This verification link will expire in 24 hours.
+
+# # If you did not create an account with FarmAid, please ignore this email.
+
+# # Thank you for joining FarmAid Lesotho! 🌱
+
+# # ---
+# # FarmAid Lesotho | Grow Smarter. Feed the Nation.
+# # """
+    
+# #     email = EmailMessage(
+# #         'Activate Your FarmAid Account',
+# #         plain_message,
+# #         to=[user.email],
+# #     )
+# #     email.send()
 # def send_activation_email(request, user):
-#     current_site = get_current_site(request)
+#     """
+#     Send activation email with prominent VERIFY button
+#     The button is the primary action, not the text link
+#     """
 #     uid = urlsafe_base64_encode(force_bytes(user.pk))
 #     token = default_token_generator.make_token(user)
-#     activation_link = f"http://{current_site.domain}/api/activate/{uid}/{token}/"
-#     EmailMessage(
-#         'Activate your FarmAid Lesotho Account',
-#         f"Dumela {user.first_name},\n\nPlease click link to verify: {activation_link}",
-#         to=[user.email],
-#     ).send()
+    
+#     # Use the domain from settings (set on Render)
+#     domain = getattr(settings, 'SITE_DOMAIN', 'farmaid-backend.onrender.com')
+#     protocol = getattr(settings, 'SITE_PROTOCOL', 'https')
+    
+#     activation_link = f"{protocol}://{domain}/api/activate/{uid}/{token}/"
+    
+#     # HTML email with prominent button and hidden text link
+#     html_message = f"""
+#     <!DOCTYPE html>
+#     <html>
+#     <head>
+#         <meta charset="UTF-8">
+#         <title>FarmAid Email Verification</title>
+#         <style>
+#             body {{
+#                 font-family: Arial, sans-serif;
+#                 line-height: 1.6;
+#                 color: #333;
+#                 background-color: #f4f4f4;
+#                 margin: 0;
+#                 padding: 0;
+#             }}
+#             .container {{
+#                 max-width: 600px;
+#                 margin: 20px auto;
+#                 background-color: #ffffff;
+#                 border-radius: 10px;
+#                 overflow: hidden;
+#                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+#             }}
+#             .header {{
+#                 background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+#                 color: white;
+#                 padding: 30px 20px;
+#                 text-align: center;
+#             }}
+#             .header h1 {{
+#                 margin: 0;
+#                 font-size: 28px;
+#             }}
+#             .content {{
+#                 padding: 30px;
+#                 background-color: #ffffff;
+#                 text-align: center;
+#             }}
+#             .greeting {{
+#                 font-size: 18px;
+#                 margin-bottom: 20px;
+#                 text-align: left;
+#             }}
+#             .message {{
+#                 margin-bottom: 25px;
+#                 color: #555;
+#                 text-align: left;
+#             }}
+#             .button-container {{
+#                 text-align: center;
+#                 margin: 30px 0;
+#             }}
+#             .verify-button {{
+#                 display: inline-block;
+#                 padding: 16px 40px;
+#                 background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+#                 color: white !important;
+#                 text-decoration: none;
+#                 border-radius: 50px;
+#                 font-weight: bold;
+#                 font-size: 18px;
+#                 transition: transform 0.2s ease, box-shadow 0.2s ease;
+#                 box-shadow: 0 4px 10px rgba(46,125,50,0.3);
+#                 cursor: pointer;
+#             }}
+#             .verify-button:hover {{
+#                 transform: translateY(-2px);
+#                 box-shadow: 0 6px 15px rgba(46,125,50,0.4);
+#             }}
+#             .verify-button:active {{
+#                 transform: translateY(0);
+#             }}
+#             .expiry-note {{
+#                 font-size: 12px;
+#                 color: #888;
+#                 text-align: center;
+#                 margin: 20px 0;
+#                 padding: 10px;
+#                 background-color: #f8f9fa;
+#                 border-radius: 5px;
+#             }}
+#             .link-collapse {{
+#                 margin-top: 30px;
+#                 padding-top: 20px;
+#                 border-top: 1px solid #eee;
+#                 text-align: center;
+#             }}
+#             .toggle-link {{
+#                 color: #2E7D32;
+#                 text-decoration: none;
+#                 font-size: 12px;
+#                 cursor: pointer;
+#             }}
+#             .hidden-link {{
+#                 display: none;
+#                 margin-top: 10px;
+#                 padding: 10px;
+#                 background-color: #f8f9fa;
+#                 border-radius: 5px;
+#                 word-break: break-all;
+#                 font-size: 12px;
+#                 color: #666;
+#             }}
+#             .footer {{
+#                 background-color: #f8f9fa;
+#                 padding: 20px;
+#                 text-align: center;
+#                 font-size: 12px;
+#                 color: #777;
+#                 border-top: 1px solid #eee;
+#             }}
+#             .footer p {{
+#                 margin: 5px 0;
+#             }}
+#         </style>
+#     </head>
+#     <body>
+#         <div class="container">
+#             <div class="header">
+#                 <h1>🌱 FarmAid Lesotho</h1>
+#                 <p>Grow Smarter. Feed the Nation.</p>
+#             </div>
+            
+#             <div class="content">
+#                 <div class="greeting">
+#                     <strong>Dumela {user.first_name or user.email}!</strong>
+#                 </div>
+                
+#                 <div class="message">
+#                     <p>Thank you for registering with <strong>FarmAid Lesotho</strong>.</p>
+#                     <p>Click the button below to verify your email address and activate your account:</p>
+#                 </div>
+                
+#                 <div class="button-container">
+#                     <a href="{activation_link}" class="verify-button">✅ VERIFY MY ACCOUNT</a>
+#                 </div>
+                
+#                 <div class="expiry-note">
+#                     ⏰ This verification link will expire in <strong>24 hours</strong>
+#                 </div>
+                
+#                 <details class="link-collapse">
+#                     <summary style="color: #2E7D32; font-size: 12px; cursor: pointer;">Show technical details</summary>
+#                     <div class="hidden-link" style="display: block; margin-top: 10px;">
+#                         <p style="margin: 0;">If the button doesn't work, copy and paste this link:</p>
+#                         <p style="word-break: break-all; font-size: 11px; color: #999; margin-top: 5px;">{activation_link}</p>
+#                     </div>
+#                 </details>
+                
+#                 <div class="message" style="margin-top: 20px;">
+#                     <p>If you did not create an account with FarmAid, please ignore this email.</p>
+#                 </div>
+#             </div>
+            
+#             <div class="footer">
+#                 <p>&copy; 2025 FarmAid Lesotho. All rights reserved.</p>
+#                 <p>🌍 Empowering Lesotho's farmers through technology</p>
+#             </div>
+#         </div>
+#     </body>
+#     </html>
+#     """
+    
+#     # Plain text fallback (kept simple)
+#     plain_message = f"""
+# Dumela {user.first_name or user.email}!
 
+# Thank you for registering with FarmAid Lesotho.
+
+# Click or copy this link to verify your email address:
+# {activation_link}
+
+# This verification link will expire in 24 hours.
+
+# If you did not create an account with FarmAid, please ignore this email.
+
+# Thank you for joining FarmAid Lesotho! 🌱
+# ---
+# FarmAid Lesotho | Grow Smarter. Feed the Nation.
+# """
+    
+#     email = EmailMessage(
+#         'Activate Your FarmAid Account',
+#         plain_message,
+#         to=[user.email],
+#     )
+#     email.send(fail_silently=False)
 
 # @api_view(['POST'])
 # @permission_classes([AllowAny])
@@ -116,23 +497,79 @@
 #         user.is_active = True
 #         user.save()
 #         return HttpResponse("""
+#         <!DOCTYPE html>
 #         <html>
-#         <head><title>Account Activated</title></head>
-#         <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-#             <h1 style="color: green;">✅ Account Activated!</h1>
-#             <p>Your FarmAid account has been successfully activated.</p>
-#             <p>You can now close this window and log in to the app.</p>
-#             <a href="#" onclick="window.close(); return false;" style="color: green;">Close Window</a>
+#         <head>
+#             <title>Account Activated - FarmAid Lesotho</title>
+#             <style>
+#                 body {
+#                     font-family: Arial, sans-serif;
+#                     text-align: center;
+#                     padding: 50px;
+#                     background: linear-gradient(135deg, #f4f4f4 0%, #e8f5e9 100%);
+#                 }
+#                 .container {
+#                     max-width: 500px;
+#                     margin: 0 auto;
+#                     background: white;
+#                     padding: 40px;
+#                     border-radius: 20px;
+#                     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+#                 }
+#                 h1 { color: #2E7D32; }
+#                 .button {
+#                     display: inline-block;
+#                     padding: 12px 30px;
+#                     background: #2E7D32;
+#                     color: white;
+#                     text-decoration: none;
+#                     border-radius: 25px;
+#                     margin-top: 20px;
+#                 }
+#                 .button:hover { background: #1B5E20; }
+#             </style>
+#         </head>
+#         <body>
+#             <div class="container">
+#                 <h1>✅ Account Activated!</h1>
+#                 <p>Your FarmAid account has been successfully activated.</p>
+#                 <p>You can now close this window and log in to the app.</p>
+#                 <a href="#" onclick="window.close(); return false;" class="button">Close Window</a>
+#                 <p style="margin-top: 30px; font-size: 12px; color: #888;">FarmAid Lesotho | Grow Smarter. Feed the Nation.</p>
+#             </div>
 #         </body>
 #         </html>
 #         """)
 #     return HttpResponse("""
+#     <!DOCTYPE html>
 #     <html>
-#     <head><title>Activation Failed</title></head>
-#     <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-#         <h1 style="color: red;">❌ Activation Failed</h1>
-#         <p>The activation link is invalid or has expired.</p>
-#         <p>Please request a new activation email from the FarmAid app.</p>
+#     <head>
+#         <title>Activation Failed - FarmAid Lesotho</title>
+#         <style>
+#             body {
+#                 font-family: Arial, sans-serif;
+#                 text-align: center;
+#                 padding: 50px;
+#                 background: linear-gradient(135deg, #f4f4f4 0%, #ffebee 100%);
+#             }
+#             .container {
+#                 max-width: 500px;
+#                 margin: 0 auto;
+#                 background: white;
+#                 padding: 40px;
+#                 border-radius: 20px;
+#                 box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+#             }
+#             h1 { color: #c62828; }
+#         </style>
+#     </head>
+#     <body>
+#         <div class="container">
+#             <h1>❌ Activation Failed</h1>
+#             <p>The activation link is invalid or has expired.</p>
+#             <p>Please request a new activation email from the FarmAid app.</p>
+#             <p style="margin-top: 30px; font-size: 12px; color: #888;">FarmAid Lesotho | Grow Smarter. Feed the Nation.</p>
+#         </div>
 #     </body>
 #     </html>
 #     """, status=400)
@@ -203,10 +640,8 @@
 #         from google.oauth2 import id_token as google_id_token
 #         from google.auth.transport import requests as google_requests
 
-#         # ✅ Get client ID from settings with fallback
 #         client_id = getattr(settings, 'GOOGLE_CLIENT_ID', None)
         
-#         # ✅ Log the client ID being used (for debugging)
 #         logger.warning(f"[GoogleAuth] Using Client ID: {client_id}")
         
 #         if not client_id:
@@ -215,7 +650,6 @@
 #                 status=500,
 #             )
         
-#         # ✅ Verify the token with the specific client ID
 #         id_info = google_id_token.verify_oauth2_token(
 #             id_token_str,
 #             google_requests.Request(),
@@ -230,7 +664,6 @@
 #             status=500,
 #         )
 #     except ValueError as exc:
-#         # ✅ More detailed error logging
 #         error_msg = str(exc)
 #         logger.error(f"[GoogleAuth] Token validation error: {error_msg}")
 #         return Response({'error': f'Invalid Google token: {error_msg}'}, status=401)
@@ -1885,6 +2318,7 @@
 #         return Response(list(plants))
 
 
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -1966,195 +2400,6 @@ def register_farmer(request):
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# def send_activation_email(request, user):
-#     """
-#     Send activation email with HTML button and correct domain
-#     """
-#     uid = urlsafe_base64_encode(force_bytes(user.pk))
-#     token = default_token_generator.make_token(user)
-    
-#     # Use the domain from settings (set on Render)
-#     domain = getattr(settings, 'SITE_DOMAIN', 'farmaid-backend.onrender.com')
-#     protocol = getattr(settings, 'SITE_PROTOCOL', 'https')
-    
-#     activation_link = f"{protocol}://{domain}/api/activate/{uid}/{token}/"
-    
-#     # HTML email with button
-#     html_message = f"""
-#     <!DOCTYPE html>
-#     <html>
-#     <head>
-#         <meta charset="UTF-8">
-#         <title>FarmAid Email Verification</title>
-#         <style>
-#             body {{
-#                 font-family: Arial, sans-serif;
-#                 line-height: 1.6;
-#                 color: #333;
-#                 background-color: #f4f4f4;
-#                 margin: 0;
-#                 padding: 0;
-#             }}
-#             .container {{
-#                 max-width: 600px;
-#                 margin: 20px auto;
-#                 background-color: #ffffff;
-#                 border-radius: 10px;
-#                 overflow: hidden;
-#                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-#             }}
-#             .header {{
-#                 background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
-#                 color: white;
-#                 padding: 30px 20px;
-#                 text-align: center;
-#             }}
-#             .header h1 {{
-#                 margin: 0;
-#                 font-size: 28px;
-#             }}
-#             .content {{
-#                 padding: 30px;
-#                 background-color: #ffffff;
-#             }}
-#             .greeting {{
-#                 font-size: 18px;
-#                 margin-bottom: 20px;
-#             }}
-#             .message {{
-#                 margin-bottom: 20px;
-#                 color: #555;
-#             }}
-#             .button-container {{
-#                 text-align: center;
-#                 margin: 30px 0;
-#             }}
-#             .button {{
-#                 display: inline-block;
-#                 padding: 14px 32px;
-#                 background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
-#                 color: white !important;
-#                 text-decoration: none;
-#                 border-radius: 50px;
-#                 font-weight: bold;
-#                 font-size: 16px;
-#                 transition: transform 0.2s ease, box-shadow 0.2s ease;
-#                 box-shadow: 0 4px 10px rgba(46,125,50,0.3);
-#             }}
-#             .button:hover {{
-#                 transform: translateY(-2px);
-#                 box-shadow: 0 6px 15px rgba(46,125,50,0.4);
-#             }}
-#             .button:active {{
-#                 transform: translateY(0);
-#             }}
-#             .link-text {{
-#                 text-align: center;
-#                 margin-top: 20px;
-#                 padding-top: 20px;
-#                 border-top: 1px solid #eee;
-#             }}
-#             .link-text p {{
-#                 font-size: 12px;
-#                 color: #999;
-#                 word-break: break-all;
-#             }}
-#             .footer {{
-#                 background-color: #f8f9fa;
-#                 padding: 20px;
-#                 text-align: center;
-#                 font-size: 12px;
-#                 color: #777;
-#                 border-top: 1px solid #eee;
-#             }}
-#             .footer p {{
-#                 margin: 5px 0;
-#             }}
-#             .expiry-note {{
-#                 font-size: 12px;
-#                 color: #888;
-#                 text-align: center;
-#                 margin-top: 20px;
-#             }}
-#         </style>
-#     </head>
-#     <body>
-#         <div class="container">
-#             <div class="header">
-#                 <h1>🌱 FarmAid Lesotho</h1>
-#                 <p>Grow Smarter. Feed the Nation.</p>
-#             </div>
-            
-#             <div class="content">
-#                 <div class="greeting">
-#                     <strong>Dumela {user.first_name or user.email}!</strong>
-#                 </div>
-                
-#                 <div class="message">
-#                     <p>Thank you for registering with <strong>FarmAid Lesotho</strong>.</p>
-#                     <p>Please verify your email address to activate your account and start using our services. You'll be able to:</p>
-#                     <ul>
-#                         <li>📸 Scan crops for disease detection</li>
-#                         <li>📊 Track your farm analytics</li>
-#                         <li>💬 Join the farming community</li>
-#                         <li>📈 Get personalized recommendations</li>
-#                     </ul>
-#                 </div>
-                
-#                 <div class="button-container">
-#                     <a href="{activation_link}" class="button">✅ Verify Email Address</a>
-#                 </div>
-                
-#                 <div class="expiry-note">
-#                     <p>⏰ This verification link will expire in <strong>24 hours</strong>.</p>
-#                 </div>
-                
-#                 <div class="link-text">
-#                     <p>If the button doesn't work, copy and paste this link into your browser:</p>
-#                     <p><strong>{activation_link}</strong></p>
-#                 </div>
-                
-#                 <div class="message">
-#                     <p>If you did not create an account with FarmAid, please ignore this email.</p>
-#                 </div>
-#             </div>
-            
-#             <div class="footer">
-#                 <p>&copy; 2025 FarmAid Lesotho. All rights reserved.</p>
-#                 <p>🌍 Empowering Lesotho's farmers through technology</p>
-#                 <p>📧 Contact us: support@farmaid.co.ls</p>
-#             </div>
-#         </div>
-#     </body>
-#     </html>
-#     """
-    
-#     # Plain text fallback
-#     plain_message = f"""
-# Dumela {user.first_name or user.email}!
-
-# Thank you for registering with FarmAid Lesotho.
-
-# Please click the link below to verify your email address and activate your account:
-
-# {activation_link}
-
-# This verification link will expire in 24 hours.
-
-# If you did not create an account with FarmAid, please ignore this email.
-
-# Thank you for joining FarmAid Lesotho! 🌱
-
-# ---
-# FarmAid Lesotho | Grow Smarter. Feed the Nation.
-# """
-    
-#     email = EmailMessage(
-#         'Activate Your FarmAid Account',
-#         plain_message,
-#         to=[user.email],
-#     )
-#     email.send()
 def send_activation_email(request, user):
     """
     Send activation email with prominent VERIFY button
@@ -2507,6 +2752,171 @@ def change_password(request):
         'message': 'Password updated!',
         'token': new_token.key,
     })
+
+# ── PASSWORD RESET ──────────────────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def request_password_reset(request):
+    """Send password reset email to user"""
+    email = request.data.get('email', '').strip().lower()
+    
+    if not email:
+        return Response({'error': 'Email is required'}, status=400)
+    
+    try:
+        user = Farmer.objects.get(email=email)
+        
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        
+        domain = getattr(settings, 'SITE_DOMAIN', 'farmaid-backend.onrender.com')
+        protocol = getattr(settings, 'SITE_PROTOCOL', 'https')
+        
+        reset_link = f"{protocol}://{domain}/api/reset-password/{uid}/{token}/"
+        
+        html_message = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>FarmAid Password Reset</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }}
+                .container {{ max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .header {{ background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%); color: white; padding: 30px 20px; text-align: center; }}
+                .header h1 {{ margin: 0; font-size: 28px; }}
+                .content {{ padding: 30px; text-align: center; }}
+                .greeting {{ font-size: 18px; margin-bottom: 20px; text-align: left; }}
+                .message {{ margin-bottom: 25px; color: #555; text-align: left; }}
+                .button-container {{ text-align: center; margin: 30px 0; }}
+                .reset-button {{
+                    display: inline-block;
+                    padding: 16px 40px;
+                    background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+                    color: white !important;
+                    text-decoration: none;
+                    border-radius: 50px;
+                    font-weight: bold;
+                    font-size: 18px;
+                    box-shadow: 0 4px 10px rgba(46,125,50,0.3);
+                }}
+                .expiry-note {{ font-size: 12px; color: #888; margin: 20px 0; padding: 10px; background-color: #f8f9fa; border-radius: 5px; }}
+                .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #777; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🌱 FarmAid Lesotho</h1>
+                    <p>Grow Smarter. Feed the Nation.</p>
+                </div>
+                <div class="content">
+                    <div class="greeting"><strong>Dumela {user.first_name or user.email}!</strong></div>
+                    <div class="message"><p>We received a request to reset your password.</p><p>Click the button below to create a new password:</p></div>
+                    <div class="button-container"><a href="{reset_link}" class="reset-button">🔐 RESET MY PASSWORD</a></div>
+                    <div class="expiry-note">⏰ This reset link will expire in <strong>24 hours</strong></div>
+                    <div class="message"><p>If you didn't request a password reset, please ignore this email.</p></div>
+                </div>
+                <div class="footer"><p>&copy; 2025 FarmAid Lesotho. All rights reserved.</p></div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        plain_message = f"""
+Dumela {user.first_name or user.email}!
+
+We received a request to reset your password.
+
+Click or copy this link to reset your password:
+{reset_link}
+
+This reset link will expire in 24 hours.
+
+If you didn't request a password reset, please ignore this email.
+"""
+        
+        email = EmailMessage(
+            'Reset Your FarmAid Password',
+            plain_message,
+            to=[user.email],
+        )
+        email.send()
+        
+        return Response({
+            'success': True,
+            'message': 'Password reset link sent to your email.'
+        })
+        
+    except Farmer.DoesNotExist:
+        return Response({
+            'success': True,
+            'message': 'If an account exists with that email, a reset link has been sent.'
+        })
+    except Exception as e:
+        print(f"Password reset error: {e}")
+        return Response({
+            'success': False,
+            'error': 'Failed to send reset link. Please try again.'
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password_confirm(request, uidb64, token):
+    """Confirm password reset and set new password"""
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = Farmer.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, Farmer.DoesNotExist):
+        user = None
+    
+    if user is not None and default_token_generator.check_token(user, token):
+        new_password = request.data.get('new_password', '')
+        
+        if not new_password or len(new_password) < 8:
+            return Response({
+                'error': 'Password must be at least 8 characters long'
+            }, status=400)
+        
+        try:
+            validate_password(new_password, user=user)
+        except DjangoValidationError as exc:
+            return Response({
+                'error': 'Password is too weak.',
+                'details': list(exc.messages)
+            }, status=400)
+        
+        user.set_password(new_password)
+        user.save()
+        
+        Token.objects.filter(user=user).delete()
+        
+        return Response({
+            'success': True,
+            'message': 'Password has been reset successfully.'
+        })
+    
+    return Response({
+        'error': 'Invalid or expired reset link.'
+    }, status=400)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def reset_password_verify(request, uidb64, token):
+    """Verify if reset token is valid"""
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = Farmer.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, Farmer.DoesNotExist):
+        user = None
+    
+    if user is not None and default_token_generator.check_token(user, token):
+        return Response({'valid': True})
+    
+    return Response({'valid': False}, status=400)
 
 
 # ── 2. GOOGLE SIGN-IN ─────────────────────────────────────────────────────────
@@ -4203,6 +4613,8 @@ class PlantListView(APIView):
         
         plants = Plant.objects.all().values('PlantID', 'CropType', 'DateCaptured', 'gps_district')
         return Response(list(plants))
+
+
 
 
 
