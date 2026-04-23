@@ -37,9 +37,11 @@ redis==5.2.1
 django-allauth==65.3.0
 google-auth==2.38.0
 google-auth-httplib2==0.2.0
+google-auth-oauthlib==1.2.0          # ✅ ADDED - Helps with OAuth flow
 requests-oauthlib==2.0.0
-PyJWT==2.9.0                   # allauth.socialaccount requires jwt at startup
-cryptography==42.0.8           # FIX — allauth jwtkit requires cryptography.hazmat
+PyJWT==2.9.0
+cryptography==42.0.8
+oauthlib==3.2.2                       # ✅ ADDED - Required for OAuth
 
 # --- SOLAR SCHEDULED EVENTS ---
 ephem==4.1.6
