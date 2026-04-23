@@ -124,24 +124,56 @@
 #     ],
 # }
 
-# # --- ALLAUTH ---
+# # --- ALLAUTH CONFIGURATION ---
 # SITE_ID = 1
 
 # ACCOUNT_LOGIN_METHODS      = {'email'}
 # ACCOUNT_SIGNUP_FIELDS      = ['email*', 'password1*', 'password2*']
 # ACCOUNT_EMAIL_VERIFICATION = 'none'
 
+# # ============================================================
+# # GOOGLE OAUTH CONFIGURATION
+# # ============================================================
+# # IMPORTANT: GOOGLE_CLIENT_ID must be your WEB client ID from
+# # Google Cloud Console → APIs & Services → Credentials →
+# # "Web client (auto created by Google Service)"
+# # It should look like: XXXXXXXXXX-xxxxxxxx.apps.googleusercontent.com
+# # Add it as an environment variable on Render: GOOGLE_CLIENT_ID
+# # ============================================================
+
+# _GOOGLE_WEB_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
+# _GOOGLE_WEB_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+# # Used by allauth for social login
 # SOCIALACCOUNT_PROVIDERS = {
 #     'google': {
 #         'SCOPE': ['profile', 'email'],
 #         'AUTH_PARAMS': {'access_type': 'online'},
 #         'APP': {
-#             'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
-#             'secret':    os.environ.get('GOOGLE_CLIENT_SECRET', ''),
+#             'client_id': _GOOGLE_WEB_CLIENT_ID,
+#             'secret':    _GOOGLE_WEB_CLIENT_SECRET,
 #             'key':       '',
 #         },
+#         # Allow token verification from both Web and Android client IDs
+#         'OAUTH_PKCE_ENABLED': True,
 #     }
 # }
+
+# # Used by your custom Google auth view (api/views.py)
+# # Both names are provided so any view referencing either name will work
+# GOOGLE_CLIENT_ID        = _GOOGLE_WEB_CLIENT_ID   # ← matches error "GOOGLE_CLIENT_ID not configured"
+# GOOGLE_CLIENT_SECRET    = _GOOGLE_WEB_CLIENT_SECRET
+
+# GOOGLE_OAUTH2_CLIENT_ID     = _GOOGLE_WEB_CLIENT_ID   # ← legacy name kept for compatibility
+# GOOGLE_OAUTH2_CLIENT_SECRET = _GOOGLE_WEB_CLIENT_SECRET
+
+# # List of allowed client IDs for token verification
+# # Include both Web and Android client IDs so tokens from mobile are accepted
+# GOOGLE_ALLOWED_CLIENT_IDS = [
+#     _GOOGLE_WEB_CLIENT_ID,
+#     # Android client ID — tokens issued to this audience are also valid
+#     '40483998095-jtmsfnithmn4jr4r552mt5rqpvisn7qu.apps.googleusercontent.com',
+# ]
 
 # # --- CORS & SECURITY ---
 # CORS_ALLOW_CREDENTIALS = True
@@ -166,63 +198,36 @@
 # APPEND_SLASH = True
 
 # # ============================================================
-# # EMAIL CONFIGURATION FOR RENDER (FIXED)
+# # EMAIL CONFIGURATION
 # # ============================================================
 
-# # Get Render domain for activation links
 # RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://farmaid-backend.onrender.com')
-# RENDER_DOMAIN = RENDER_EXTERNAL_URL.replace('https://', '').replace('http://', '')
+# RENDER_DOMAIN       = RENDER_EXTERNAL_URL.replace('https://', '').replace('http://', '')
 
-# # Site domain for activation links
-# SITE_DOMAIN = RENDER_DOMAIN
-# SITE_PROTOCOL = 'https'
+# SITE_DOMAIN    = RENDER_DOMAIN
+# SITE_PROTOCOL  = 'https'
 
-# # Email backend settings
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = 'smtp.gmail.com'
-# EMAIL_PORT = 587
-# EMAIL_USE_TLS = True
-
-# # Get email credentials from environment variables
-# EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'ramokhelekeeke@gmail.com')
+# EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST          = 'smtp.gmail.com'
+# EMAIL_PORT          = 587
+# EMAIL_USE_TLS       = True
+# EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', 'ramokhelekeeke@gmail.com')
 # EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
-# # Only set DEFAULT_FROM_EMAIL if we have a valid email
 # if EMAIL_HOST_USER:
 #     DEFAULT_FROM_EMAIL = f'FarmAid Support <{EMAIL_HOST_USER}>'
-#     SERVER_EMAIL = DEFAULT_FROM_EMAIL
+#     SERVER_EMAIL       = DEFAULT_FROM_EMAIL
 # else:
 #     DEFAULT_FROM_EMAIL = 'noreply@farmaid.co.ls'
-#     SERVER_EMAIL = 'noreply@farmaid.co.ls'
+#     SERVER_EMAIL       = 'noreply@farmaid.co.ls'
 
-# # Email timeout settings
 # EMAIL_TIMEOUT = 30
 
-# # For Render production environment
 # if RENDER_EXTERNAL_URL:
-#     # Use secure settings for production
 #     EMAIL_USE_TLS = True
-#     EMAIL_PORT = 587
-    
-#     # For debugging email issues on Render
+#     EMAIL_PORT    = 587
 #     if DEBUG:
 #         EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-# # ============================================================
-# # SITE CONFIGURATION FOR ACTIVATION LINKS
-# # ============================================================
-
-# # # This is used by Django to generate absolute URLs
-# # if RENDER_EXTERNAL_URL:
-# #     # For Render, set the site URL
-# #     from django.contrib.sites.models import Site
-# #     try:
-# #         current_site = Site.objects.get_current()
-# #         current_site.domain = RENDER_DOMAIN
-# #         current_site.name = 'FarmAid'
-# #         current_site.save()
-# #     except:
-# #         pass
 
 # # --- TIMEZONE ---
 # LANGUAGE_CODE = 'en-us'
@@ -528,17 +533,10 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'
 # ============================================================
 # GOOGLE OAUTH CONFIGURATION
 # ============================================================
-# IMPORTANT: GOOGLE_CLIENT_ID must be your WEB client ID from
-# Google Cloud Console → APIs & Services → Credentials →
-# "Web client (auto created by Google Service)"
-# It should look like: XXXXXXXXXX-xxxxxxxx.apps.googleusercontent.com
-# Add it as an environment variable on Render: GOOGLE_CLIENT_ID
-# ============================================================
 
 _GOOGLE_WEB_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID', '')
 _GOOGLE_WEB_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
-# Used by allauth for social login
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': ['profile', 'email'],
@@ -548,58 +546,46 @@ SOCIALACCOUNT_PROVIDERS = {
             'secret':    _GOOGLE_WEB_CLIENT_SECRET,
             'key':       '',
         },
-        # Allow token verification from both Web and Android client IDs
         'OAUTH_PKCE_ENABLED': True,
     }
 }
 
-# Used by your custom Google auth view (api/views.py)
-# Both names are provided so any view referencing either name will work
-GOOGLE_CLIENT_ID        = _GOOGLE_WEB_CLIENT_ID   # ← matches error "GOOGLE_CLIENT_ID not configured"
+GOOGLE_CLIENT_ID        = _GOOGLE_WEB_CLIENT_ID
 GOOGLE_CLIENT_SECRET    = _GOOGLE_WEB_CLIENT_SECRET
-
-GOOGLE_OAUTH2_CLIENT_ID     = _GOOGLE_WEB_CLIENT_ID   # ← legacy name kept for compatibility
+GOOGLE_OAUTH2_CLIENT_ID     = _GOOGLE_WEB_CLIENT_ID
 GOOGLE_OAUTH2_CLIENT_SECRET = _GOOGLE_WEB_CLIENT_SECRET
 
-# List of allowed client IDs for token verification
-# Include both Web and Android client IDs so tokens from mobile are accepted
 GOOGLE_ALLOWED_CLIENT_IDS = [
     _GOOGLE_WEB_CLIENT_ID,
-    # Android client ID — tokens issued to this audience are also valid
     '40483998095-jtmsfnithmn4jr4r552mt5rqpvisn7qu.apps.googleusercontent.com',
 ]
 
-# --- CORS & SECURITY ---
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^http://localhost:\d+$",
-    r"^http://127\.0\.0\.1:\d+$",
-    r"^https?://.*\.onrender\.com$",
-]
-CORS_ALLOWED_ORIGINS = [
-    "https://farmaid-backend.onrender.com",
-    "http://localhost:59464",
-    "http://localhost:8080",
-    "http://localhost:3000",
-]
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:62803",
-    "http://127.0.0.1",
-    "https://farmaid-backend.onrender.com",
-]
+# ============================================================
+# SITE CONFIGURATION FOR ACTIVATION EMAILS
+# ============================================================
 
-CORS_ALLOW_HEADERS = list(default_headers) + ['authorization', 'content-type', 'accept']
-APPEND_SLASH = True
+# Get the Render domain from environment variable
+RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://farmaid-backend.onrender.com')
+SITE_DOMAIN = RENDER_EXTERNAL_URL.replace('https://', '').replace('http://', '')
+SITE_PROTOCOL = 'https'
+
+# Force Django to use the correct domain for absolute URLs
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Update Django Sites framework
+try:
+    from django.contrib.sites.models import Site
+    current_site = Site.objects.get_current()
+    current_site.domain = SITE_DOMAIN
+    current_site.name = 'FarmAid Lesotho'
+    current_site.save()
+except Exception:
+    pass
 
 # ============================================================
 # EMAIL CONFIGURATION
 # ============================================================
-
-RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://farmaid-backend.onrender.com')
-RENDER_DOMAIN       = RENDER_EXTERNAL_URL.replace('https://', '').replace('http://', '')
-
-SITE_DOMAIN    = RENDER_DOMAIN
-SITE_PROTOCOL  = 'https'
 
 EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST          = 'smtp.gmail.com'
@@ -622,6 +608,28 @@ if RENDER_EXTERNAL_URL:
     EMAIL_PORT    = 587
     if DEBUG:
         EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# --- CORS & SECURITY ---
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+    r"^https?://.*\.onrender\.com$",
+]
+CORS_ALLOWED_ORIGINS = [
+    "https://farmaid-backend.onrender.com",
+    "http://localhost:59464",
+    "http://localhost:8080",
+    "http://localhost:3000",
+]
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:62803",
+    "http://127.0.0.1",
+    "https://farmaid-backend.onrender.com",
+]
+
+CORS_ALLOW_HEADERS = list(default_headers) + ['authorization', 'content-type', 'accept']
+APPEND_SLASH = True
 
 # --- TIMEZONE ---
 LANGUAGE_CODE = 'en-us'
