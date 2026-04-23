@@ -37,27 +37,24 @@
 # def register_farmer(request):
 #     data = request.data
 #     try:
-#         # ── a. Duplicate email check ──────────────────────────────────────
 #         if Farmer.objects.filter(email=data.get('email', '').lower()).exists():
 #             return Response(
 #                 {'error': 'Email already exists'},
 #                 status=status.HTTP_400_BAD_REQUEST,
 #             )
 
-#         # ── b. Password strength validation ──────────────────────────────
 #         raw_password = data.get('password', '')
 #         try:
 #             validate_password(raw_password)
 #         except DjangoValidationError as exc:
 #             return Response(
 #                 {
-#                     'error':   'Password is too weak.',
+#                     'error': 'Password is too weak.',
 #                     'details': list(exc.messages),
 #                 },
 #                 status=status.HTTP_400_BAD_REQUEST,
 #             )
 
-#         # ── c. Create user (inactive until email verified) ───────────────
 #         user = Farmer.objects.create_user(
 #             username=data.get('email'),
 #             email=data.get('email'),
@@ -72,9 +69,9 @@
 #         user.save()
 #         send_activation_email(request, user)
 #         return Response({
-#             'status':  'success',
+#             'status': 'success',
 #             'message': 'Verification email sent.',
-#             'email':   user.email,
+#             'email': user.email,
 #         }, status=status.HTTP_201_CREATED)
 
 #     except Exception as e:
@@ -82,9 +79,9 @@
 
 
 # def send_activation_email(request, user):
-#     current_site    = get_current_site(request)
-#     uid             = urlsafe_base64_encode(force_bytes(user.pk))
-#     token           = default_token_generator.make_token(user)
+#     current_site = get_current_site(request)
+#     uid = urlsafe_base64_encode(force_bytes(user.pk))
+#     token = default_token_generator.make_token(user)
 #     activation_link = f"http://{current_site.domain}/api/activate/{uid}/{token}/"
 #     EmailMessage(
 #         'Activate your FarmAid Lesotho Account',
@@ -118,7 +115,6 @@
 #     if user is not None and default_token_generator.check_token(user, token):
 #         user.is_active = True
 #         user.save()
-#         # Return a simple HTML success page
 #         return HttpResponse("""
 #         <html>
 #         <head><title>Account Activated</title></head>
@@ -154,9 +150,9 @@
 #             return Response({'error': 'unverified'}, status=403)
 #         token, _ = Token.objects.get_or_create(user=user)
 #         return Response({
-#             'token':      token.key,
+#             'token': token.key,
 #             'farmerName': f"{user.first_name} {user.last_name}".strip(),
-#             'is_staff':   user.is_staff,
+#             'is_staff': user.is_staff,
 #         })
 #     return Response({'error': 'Invalid credentials'}, status=401)
 
@@ -183,9 +179,9 @@
 #     Token.objects.filter(user=user).delete()
 #     new_token, _ = Token.objects.get_or_create(user=user)
 #     return Response({
-#         'status':  'success',
+#         'status': 'success',
 #         'message': 'Password updated!',
-#         'token':   new_token.key,
+#         'token': new_token.key,
 #     })
 
 
@@ -205,7 +201,7 @@
 #         from google.auth.transport import requests as google_requests
 
 #         client_id = getattr(django_settings, 'GOOGLE_CLIENT_ID', '')
-#         id_info   = google_id_token.verify_oauth2_token(
+#         id_info = google_id_token.verify_oauth2_token(
 #             id_token_str,
 #             google_requests.Request(),
 #             client_id,
@@ -218,10 +214,10 @@
 #     except ValueError as exc:
 #         return Response({'error': f'Invalid Google token: {exc}'}, status=401)
 
-#     email      = id_info.get('email', '').lower()
+#     email = id_info.get('email', '').lower()
 #     first_name = id_info.get('given_name', '')
-#     last_name  = id_info.get('family_name', '')
-#     photo_url  = id_info.get('picture', '')
+#     last_name = id_info.get('family_name', '')
+#     photo_url = id_info.get('picture', '')
 
 #     if not email:
 #         return Response({'error': 'Google account has no email address.'}, status=400)
@@ -229,10 +225,10 @@
 #     user, created = Farmer.objects.get_or_create(
 #         email=email,
 #         defaults={
-#             'username':   email,
+#             'username': email,
 #             'first_name': first_name,
-#             'last_name':  last_name,
-#             'is_active':  True,
+#             'last_name': last_name,
+#             'is_active': True,
 #         },
 #     )
 
@@ -247,11 +243,11 @@
 
 #     token, _ = Token.objects.get_or_create(user=user)
 #     return Response({
-#         'token':      token.key,
+#         'token': token.key,
 #         'farmerName': f"{user.first_name} {user.last_name}".strip() or email,
-#         'is_staff':   user.is_staff,
-#         'email':      user.email,
-#         'created':    created,
+#         'is_staff': user.is_staff,
+#         'email': user.email,
+#         'created': created,
 #     })
 
 
@@ -263,16 +259,16 @@
 #     def get(self, request):
 #         u = request.user
 #         return Response({
-#             'first_name':           u.first_name,
-#             'last_name':            u.last_name,
-#             'email':                u.email,
-#             'district':             u.district,
-#             'phone_number':         u.phone_number,
+#             'first_name': u.first_name,
+#             'last_name': u.last_name,
+#             'email': u.email,
+#             'district': u.district,
+#             'phone_number': u.phone_number,
 #             'language_preferences': u.language_preferences,
-#             'experience_level':     u.experience_level,
-#             'profile_photo_url':    u.profile_photo_url,
-#             'farm_size_hectares':   u.farm_size_hectares if hasattr(u, 'farm_size_hectares') else None,
-#             'onboarding_complete':  u.onboarding_complete if hasattr(u, 'onboarding_complete') else False,
+#             'experience_level': u.experience_level,
+#             'profile_photo_url': u.profile_photo_url,
+#             'farm_size_hectares': u.farm_size_hectares if hasattr(u, 'farm_size_hectares') else None,
+#             'onboarding_complete': u.onboarding_complete if hasattr(u, 'onboarding_complete') else False,
 #         })
 
 #     def patch(self, request):
@@ -282,7 +278,7 @@
 #                 setattr(user, attr, value)
 #         user.save()
 #         return Response({
-#             'status':     'success',
+#             'status': 'success',
 #             'farmerName': f"{user.first_name} {user.last_name}",
 #         })
 
@@ -321,9 +317,9 @@
 #     permission_classes = [IsAuthenticated]
 
 #     def get(self, request):
-#         user      = request.user
+#         user = request.user
 #         user_dist = (user.district or '').strip()
-#         now       = timezone.now()
+#         now = timezone.now()
 
 #         qs = AppAlert.objects.filter(
 #             Q(FarmerID=user)
@@ -337,9 +333,9 @@
 #             qs = qs.filter(alert_type=alert_type)
 
 #         return Response({
-#             'count':        qs.count(),
+#             'count': qs.count(),
 #             'unread_count': qs.filter(IsRead=False).count(),
-#             'alerts':       AppAlertSerializer(qs, many=True).data,
+#             'alerts': AppAlertSerializer(qs, many=True).data,
 #         })
 
 #     def post(self, request):
@@ -353,7 +349,7 @@
 #     permission_classes = [IsAuthenticated]
 
 #     def get(self, request):
-#         now       = timezone.now()
+#         now = timezone.now()
 #         user_dist = (request.user.district or '').strip()
 
 #         count = AppAlert.objects.filter(
@@ -371,29 +367,45 @@
 #     permission_classes = [IsAuthenticated]
 
 #     def _get_sesotho(self, disease_name, field='pesticide'):
+#         """Get Sesotho translation from cache"""
 #         if not disease_name:
 #             return None
 #         try:
 #             cache = TranslationCache.objects.get(disease_name_en__iexact=disease_name)
-#             return {
+#             translations = {
 #                 'pesticide': cache.pesticide_st,
-#                 'dosage':    cache.dosage_st,
-#                 'steps':     cache.steps_st,
-#             }.get(field) or None
+#                 'dosage': cache.dosage_st,
+#                 'steps': cache.steps_st,
+#             }
+#             result = translations.get(field)
+            
+#             import logging
+#             logger = logging.getLogger(__name__)
+#             if result:
+#                 logger.warning(f"[Sesotho] ✓ Found '{field}' for '{disease_name}': {result[:100]}...")
+#             else:
+#                 logger.warning(f"[Sesotho] ✗ No '{field}' found for '{disease_name}'")
+            
+#             return result
 #         except TranslationCache.DoesNotExist:
+#             import logging
+#             logger = logging.getLogger(__name__)
+#             logger.warning(f"[Sesotho] ✗ No translation cache entry for '{disease_name}'")
 #             return None
-#         except Exception:
+#         except Exception as e:
+#             import logging
+#             logger = logging.getLogger(__name__)
+#             logger.warning(f"[Sesotho] Error: {e}")
 #             return None
 
 #     def _get_highland_temp(self, altitude):
 #         """Estimate temperature based on altitude in Lesotho"""
-#         # Lesotho: temperature drops ~0.65°C per 100m
-#         base_temp = 22  # °C at sea level
+#         base_temp = 22
 #         temp = base_temp - (altitude / 100 * 0.65)
 #         return int(temp)
 
 #     def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
-#         """Generate personalized advice USING GPS coordinates for real recommendations"""
+#         """Generate personalized advice in English USING GPS coordinates"""
         
 #         # Get farmer's data
 #         experience_level = farmer.experience_level
@@ -450,26 +462,20 @@
 #         is_southern = False
         
 #         if gps_lat and gps_lon:
-#             # Western Lesotho (Mafeteng, Mohale's Hoek, Quthing) - drier
 #             if gps_lon < 27.5:
 #                 is_western = True
-#             # Eastern Lesotho (Mokhotlong, Thaba-Tseka) - wetter, colder
 #             elif gps_lon > 28.5:
 #                 is_eastern = True
             
-#             # Northern Lesotho (Berea, Leribe, Butha-Buthe) - warmer
 #             if gps_lat > -29.0:
 #                 is_northern = True
-#             # Southern Lesotho (Quthing, Qacha's Nek) - cooler
 #             elif gps_lat < -30.0:
 #                 is_southern = True
         
 #         # Build personalized advice based on GPS and farmer's data
 #         advice_parts = []
         
-#         # ============================================================
-#         # 1. LOCATION-SPECIFIC OPENING (using actual GPS)
-#         # ============================================================
+#         # 1. LOCATION-SPECIFIC OPENING
 #         location_context = []
 #         if gps_lat and gps_lon:
 #             location_context.append(f"Your farm at coordinates {gps_lat:.4f}°S, {gps_lon:.4f}°E")
@@ -481,9 +487,7 @@
         
 #         advice_parts.append(f"{' '.join(location_context)} faces specific conditions for {disease_name.replace('_', ' ')}.")
         
-#         # ============================================================
-#         # 2. ALTITUDE-BASED RECOMMENDATIONS (using GPS altitude)
-#         # ============================================================
+#         # 2. ALTITUDE-BASED RECOMMENDATIONS
 #         if gps_alt:
 #             if altitude_tier == 'highland':
 #                 temp = self._get_highland_temp(gps_alt)
@@ -500,9 +504,7 @@
 #             elif altitude_tier == 'lowland':
 #                 advice_parts.append(f"At {int(gps_alt)}m elevation, warmer temperatures accelerate disease spread. Reduce treatment intervals by 20-30% compared to highland recommendations.")
         
-#         # ============================================================
-#         # 3. REGIONAL CLIMATE RECOMMENDATIONS (using GPS lat/lon)
-#         # ============================================================
+#         # 3. REGIONAL CLIMATE RECOMMENDATIONS
 #         if is_western:
 #             advice_parts.append("Western Lesotho (your area) receives less rainfall (600-800mm annually). During dry spells, focus on soil moisture conservation. Use mulch to retain soil moisture and reduce plant stress.")
 #             if 'blight' in disease_name.lower():
@@ -518,14 +520,10 @@
 #         elif is_southern:
 #             advice_parts.append("Southern Lesotho (your area) experiences cooler temperatures. Diseases develop slower, but frost damage can weaken plants making them susceptible.")
         
-#         # ============================================================
 #         # 4. SEASON-SPECIFIC ADVICE
-#         # ============================================================
 #         advice_parts.append(season_advice)
         
-#         # ============================================================
-#         # 5. DISEASE-SPECIFIC TREATMENT (based on location)
-#         # ============================================================
+#         # 5. DISEASE-SPECIFIC TREATMENT
 #         disease_lower = disease_name.lower()
         
 #         if 'blight' in disease_lower:
@@ -566,9 +564,7 @@
 #         else:
 #             advice_parts.append(f"For {disease_name} in {district}, consult your local agricultural extension officer for specific treatment.")
         
-#         # ============================================================
-#         # 6. SOIL-SPECIFIC ADVICE (using crop profile)
-#         # ============================================================
+#         # 6. SOIL-SPECIFIC ADVICE
 #         if soil_type and soil_type != 'your soil type':
 #             if 'clay' in soil_type.lower():
 #                 advice_parts.append(f"Your {soil_type} soil in {district} needs raised beds for better drainage. Add river sand and compost to improve soil structure.")
@@ -577,9 +573,7 @@
 #             elif 'loam' in soil_type.lower():
 #                 advice_parts.append(f"Your {soil_type} soil is ideal for {crop_type} in {district} conditions.")
         
-#         # ============================================================
-#         # 7. IRRIGATION ADVICE (based on location climate)
-#         # ============================================================
+#         # 7. IRRIGATION ADVICE
 #         if irrigation and irrigation != 'your irrigation method':
 #             if irrigation.lower() == 'drip':
 #                 if is_western:
@@ -592,9 +586,7 @@
 #                 else:
 #                     advice_parts.append("Switch to drip irrigation if possible. Overhead watering spreads many fungal diseases.")
         
-#         # ============================================================
 #         # 8. GROWTH STAGE ADVICE
-#         # ============================================================
 #         if growth_stage != "Unknown":
 #             if growth_stage == "seedling":
 #                 advice_parts.append(f"Your {crop_type} is in seedling stage. Young plants in {district} are vulnerable. Monitor daily for disease spread.")
@@ -603,30 +595,24 @@
 #             elif growth_stage == "fruiting/harvest":
 #                 advice_parts.append(f"Your {crop_type} is in fruiting stage. Follow pre-harvest interval on all pesticides - check label for days to wait after spraying before harvest.")
         
-#         # ============================================================
 #         # 9. FARMER EXPERIENCE LEVEL
-#         # ============================================================
 #         if experience_level == 'beginner':
 #             advice_parts.append("👨‍🌾 Beginner tip: Start with a small test area first. Always wear gloves, mask, and protective clothing when spraying. Read all pesticide labels carefully.")
 #         elif experience_level == 'expert':
 #             advice_parts.append("🔬 Expert recommendation: Rotate between different fungicide groups (FRAC codes) to prevent resistance development.")
         
-#         # ============================================================
-#         # 10. LOCAL RESOURCE RECOMMENDATIONS (based on district)
-#         # ============================================================
+#         # 10. LOCAL RESOURCE RECOMMENDATIONS
 #         if district and district != 'your area':
 #             advice_parts.append(f"📍 Local resources in {district}: Contact your nearest agricultural extension officer for site-specific advice and free soil testing.")
         
-#         # ============================================================
-#         # 11. DOSAGE CALCULATION (using plot size from crop profile)
-#         # ============================================================
+#         # 11. DOSAGE CALCULATION
 #         if plot_size and plot_size > 0:
 #             water_liters = int(plot_size * 200)
 #             buckets = int(water_liters / 10)
 #             advice_parts.append(f"📐 For your {plot_size} hectare plot, mix the recommended product with {water_liters}L water (approx. {buckets} buckets of 10L).")
         
-#         # Combine all advice
-#         personalized_advice = " ".join(advice_parts)
+#         # Combine all advice with double newlines for paragraph separation
+#         personalized_advice = "\n\n".join(advice_parts)
         
 #         return {
 #             'advice': personalized_advice,
@@ -646,48 +632,275 @@
 #             'farmer_level': experience_level,
 #         }
 
+#     def _generate_personalized_advice_sesotho(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
+#         """Generate personalized advice in Sesotho USING GPS coordinates"""
+        
+#         # Get farmer's data
+#         experience_level = farmer.experience_level
+#         district = gps_district or farmer.district or 'sebaka sa heno'
+        
+#         # Get crop profile data
+#         crop_type = crop_profile.VegetableType if crop_profile else 'sejalo sa heno'
+#         soil_type = crop_profile.SoilEnvironment or 'mobu oa heno'
+#         irrigation = crop_profile.irrigation_method or 'mokhoa oa heno oa nosetso'
+#         planting_date = crop_profile.PlantingDate
+#         plot_size = crop_profile.plot_size_hectares
+        
+#         # Calculate days since planting and growth stage
+#         days_since_planting = 0
+#         growth_stage = "Unknown"
+#         if planting_date:
+#             days_since_planting = (date.today() - planting_date).days
+#             if days_since_planting < 14:
+#                 growth_stage = "seedling"
+#             elif days_since_planting < 45:
+#                 growth_stage = "vegetative"
+#             elif days_since_planting < 75:
+#                 growth_stage = "flowering"
+#             else:
+#                 growth_stage = "fruiting/harvest"
+        
+#         # Determine altitude tier using GPS altitude
+#         altitude_tier = "lowland"
+#         altitude_display = None
+#         if gps_alt is not None:
+#             altitude_display = f"{int(gps_alt)}m"
+#             if gps_alt < 1800:
+#                 altitude_tier = "lowland"
+#             elif gps_alt < 2200:
+#                 altitude_tier = "midland"
+#             elif gps_alt < 2800:
+#                 altitude_tier = "highland"
+#             else:
+#                 altitude_tier = "alpine"
+        
+#         # Determine current season
+#         current_month = date.today().month
+#         if 5 <= current_month <= 9:
+#             season = "dry"
+#             season_advice = "Nakong ena ea komello, mafu a fungal ha a hlaselle haholo. Tsepamisa mohopolo nosetsong e nepahetseng le taolong ea mongobo oa mobu."
+#         else:
+#             season = "wet"
+#             season_advice = "Nakong ena ea lipula, mafu a fungal a hasana ka potlako. Sebelisa meriana ea thibelo 'me u netefatse hore metsi a phalla hantle."
+        
+#         # Lesotho-specific climate zones based on latitude/longitude
+#         is_western = False
+#         is_eastern = False
+#         is_northern = False
+#         is_southern = False
+        
+#         if gps_lat and gps_lon:
+#             if gps_lon < 27.5:
+#                 is_western = True
+#             elif gps_lon > 28.5:
+#                 is_eastern = True
+            
+#             if gps_lat > -29.0:
+#                 is_northern = True
+#             elif gps_lat < -30.0:
+#                 is_southern = True
+        
+#         # Build personalized advice in Sesotho
+#         advice_parts = []
+        
+#         # 1. LOCATION-SPECIFIC OPENING
+#         location_context = []
+#         if gps_lat and gps_lon:
+#             location_context.append(f"Polasi ea hao e likhokahanong tsa {gps_lat:.4f}°S, {gps_lon:.4f}°E")
+#             if altitude_display:
+#                 location_context.append(f"bophahamong ba {altitude_display}")
+#             location_context.append(f"seterekeng sa {district}")
+#         else:
+#             location_context.append(f"Polasi ea hao e seterekeng sa {district}")
+        
+#         advice_parts.append(f"{' '.join(location_context)} e tobane le maemo a khethehileng bakeng sa {disease_name.replace('_', ' ')}.")
+        
+#         # 2. ALTITUDE-BASED RECOMMENDATIONS
+#         if gps_alt:
+#             if altitude_tier == 'highland':
+#                 temp = self._get_highland_temp(gps_alt)
+#                 advice_parts.append(f"Bophahamong ba {int(gps_alt)}m, masiu a bata ({temp}°C). Sena se liehisa kholo ea likokoana-hloko empa se liehisa kholo ea semela. Sebelisa meriana hoseng haholo ha mocheso o phahama ho feta 10°C.")
+                
+#                 if 'blight' in disease_name.lower():
+#                     advice_parts.append(f"Maemo a lithaba a thusa nts'etsopele ea 'bola ea morao'. Eketsa ho fafatsa ka koporo ho ea matsatsing a mang le a mang a 5 nakong ea lipula.")
+#                 elif 'mildew' in disease_name.lower():
+#                     advice_parts.append(f"Mongobo oa lithaba o khothalletsa 'phofshoana e tšoeu'. Netefatsa phepelo e ntle ea moea ka ho fapanya limela (eketsa 10-15cm ho sebaka se tloaelehileng).")
+                    
+#             elif altitude_tier == 'midland':
+#                 advice_parts.append(f"Bophahamo ba heno ba bohareng ({int(gps_alt)}m) bo fana ka maemo a matle a kholo. Nako e tloaelehileng ea kalafo e sebetsa hantle mona.")
+                
+#             elif altitude_tier == 'lowland':
+#                 advice_parts.append(f"Bophahamong ba {int(gps_alt)}m, mocheso o futhumetseng o potlakisa ho hasana ha mafu. Fokotsa nako ea kalafo ka 20-30% ha o bapisa le likhothaletso tsa lithaba.")
+        
+#         # 3. REGIONAL CLIMATE RECOMMENDATIONS
+#         if is_western:
+#             advice_parts.append("Bophirima ba Lesotho (sebaka sa heno) se fumana pula e fokolang (600-800mm ka selemo). Nakong ea komello, tsepamisa mohopolo ho baballeng mongobo oa mobu. Sebelisa boea ba limela ho boloka mongobo oa mobu le ho fokotsa khatello ea semela.")
+#             if 'blight' in disease_name.lower():
+#                 advice_parts.append("Leha pula e fokola bophirima ba Lesotho, phoka ea hoseng e ntse e ka hlohlelletsa 'bola ea morao'. Sebelisa meriana ea fungal hoseng haholo pele phoka e qhibidoha.")
+                
+#         elif is_eastern:
+#             advice_parts.append("Bochabela ba Lesotho (sebaka sa heno) bo fumana pula e ngata (1000-1500mm ka selemo). Mongobo ona o mongata o baka maemo a loketseng mafu a fungal. Eketsa nako ea ho sebelisa meriana ea fungal 'me u netefatse hore metsi a phalla hantle.")
+#             if 'mildew' in disease_name.lower():
+#                 advice_parts.append("Sebaka sa heno sa pula e ngata ke sebaka se nang le 'phofshoana e tšoeu' haholo. Nahana ka ho sebelisa meriana ea fungal e tsamaeang ka har'a semela le ho ntlafatsa phepelo ea moea ka ho faola makala ka nepo.")
+                
+#         if is_northern:
+#             advice_parts.append("Leboea la Lesotho (sebaka sa heno) le na le mocheso o futhumetseng, o ka potlakisang mehlolo ea mafu. Hlahloba limela letsatsi le letsatsi nakong ea kholo e phahameng.")
+#         elif is_southern:
+#             advice_parts.append("Boroa ba Lesotho (sebaka sa heno) bo na le mocheso o batang. Mafu a hola butle, empa tšenyo ea serame e ka fokolisa limela tsa heno.")
+        
+#         # 4. SEASON-SPECIFIC ADVICE
+#         advice_parts.append(season_advice)
+        
+#         # 5. DISEASE-SPECIFIC TREATMENT
+#         disease_lower = disease_name.lower()
+        
+#         if 'blight' in disease_lower:
+#             if altitude_tier == 'highland':
+#                 advice_parts.append(f"KALAFO EA BOLA EA MORAO bakeng sa lithaba: Sebelisa copper hydroxide (250g/100L) matsatsing a mang le a mang a 5-7. Lithabeng tsa Mokhotlong/Thaba-Tseka, 'bola ea morao' ke lefu la #1 la litapole.")
+#             elif is_eastern:
+#                 advice_parts.append(f"KALAFO EA BOLA EA MORAO bakeng sa bochabela ba Lesotho: Ka lebaka la sebaka sa heno sa pula e ngata ({gps_lon:.1f}°E), sebelisa meriana ea fungal ea metalaxyl e thibelang matsatsing a mang le a mang a 7 nakong ea lipula.")
+#             else:
+#                 advice_parts.append(f"KALAFO EA BOLA EA MORAO: Sebelisa meriana ea fungal e thehiloeng ho koporo matsatsing a mang le a mang a 7-10. Tlosa makhasi a kulang hanghang 'me u a senye hole le tšimo ea hao.")
+                
+#         elif 'mildew' in disease_lower:
+#             if is_eastern or altitude_tier == 'highland':
+#                 advice_parts.append(f"KALAFO EA PHOFSHOANA E TŠOEU bakeng sa sebaka sa heno se nang le mongobo o mongata: Sebelisa sebabole (200g/100L) beke le beke. Phoka ea hoseng sebakeng sa heno e baka maemo a loketseng 'phofshoana e tšoeu'.")
+#             else:
+#                 advice_parts.append(f"KALAFO EA PHOFSHOANA E TŠOEU: Sebelisa oli ea neem kapa sebabole beke le beke. Nosetsa limela motso, eseng holimo, ho fokotsa mongobo oa makhasi.")
+                
+#         elif 'rust' in disease_lower:
+#             if is_western:
+#                 advice_parts.append(f"KALAFO EA KUTU bakeng sa bophirima ba Lesotho: Maemo a heno a omileng a thusa nts'etsopele ea kutu. Sebelisa azoxystrobin (100ml/100L) ha u qala ho bona matšoao.")
+#             else:
+#                 advice_parts.append(f"KALAFO EA KUTU: Tlosa makhasi a amehileng. Sebelisa meriana ea fungal e nang le azoxystrobin kapa tebuconazole.")
+                
+#         elif 'aphid' in disease_lower:
+#             advice_parts.append(f"TAOLO EA LITSUTSU: Ho latela sebaka sa heno, lokolla likokoanyana tse thusang (ladybugs) tse fumanehang Lesotho Agricultural Supply kapa fafatsa ka oli ea neem (30ml/10L). Litsutsu li ata haholo nakong ea selemo sa Lesotho (September-Okastase).")
+            
+#         elif 'rot' in disease_lower:
+#             if is_eastern:
+#                 advice_parts.append(f"KALAFO EA HO BOLA bakeng sa bochabela ba Lesotho: Sebaka sa heno sa pula e ngata se hloka libethe tse phahamisitsoeng (30cm) bakeng sa ho phalla ha metsi. Sebelisa meriana ea fungal e thehiloeng ho koporo e kenngoa mobung.")
+#             else:
+#                 advice_parts.append(f"KALAFO EA HO BOLA: Ntlafatsa phallo ea metsi hanghang. Fokotsa ho nosetsa. Sebelisa meriana ea fungal e thehiloeng ho koporo.")
+        
+#         elif 'virus' in disease_lower:
+#             advice_parts.append(f"TAOLO EA VAERASE: Vaerase ha e na pheko. Tlosa limela tse tšoaelitsoeng hanghang seterekeng sa {district}. Laola likokoanyana tse tsamaisang vaerase 'me u sebelise peo e se nang vaerase. Lesotho, vaerase ea tomato spotted wilt e tloaelehile libakeng tse tlase.")
+        
+#         elif 'healthy' in disease_lower:
+#             advice_parts.append(f"✅ {crop_type} ea hao e bonahala e phetse hantle. Tsoela pele ka mekhoa e metle ea temo seterekeng sa {district}.")
+        
+#         else:
+#             advice_parts.append(f"Bakeng sa {disease_name} seterekeng sa {district}, ikopanye le ofisiri ea temo ea sebaka sa heno bakeng sa kalafo e tobileng.")
+        
+#         # 6. SOIL-SPECIFIC ADVICE
+#         if soil_type and soil_type != 'mobu oa heno':
+#             if 'clay' in soil_type.lower():
+#                 advice_parts.append(f"Mobu oa heno oa {soil_type} seterekeng sa {district} o hloka libethe tse phahamisitsoeng bakeng sa phallo e betere ea metsi. Eketsa lehlabathe la noka le manyolo a manyolo ho ntlafatsa sebopeho sa mobu.")
+#             elif 'sandy' in soil_type.lower():
+#                 advice_parts.append(f"Mobu oa heno oa {soil_type} seterekeng sa {district} o phalla kapele. Eketsa manyolo a manyolo ho boloka mongobo. Libakeng tse omeletseng joalo ka bophirima ba Lesotho, sena se bohlokoa haholo.")
+#             elif 'loam' in soil_type.lower():
+#                 advice_parts.append(f"Mobu oa heno oa {soil_type} o loketse {crop_type} maemong a setereke sa {district}.")
+        
+#         # 7. IRRIGATION ADVICE
+#         if irrigation and irrigation != 'mokhoa oa heno oa nosetso':
+#             if irrigation.lower() == 'drip':
+#                 if is_western:
+#                     advice_parts.append("Nosetso ea hao ea drip e ntle haholo bakeng sa maemo a omileng a bophirima ba Lesotho. Nosetsa hoseng haholo (6-8 AM) ho fokotsa mouoane.")
+#                 else:
+#                     advice_parts.append("Nosetso ea hao ea drip e nepahetse. Nosetsa hoseng haholo ho lumella makhasi ho omella.")
+#             elif irrigation.lower() == 'overhead' or irrigation.lower() == 'sprinkler':
+#                 if is_eastern or altitude_tier == 'highland':
+#                     advice_parts.append("⚠️ Sebakeng sa heno sa pula e ngata / mongobo o mongata, nosetso ea holimo e hasanya mafu. Fetela ho nosetso ea drip kapa nosetsa feela boemong ba mobu.")
+#                 else:
+#                     advice_parts.append("Fetela ho nosetso ea drip ha ho khoneha. Nosetso ea holimo e hasanya mafu a mangata a fungal.")
+        
+#         # 8. GROWTH STAGE ADVICE
+#         if growth_stage != "Unknown":
+#             if growth_stage == "seedling":
+#                 advice_parts.append(f"{crop_type} ea hao e boemong ba mahlomela. Limela tse nyane seterekeng sa {district} li kotsing. Hlahloba letsatsi le letsatsi bakeng sa ho hasana ha mafu.")
+#             elif growth_stage == "flowering":
+#                 advice_parts.append(f"{crop_type} ea hao e thunya. Qoba ho fafatsa nakong ea thunyo e phahameng (9 AM - 3 PM) ho sireletsa linotši. Fafatsa hoseng haholo kapa mantsiboea.")
+#             elif growth_stage == "fruiting/harvest":
+#                 advice_parts.append(f"{crop_type} ea hao e boemong ba litholoana. Latela nako ea pele ho kotulo ho meriana eohle ea likokonyana - sheba letšoao la matsatsi a ho emela kamora ho fafatsa pele ho kotulo.")
+        
+#         # 9. FARMER EXPERIENCE LEVEL
+#         if experience_level == 'beginner':
+#             advice_parts.append("👨‍🌾 Keletso ea moqali: Qala ka sebaka se senyenyane sa teko pele. Kamehla apara liatlana, mask, le liaparo tsa ho itšireletsa ha u fafatsa. Bala mangolo a meriana eohle ka hloko.")
+#         elif experience_level == 'expert':
+#             advice_parts.append("🔬 Khothaletso ea setsebi: Fapanyetsana pakeng tsa lihlopha tse fapaneng tsa meriana ea fungal (FRAC codes) ho thibela nts'etsopele ea khanyetso.")
+        
+#         # 10. LOCAL RESOURCE RECOMMENDATIONS
+#         if district and district != 'sebaka sa heno':
+#             advice_parts.append(f"📍 Lisebelisoa tsa sebaka sa heno seterekeng sa {district}: Ikopanye le ofisiri ea temo ea sebaka sa heno bakeng sa keletso e tobileng le tlhahlobo ea mobu ea mahala.")
+        
+#         # 11. DOSAGE CALCULATION
+#         if plot_size and plot_size > 0:
+#             water_liters = int(plot_size * 200)
+#             buckets = int(water_liters / 10)
+#             advice_parts.append(f"📐 Bakeng sa tšimo ea heno ea {plot_size} hectare, kopanya sehlahisoa se khothaletsoang le metsi a {water_liters}L (hoo e ka bang linkho tse {buckets} tsa 10L).")
+        
+#         # Combine all advice with double newlines for paragraph separation
+#         personalized_advice = "\n\n".join(advice_parts)
+        
+#         return {
+#             'advice': personalized_advice,
+#             'matched_on': {
+#                 'district': district,
+#                 'latitude': gps_lat,
+#                 'longitude': gps_lon,
+#                 'altitude_tier': altitude_tier,
+#                 'altitude_m': gps_alt,
+#                 'soil': soil_type,
+#                 'irrigation': irrigation,
+#                 'growth_stage': growth_stage,
+#                 'season': season,
+#                 'days_since_planting': days_since_planting,
+#                 'region': 'bophirima' if is_western else 'bochabela' if is_eastern else 'bohareng',
+#             },
+#             'farmer_level': experience_level,
+#         }
+
 #     def post(self, request):
 #         try:
 #             user = request.user
 
 #             import logging
 #             logger = logging.getLogger(__name__)
+#             logger.warning(f"[SaveScan] ========== NEW SCAN REQUEST ==========")
 #             logger.warning(f"[SaveScan] incoming data: {dict(request.data)}")
-#             logger.warning(f"[SaveScan] scan_mode={request.data.get('scan_mode')} profileId={request.data.get('profileId')}")
 
+#             # Handle language preference
 #             incoming_lang = request.data.get('language') or request.data.get('lang')
 #             if incoming_lang in ['st', 'en']:
 #                 user.language_preferences = incoming_lang
 #                 user.save(update_fields=['language_preferences'])
 #             lang = user.language_preferences
+#             logger.warning(f"[SaveScan] 🌐 LANGUAGE PREFERENCE: '{lang}'")
 
-#             raw_label   = (request.data.get('diseaseName')
-#                            or request.data.get('DiseaseName')
-#                            or 'Healthy')
+#             # Get disease name from request
+#             raw_label = (request.data.get('diseaseName')
+#                         or request.data.get('DiseaseName')
+#                         or 'Healthy')
 #             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
+#             logger.warning(f"[SaveScan] 🦠 Disease: '{clean_label}'")
 
-#             image_url   = (request.data.get('imageUrl')
-#                            or request.data.get('image_url')
-#                            or request.data.get('ImageFile')
-#                            or '')
+#             image_url = (request.data.get('imageUrl')
+#                         or request.data.get('image_url')
+#                         or request.data.get('ImageFile')
+#                         or '')
 
-#             confidence  = float(
-#                 request.data.get('confidence')
-#                 or request.data.get('ConfidenceLevel')
-#                 or 0.0
-#             )
+#             confidence = float(request.data.get('confidence')
+#                               or request.data.get('ConfidenceLevel')
+#                               or 0.0)
 
-#             profile_id   = (request.data.get('profileId')
-#                             or request.data.get('ProfileID'))
+#             profile_id = (request.data.get('profileId')
+#                          or request.data.get('ProfileID'))
             
-#             # ═══════════════════════════════════════════════════════════════
-#             # GPS DATA - Properly capture from request
-#             # ═══════════════════════════════════════════════════════════════
+#             # GPS DATA
 #             gps_lat = request.data.get('latitude')
 #             gps_lon = request.data.get('longitude')
 #             gps_alt = request.data.get('altitude')
             
-#             # Convert to float if possible
 #             try:
 #                 if gps_lat:
 #                     gps_lat = float(gps_lat)
@@ -699,68 +912,64 @@
 #                 pass
             
 #             gps_district = (request.data.get('gps_district')
-#                             or request.data.get('district')
-#                             or user.district
-#                             or '')
+#                            or request.data.get('district')
+#                            or user.district
+#                            or '')
             
-#             logger.warning(f"[SaveScan] GPS Data - lat: {gps_lat}, lon: {gps_lon}, alt: {gps_alt}, district: {gps_district}")
+#             logger.warning(f"[SaveScan] 📍 GPS: lat={gps_lat}, lon={gps_lon}, alt={gps_alt}, district={gps_district}")
 
-#             scan_mode          = (request.data.get('scan_mode')
-#                                   or request.data.get('scanMode')
-#                                   or 'general').lower()
+#             scan_mode = (request.data.get('scan_mode')
+#                         or request.data.get('scanMode')
+#                         or 'general').lower()
 #             wants_personalized = scan_mode == 'personalized'
 
-#             logger.warning(f"[SaveScan] wants_personalized={wants_personalized} scan_mode='{scan_mode}'")
+#             logger.warning(f"[SaveScan] 📱 Mode: scan_mode='{scan_mode}', wants_personalized={wants_personalized}")
 
+#             # Get crop profile
 #             target_profile = None
 #             if profile_id and str(profile_id).lower() not in ('null', 'none', ''):
 #                 target_profile = CropProfile.objects.filter(
 #                     pk=profile_id, FarmerID=user
 #                 ).first()
 
-#             logger.warning(f"[SaveScan] profile_id='{profile_id}' target_profile={target_profile}")
-
 #             crop_type = (target_profile.VegetableType
-#                          if target_profile
-#                          else request.data.get('cropType', 'Vegetable'))
+#                         if target_profile
+#                         else request.data.get('cropType', 'Vegetable'))
 
-#             # ═══════════════════════════════════════════════════════════════
-#             # SAVE PLANT WITH GPS DATA
-#             # ═══════════════════════════════════════════════════════════════
+#             # Save plant with GPS data
 #             new_plant = Plant.objects.create(
-#                 FarmerID        = user,
-#                 CropProfile     = target_profile,
-#                 CropType        = crop_type,
-#                 ImageFile       = image_url,
-#                 latitude        = gps_lat,
-#                 longitude       = gps_lon,
-#                 altitude_meters = gps_alt,
-#                 gps_district    = gps_district,
+#                 FarmerID=user,
+#                 CropProfile=target_profile,
+#                 CropType=crop_type,
+#                 ImageFile=image_url,
+#                 latitude=gps_lat,
+#                 longitude=gps_lon,
+#                 altitude_meters=gps_alt,
+#                 gps_district=gps_district,
 #             )
             
-#             logger.warning(f"[SaveScan] Plant saved with GPS - lat: {new_plant.latitude}, lon: {new_plant.longitude}, alt: {new_plant.altitude_meters}")
-
+#             # Create diagnosis
 #             urgent = any(w in clean_label.lower()
-#                          for w in ['blight', 'rot', 'wilt', 'mold', 'virus',
-#                                    'bacteria', 'phytophthora', 'fusarium'])
+#                         for w in ['blight', 'rot', 'wilt', 'mold', 'virus',
+#                                  'bacteria', 'phytophthora', 'fusarium'])
 #             follow_up_date = date.today() + timedelta(days=3 if urgent else 10)
 
 #             diagnosis = Diagnosis.objects.create(
-#                 PlantID         = new_plant,
-#                 DiseaseName     = clean_label,
-#                 ConfidenceLevel = confidence,
-#                 follow_up_date  = follow_up_date,
+#                 PlantID=new_plant,
+#                 DiseaseName=clean_label,
+#                 ConfidenceLevel=confidence,
+#                 follow_up_date=follow_up_date,
 #             )
 
-#             # ═══════════════════════════════════════════════════════════════
-#             # GENERAL MODE LOGIC - KEPT EXACTLY THE SAME
-#             # ═══════════════════════════════════════════════════════════════
-#             tq       = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
-#             treat    = Treatment.objects.filter(tq).first()
+#             # Get treatment from database
+#             tq = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
+#             treat = Treatment.objects.filter(tq).first()
 #             kb_entry = KnowledgeBase.objects.filter(tq).first()
 
+#             # Default values (English)
 #             res_pesticide = treat.RecommendedPesticide if treat else 'Consult local expert'
-#             res_dosage    = treat.Dosage               if treat else 'N/A'
+#             res_dosage = treat.Dosage if treat else 'N/A'
+            
 #             if treat and treat.ApplicationSteps:
 #                 res_steps = treat.ApplicationSteps
 #             elif kb_entry and kb_entry.TreatmentInfo:
@@ -770,72 +979,109 @@
 
 #             res_disease = clean_label
 
+#             # Calculate dosage for plot
 #             dosage_calc = {}
-#             plot_ha     = target_profile.plot_size_hectares if target_profile else None
+#             plot_ha = target_profile.plot_size_hectares if target_profile else None
 #             if treat and plot_ha:
 #                 dosage_calc = treat.calculate_for_plot(plot_ha)
 
+#             # ============================================================
+#             # APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
+#             # ============================================================
 #             if lang == 'st':
-#                 st_p = self._get_sesotho(clean_label, 'pesticide')
-#                 st_d = self._get_sesotho(clean_label, 'dosage')
-#                 st_s = self._get_sesotho(clean_label, 'steps')
-#                 if st_p: res_pesticide = st_p
-#                 if st_d: res_dosage    = st_d
-#                 if st_s: res_steps     = st_s
+#                 logger.warning(f"[SaveScan] 🎯 APPLYING SESOTHO TRANSLATION for disease: '{clean_label}'")
+                
+#                 st_pesticide = self._get_sesotho(clean_label, 'pesticide')
+#                 st_dosage = self._get_sesotho(clean_label, 'dosage')
+#                 st_steps = self._get_sesotho(clean_label, 'steps')
+                
+#                 if st_pesticide:
+#                     res_pesticide = st_pesticide
+#                     logger.warning(f"[SaveScan] ✅ Sesotho PESTICIDE applied")
+#                 else:
+#                     logger.warning(f"[SaveScan] ⚠️ No Sesotho pesticide found for '{clean_label}'")
+                    
+#                 if st_dosage:
+#                     res_dosage = st_dosage
+#                     logger.warning(f"[SaveScan] ✅ Sesotho DOSAGE applied")
+#                 else:
+#                     logger.warning(f"[SaveScan] ⚠️ No Sesotho dosage found for '{clean_label}'")
+                    
+#                 if st_steps:
+#                     res_steps = st_steps
+#                     logger.warning(f"[SaveScan] ✅ Sesotho STEPS applied")
 
-#             # ═══════════════════════════════════════════════════════════════
-#             # PERSONALIZED MODE - USE GPS DATA
-#             # ═══════════════════════════════════════════════════════════════
+#             # ============================================================
+#             # PERSONALIZED MODE - Use appropriate language version
+#             # ============================================================
 #             personalized_advice = None
-#             matched_context     = None
+#             matched_context = None
 #             personalized_dosage = None
 
 #             if wants_personalized and target_profile:
-#                 # Generate personalized advice USING GPS DATA
-#                 personalized = self._generate_personalized_advice(
-#                     disease_name=clean_label,
-#                     farmer=user,
-#                     crop_profile=target_profile,
-#                     gps_district=gps_district,
-#                     gps_lat=gps_lat,
-#                     gps_lon=gps_lon,
-#                     gps_alt=gps_alt,
-#                 )
+#                 logger.warning(f"[SaveScan] 📝 Generating personalized advice...")
+                
+#                 # Choose the appropriate language version
+#                 if lang == 'st':
+#                     personalized = self._generate_personalized_advice_sesotho(
+#                         disease_name=clean_label,
+#                         farmer=user,
+#                         crop_profile=target_profile,
+#                         gps_district=gps_district,
+#                         gps_lat=gps_lat,
+#                         gps_lon=gps_lon,
+#                         gps_alt=gps_alt,
+#                     )
+#                     logger.warning(f"[SaveScan] ✅ Generated personalized advice in SESOTHO")
+#                 else:
+#                     personalized = self._generate_personalized_advice(
+#                         disease_name=clean_label,
+#                         farmer=user,
+#                         crop_profile=target_profile,
+#                         gps_district=gps_district,
+#                         gps_lat=gps_lat,
+#                         gps_lon=gps_lon,
+#                         gps_alt=gps_alt,
+#                     )
+#                     logger.warning(f"[SaveScan] ✅ Generated personalized advice in ENGLISH")
                 
 #                 personalized_advice = personalized['advice']
 #                 matched_context = personalized['matched_on']
                 
 #                 if dosage_calc:
 #                     personalized_dosage = {
-#                         'product':       res_pesticide,
-#                         'amount':        dosage_calc.get('product_display'),
-#                         'water':         dosage_calc.get('water_display'),
-#                         'unit':          dosage_calc.get('dosage_unit'),
+#                         'product': res_pesticide,
+#                         'amount': dosage_calc.get('product_display'),
+#                         'water': dosage_calc.get('water_display'),
+#                         'unit': dosage_calc.get('dosage_unit'),
 #                         'plot_hectares': dosage_calc.get('plot_hectares'),
 #                         'raw': {
 #                             'product_amount': dosage_calc.get('product_amount'),
-#                             'water_litres':   dosage_calc.get('water_litres'),
-#                             'buckets_10l':    dosage_calc.get('buckets_10l'),
+#                             'water_litres': dosage_calc.get('water_litres'),
+#                             'buckets_10l': dosage_calc.get('buckets_10l'),
 #                         },
 #                     }
-                
-#                 logger.warning(f"[SaveScan] ✅ Personalized advice generated using GPS (lat: {gps_lat}, lon: {gps_lon}, alt: {gps_alt})")
 
+#             # Build personalized block
 #             personalized_block = None
 #             if wants_personalized and target_profile:
 #                 personalized_block = {
-#                     'advice':       personalized_advice,
-#                     'dosage':       personalized_dosage,
-#                     'matched_on':   matched_context,
+#                     'advice': personalized_advice,
+#                     'dosage': personalized_dosage,
+#                     'matched_on': matched_context,
 #                     'farmer_level': user.experience_level,
 #                 }
 
-#             return Response({
-#                 'status':         'success',
-#                 'id':             diagnosis.DiagnosisID,
+#             # ============================================================
+#             # PREPARE RESPONSE
+#             # ============================================================
+#             response_data = {
+#                 'status': 'success',
+#                 'id': diagnosis.DiagnosisID,
 #                 'follow_up_date': follow_up_date.isoformat(),
-#                 'crop_type':      crop_type,
-#                 'scan_mode':      scan_mode,
+#                 'crop_type': crop_type,
+#                 'scan_mode': scan_mode,
+#                 'language_used': lang,
 #                 'gps_data': {
 #                     'latitude': gps_lat,
 #                     'longitude': gps_lon,
@@ -843,30 +1089,43 @@
 #                     'district': gps_district,
 #                 },
 #                 '_debug': {
-#                     'received_scan_mode':          scan_mode,
-#                     'received_profile_id':         str(profile_id),
-#                     'wants_personalized':          wants_personalized,
-#                     'target_profile_found':        target_profile is not None,
-#                     'target_profile_id':           str(target_profile.ProfileID) if target_profile else None,
-#                     'gps_received':                gps_lat is not None,
-#                     'personalized_advice_generated': bool(personalized_advice) if wants_personalized else False,
+#                     'received_scan_mode': scan_mode,
+#                     'wants_personalized': wants_personalized,
+#                     'target_profile_found': target_profile is not None,
+#                     'gps_received': gps_lat is not None,
+#                     'language': lang,
+#                     'sesotho_translations_available': {
+#                         'pesticide': self._get_sesotho(clean_label, 'pesticide') is not None,
+#                         'dosage': self._get_sesotho(clean_label, 'dosage') is not None,
+#                         'steps': self._get_sesotho(clean_label, 'steps') is not None,
+#                     } if lang == 'st' else None,
 #                 },
-#                 'personalized':   personalized_block,
+#                 'personalized': personalized_block,
 #                 'results': {
-#                     'disease':    res_disease,
-#                     'pesticide':  res_pesticide,
-#                     'dosage':     res_dosage,
-#                     'steps':      res_steps,
+#                     'disease': res_disease,
+#                     'pesticide': res_pesticide,
+#                     'dosage': res_dosage,
+#                     'steps': res_steps,
 #                     'confidence': confidence,
 #                     'treatment_dose_display': dosage_calc.get('product_display') if dosage_calc and wants_personalized else None,
-#                     'water_volume_display':   dosage_calc.get('water_display') if dosage_calc and wants_personalized else None,
+#                     'water_volume_display': dosage_calc.get('water_display') if dosage_calc and wants_personalized else None,
 #                 },
-#                 'treatment_product':   res_pesticide,
-#                 'personalized_advice': personalized_advice,
-#             })
+#                 'treatment_product': res_pesticide,
+#                 'personalized_advice': personalized_advice if wants_personalized else None,
+#             }
+
+#             logger.warning(f"[SaveScan] 📤 RESPONSE SUMMARY:")
+#             logger.warning(f"[SaveScan]   - Language: {lang}")
+#             logger.warning(f"[SaveScan]   - Personalized advice length: {len(personalized_advice) if personalized_advice else 0} chars")
+#             logger.warning(f"[SaveScan] ========== SCAN COMPLETE ==========")
+            
+#             return Response(response_data)
 
 #         except Exception as e:
 #             import traceback
+#             logger = logging.getLogger(__name__)
+#             logger.error(f"[SaveScan] ❌ ERROR: {str(e)}")
+#             logger.error(traceback.format_exc())
 #             return Response(
 #                 {'error': str(e), 'detail': traceback.format_exc()},
 #                 status=status.HTTP_400_BAD_REQUEST,
@@ -879,17 +1138,17 @@
 #     permission_classes = [IsAuthenticated]
 
 #     def get(self, request):
-#         plants  = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
+#         plants = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
 #         history = []
 #         for p in plants:
 #             diag = Diagnosis.objects.filter(PlantID=p).first()
 #             if diag:
 #                 history.append({
 #                     'plant_id': p.PlantID,
-#                     'crop':     p.CropType,
-#                     'image':    p.ImageFile,
-#                     'disease':  diag.DiseaseName,
-#                     'date':     p.DateCaptured.strftime('%d %b, %Y'),
+#                     'crop': p.CropType,
+#                     'image': p.ImageFile,
+#                     'disease': diag.DiseaseName,
+#                     'date': p.DateCaptured.strftime('%d %b, %Y'),
 #                 })
 #         return Response(history)
 
@@ -898,7 +1157,7 @@
 #     permission_classes = [IsAuthenticated]
 
 #     def get(self, request):
-#         plants      = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
+#         plants = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
 #         report_data = []
 #         for p in plants:
 #             diag = Diagnosis.objects.filter(PlantID=p).first()
@@ -907,12 +1166,12 @@
 #                     DiseaseName__iexact=diag.DiseaseName
 #                 ).first()
 #                 report_data.append({
-#                     'FarmerID_id':      request.user.id,
-#                     'ReportDate':       p.DateCaptured.isoformat(),
+#                     'FarmerID_id': request.user.id,
+#                     'ReportDate': p.DateCaptured.isoformat(),
 #                     'DiagnosisSummary': diag.DiseaseName.replace('_', ' ').upper(),
 #                     'TreatmentSummary': (treat.ApplicationSteps
 #                                          if treat else 'Isolate plant immediately.'),
-#                     'ImageURL':         p.ImageFile,
+#                     'ImageURL': p.ImageFile,
 #                 })
 #         return Response(report_data)
 
@@ -924,18 +1183,18 @@
 
 #     def get(self, request):
 #         district = request.query_params.get('district')
-#         prices   = MarketPrice.objects.all().order_by('-date_recorded')
+#         prices = MarketPrice.objects.all().order_by('-date_recorded')
 #         if district:
 #             prices = prices.filter(district__iexact=district)
 #         return Response([{
-#             'id':             p.PriceID,
+#             'id': p.PriceID,
 #             'vegetable_name': p.vegetable_name,
-#             'market_name':    p.market_name,
-#             'district':       p.district,
-#             'price_per_kg':   float(p.price_per_kg),
-#             'currency':       p.currency,
-#             'date_recorded':  p.date_recorded.isoformat(),
-#             'price_trend':    p.price_trend,
+#             'market_name': p.market_name,
+#             'district': p.district,
+#             'price_per_kg': float(p.price_per_kg),
+#             'currency': p.currency,
+#             'date_recorded': p.date_recorded.isoformat(),
+#             'price_trend': p.price_trend,
 #         } for p in prices])
 
 
@@ -960,9 +1219,9 @@
 #         diag.save()
 
 #         return Response({
-#             'status':  'success',
+#             'status': 'success',
 #             'message': 'Feedback recorded. Thank you!',
-#             'id':      diag.DiagnosisID,
+#             'id': diag.DiagnosisID,
 #         })
 
 
@@ -975,10 +1234,10 @@
 #         from django.db.models import Count
 #         insight, _ = FarmerInsight.objects.get_or_create(FarmerID=request.user)
 
-#         plants      = Plant.objects.filter(FarmerID=request.user)
+#         plants = Plant.objects.filter(FarmerID=request.user)
 #         total_scans = plants.count()
-#         diagnoses   = Diagnosis.objects.filter(PlantID__in=plants)
-#         healthy     = diagnoses.filter(DiseaseName__iexact='healthy').count()
+#         diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
+#         healthy = diagnoses.filter(DiseaseName__iexact='healthy').count()
 
 #         top = (diagnoses
 #                .exclude(DiseaseName__iexact='healthy')
@@ -994,21 +1253,21 @@
 #                     .order_by('-c')
 #                     .first())
 
-#         insight.total_scans             = total_scans
+#         insight.total_scans = total_scans
 #         insight.total_diseases_detected = total_scans - healthy
-#         insight.total_healthy_scans     = healthy
-#         insight.most_common_disease     = top['DiseaseName'] if top else None
-#         insight.most_scanned_crop       = top_crop['CropType'] if top_crop else None
+#         insight.total_healthy_scans = healthy
+#         insight.most_common_disease = top['DiseaseName'] if top else None
+#         insight.most_scanned_crop = top_crop['CropType'] if top_crop else None
 #         insight.save()
 
 #         return Response({
-#             'total_scans':             insight.total_scans,
+#             'total_scans': insight.total_scans,
 #             'total_diseases_detected': insight.total_diseases_detected,
-#             'total_healthy_scans':     insight.total_healthy_scans,
-#             'most_common_disease':     insight.most_common_disease,
-#             'most_scanned_crop':       insight.most_scanned_crop,
-#             'streak_healthy_days':     insight.streak_healthy_days,
-#             'last_updated':            insight.last_updated.isoformat(),
+#             'total_healthy_scans': insight.total_healthy_scans,
+#             'most_common_disease': insight.most_common_disease,
+#             'most_scanned_crop': insight.most_scanned_crop,
+#             'streak_healthy_days': insight.streak_healthy_days,
+#             'last_updated': insight.last_updated.isoformat(),
 #         })
 
 
@@ -1019,19 +1278,19 @@
 
 #     def get(self, request):
 #         profile_id = request.query_params.get('crop_profile_id')
-#         entries    = GrowthJournalEntry.objects.filter(FarmerID=request.user)
+#         entries = GrowthJournalEntry.objects.filter(FarmerID=request.user)
 #         if profile_id:
 #             entries = entries.filter(CropProfile__ProfileID=profile_id)
 #         return Response([{
-#             'id':              e.EntryID,
+#             'id': e.EntryID,
 #             'crop_profile_id': e.CropProfile.ProfileID,
-#             'crop_name':       e.CropProfile.VegetableType,
-#             'entry_date':      e.entry_date.isoformat(),
-#             'title':           e.title,
-#             'body':            e.body,
-#             'mood':            e.mood,
-#             'photo_url':       e.photo_url,
-#             'created_at':      e.DateCreated.isoformat(),
+#             'crop_name': e.CropProfile.VegetableType,
+#             'entry_date': e.entry_date.isoformat(),
+#             'title': e.title,
+#             'body': e.body,
+#             'mood': e.mood,
+#             'photo_url': e.photo_url,
+#             'created_at': e.DateCreated.isoformat(),
 #         } for e in entries])
 
 #     def post(self, request):
@@ -1044,13 +1303,13 @@
 #             return Response({'error': 'Crop profile not found'}, status=404)
 
 #         entry = GrowthJournalEntry.objects.create(
-#             FarmerID    = request.user,
-#             CropProfile = profile,
-#             title       = request.data.get('title', ''),
-#             body        = request.data.get('body', ''),
-#             mood        = request.data.get('mood', 'ok'),
-#             photo_url   = request.data.get('photo_url'),
-#             entry_date  = request.data.get('entry_date', date.today()),
+#             FarmerID=request.user,
+#             CropProfile=profile,
+#             title=request.data.get('title', ''),
+#             body=request.data.get('body', ''),
+#             mood=request.data.get('mood', 'ok'),
+#             photo_url=request.data.get('photo_url'),
+#             entry_date=request.data.get('entry_date', date.today()),
 #         )
 #         return Response({'status': 'success', 'id': entry.EntryID}, status=201)
 
@@ -1067,10 +1326,212 @@
 #             return Response({'error': 'Entry not found'}, status=404)
 
 
+# # ── 12. COMMUNITY ────────────────────────────────────────────────────────────
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_community_posts(request):
+#     try:
+#         page = int(request.query_params.get('page', 1))
+#         limit = int(request.query_params.get('limit', 20))
+#         crop_type = request.query_params.get('crop_type')
+        
+#         queryset = CommunityPost.objects.select_related('farmer').all()
+        
+#         if crop_type:
+#             queryset = queryset.filter(crop_type__iexact=crop_type)
+        
+#         total_posts = queryset.count()
+#         total_pages = (total_posts + limit - 1) // limit
+#         offset = (page - 1) * limit
+        
+#         posts = queryset[offset:offset + limit]
+        
+#         user = request.user
+#         liked_post_ids = set(PostLike.objects.filter(
+#             farmer=user, post__in=posts
+#         ).values_list('post_id', flat=True))
+        
+#         data = []
+#         for post in posts:
+#             data.append({
+#                 'id': post.id,
+#                 'userId': post.farmer.id,
+#                 'username': post.farmer.username,
+#                 'userPhotoUrl': post.farmer.profile_photo_url,
+#                 'content': post.content,
+#                 'imageUrl': post.image_url,
+#                 'likes': post.likes_count,
+#                 'commentsCount': post.comments_count,
+#                 'isLikedByUser': post.id in liked_post_ids,
+#                 'createdAt': post.created_at.isoformat(),
+#                 'postType': post.post_type,
+#                 'cropType': post.crop_type,
+#             })
+        
+#         return Response({
+#             'posts': data,
+#             'page': page,
+#             'limit': limit,
+#             'totalPages': total_pages,
+#             'totalPosts': total_posts,
+#         })
+#     except Exception as e:
+#         return Response({'error': str(e)}, status=500)
+
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def create_community_post(request):
+#     try:
+#         content = request.data.get('content')
+#         if not content:
+#             return Response({'error': 'Content is required'}, status=400)
+        
+#         post = CommunityPost.objects.create(
+#             farmer=request.user,
+#             content=content,
+#             image_url=request.data.get('imageUrl'),
+#             post_type=request.data.get('post_type', 'general'),
+#             crop_type=request.data.get('crop_type'),
+#         )
+        
+#         return Response({
+#             'id': post.id,
+#             'userId': post.farmer.id,
+#             'username': post.farmer.username,
+#             'userPhotoUrl': post.farmer.profile_photo_url,
+#             'content': post.content,
+#             'imageUrl': post.image_url,
+#             'likes': 0,
+#             'commentsCount': 0,
+#             'isLikedByUser': False,
+#             'createdAt': post.created_at.isoformat(),
+#             'postType': post.post_type,
+#             'cropType': post.crop_type,
+#         }, status=201)
+#     except Exception as e:
+#         return Response({'error': str(e)}, status=500)
+
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def like_community_post(request, post_id):
+#     try:
+#         post = CommunityPost.objects.get(id=post_id)
+#         like, created = PostLike.objects.get_or_create(post=post, farmer=request.user)
+        
+#         if not created:
+#             like.delete()
+#             post.likes_count = post.likes.count()
+#             post.save()
+#             return Response({'liked': False, 'likes_count': post.likes_count})
+        
+#         post.likes_count = post.likes.count()
+#         post.save()
+#         return Response({'liked': True, 'likes_count': post.likes_count})
+#     except CommunityPost.DoesNotExist:
+#         return Response({'error': 'Post not found'}, status=404)
+#     except Exception as e:
+#         return Response({'error': str(e)}, status=500)
+
+
+# @api_view(['DELETE'])
+# @permission_classes([IsAuthenticated])
+# def delete_community_post(request, post_id):
+#     try:
+#         post = CommunityPost.objects.get(id=post_id, farmer=request.user)
+#         post.delete()
+#         return Response(status=204)
+#     except CommunityPost.DoesNotExist:
+#         return Response({'error': 'Post not found or you do not have permission'}, status=404)
+#     except Exception as e:
+#         return Response({'error': str(e)}, status=500)
+
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_community_comments(request, post_id):
+#     try:
+#         post = CommunityPost.objects.get(id=post_id)
+#         comments = post.comments.select_related('farmer')
+        
+#         data = []
+#         for comment in comments:
+#             data.append({
+#                 'id': comment.id,
+#                 'postId': comment.post.id,
+#                 'userId': comment.farmer.id,
+#                 'username': comment.farmer.username,
+#                 'userPhotoUrl': comment.farmer.profile_photo_url,
+#                 'content': comment.content,
+#                 'likes': 0,
+#                 'createdAt': comment.created_at.isoformat(),
+#             })
+#         return Response(data)
+#     except CommunityPost.DoesNotExist:
+#         return Response({'error': 'Post not found'}, status=404)
+#     except Exception as e:
+#         return Response({'error': str(e)}, status=500)
+
+
+# @api_view(['POST'])
+# @permission_classes([IsAuthenticated])
+# def add_community_comment(request, post_id):
+#     try:
+#         post = CommunityPost.objects.get(id=post_id)
+#         content = request.data.get('content')
+        
+#         if not content:
+#             return Response({'error': 'Content is required'}, status=400)
+        
+#         comment = CommunityComment.objects.create(
+#             post=post,
+#             farmer=request.user,
+#             content=content
+#         )
+        
+#         post.comments_count = post.comments.count()
+#         post.save()
+        
+#         return Response({
+#             'id': comment.id,
+#             'postId': comment.post.id,
+#             'userId': comment.farmer.id,
+#             'username': comment.farmer.username,
+#             'userPhotoUrl': comment.farmer.profile_photo_url,
+#             'content': comment.content,
+#             'likes': 0,
+#             'createdAt': comment.created_at.isoformat(),
+#         }, status=201)
+#     except CommunityPost.DoesNotExist:
+#         return Response({'error': 'Post not found'}, status=404)
+#     except Exception as e:
+#         return Response({'error': str(e)}, status=500)
+
+
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def get_community_profile(request):
+#     try:
+#         farmer = request.user
+#         return Response({
+#             'id': farmer.id,
+#             'username': farmer.username,
+#             'first_name': farmer.first_name,
+#             'last_name': farmer.last_name,
+#             'email': farmer.email,
+#             'district': farmer.district,
+#             'profile_photo_url': farmer.profile_photo_url,
+#             'experience_level': farmer.experience_level,
+#         })
+#     except Exception as e:
+#         return Response({'error': str(e)}, status=500)
+
+
 # # ── 13. INSIGHTS & TRENDS FOR PLOTLY CHARTS ───────────────────────────────────
 
 # class FarmerInsightsTrendsView(APIView):
-#     """Get comprehensive analytics data formatted for Plotly charts"""
 #     permission_classes = [IsAuthenticated]
     
 #     def get(self, request):
@@ -1081,29 +1542,20 @@
 #             user = request.user
 #             today = timezone.now().date()
             
-#             # Get all plants and diagnoses
 #             plants = Plant.objects.filter(FarmerID=user)
 #             diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
             
 #             logger.warning(f"User: {user.username}, Plants: {plants.count()}, Diagnoses: {diagnoses.count()}")
             
-#             # ============================================================
-#             # 1. Basic Statistics
-#             # ============================================================
 #             total_scans = plants.count()
 #             total_diseases = diagnoses.exclude(DiseaseName__iexact='healthy').count()
 #             total_healthy = diagnoses.filter(DiseaseName__iexact='healthy').count()
             
-#             # ============================================================
-#             # 2. Get all diagnoses with dates for trend analysis
-#             # ============================================================
 #             from django.db.models.functions import TruncDate
 #             from django.db.models import Count
             
-#             # Get daily scan counts for the last 30 days
 #             last_30_days = today - timedelta(days=30)
             
-#             # Create a date range for the last 30 days
 #             trend_data = []
 #             for i in range(29, -1, -1):
 #                 date_key = (today - timedelta(days=i)).isoformat()
@@ -1113,7 +1565,6 @@
 #                     'unhealthy': 0
 #                 })
             
-#             # Fill healthy counts
 #             daily_healthy = diagnoses.filter(
 #                 DateDiagnosed__date__gte=last_30_days,
 #                 DiseaseName__iexact='healthy'
@@ -1131,7 +1582,6 @@
 #                             td['healthy'] = item['count']
 #                             break
             
-#             # Fill unhealthy counts
 #             daily_diseased = diagnoses.filter(
 #                 DateDiagnosed__date__gte=last_30_days
 #             ).exclude(
@@ -1150,9 +1600,6 @@
 #                             td['unhealthy'] = item['count']
 #                             break
             
-#             # ============================================================
-#             # 3. Top Diseases (All time)
-#             # ============================================================
 #             top_diseases = diagnoses.exclude(
 #                 DiseaseName__iexact='healthy'
 #             ).values('DiseaseName').annotate(
@@ -1166,9 +1613,6 @@
 #                     'count': item['count']
 #                 })
             
-#             # ============================================================
-#             # 4. Scans by Crop Type
-#             # ============================================================
 #             scans_by_crop = plants.values('CropType').annotate(
 #                 count=Count('PlantID')
 #             ).order_by('-count')[:10]
@@ -1180,9 +1624,6 @@
 #                     'count': item['count']
 #                 })
             
-#             # ============================================================
-#             # 5. Healthy vs Diseased Summary
-#             # ============================================================
 #             health_summary = {
 #                 'total_scans': total_scans,
 #                 'healthy': total_healthy,
@@ -1191,9 +1632,6 @@
 #                 'diseased_percentage': round((total_diseases / total_scans * 100), 1) if total_scans > 0 else 0,
 #             }
             
-#             # ============================================================
-#             # 6. Weekly Activity (Last 6 weeks)
-#             # ============================================================
 #             weekly_data = []
 #             for i in range(5, -1, -1):
 #                 week_start = today - timedelta(days=i*7)
@@ -1207,9 +1645,6 @@
 #                     'scans': week_scans
 #                 })
             
-#             # ============================================================
-#             # 7. Confidence Distribution
-#             # ============================================================
 #             confidence_data = [
 #                 {'range': '90-100%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.9).count(), 'color': '#4CAF50'},
 #                 {'range': '70-89%', 'count': diagnoses.filter(ConfidenceLevel__gte=0.7, ConfidenceLevel__lt=0.9).count(), 'color': '#8BC34A'},
@@ -1217,9 +1652,6 @@
 #                 {'range': 'Below 50%', 'count': diagnoses.filter(ConfidenceLevel__lt=0.5).count(), 'color': '#FF9800'},
 #             ]
             
-#             # ============================================================
-#             # 8. Recovery Rate
-#             # ============================================================
 #             diagnosed_with_feedback = diagnoses.filter(
 #                 treatment_outcome__isnull=False
 #             ).exclude(treatment_outcome='')
@@ -1238,9 +1670,6 @@
 #                 {'label': 'Worsened', 'value': worsened, 'color': '#F44336'}
 #             ]
             
-#             # ============================================================
-#             # 9. Severity Distribution
-#             # ============================================================
 #             severity_data = diagnoses.filter(
 #                 severity__isnull=False
 #             ).exclude(severity='').values('severity').annotate(
@@ -1263,9 +1692,6 @@
 #                         'color': severity_map[sev]['color']
 #                     })
             
-#             # ============================================================
-#             # 10. District-wise Distribution
-#             # ============================================================
 #             district_data = diagnoses.filter(
 #                 PlantID__gps_district__isnull=False
 #             ).exclude(
@@ -1281,9 +1707,6 @@
 #                     'total': item['count']
 #                 })
             
-#             # ============================================================
-#             # 11. Crop Health Summary
-#             # ============================================================
 #             crop_health = []
 #             for crop in scans_by_crop[:5]:
 #                 crop_name = crop['CropType'] or 'Unknown'
@@ -1299,9 +1722,6 @@
 #                     'health_percentage': health_percentage
 #                 })
             
-#             # ============================================================
-#             # 12. Seasonal Patterns (by month)
-#             # ============================================================
 #             from django.db.models.functions import ExtractMonth
             
 #             seasonal_data = diagnoses.annotate(
@@ -1368,11 +1788,9 @@
 # # ── 14. ADMIN DASHBOARD LIST VIEWS ────────────────────────────────────────────
 
 # class FarmerListView(APIView):
-#     """List all farmers for admin dashboard"""
 #     permission_classes = [IsAuthenticated]
     
 #     def get(self, request):
-#         # Only allow admin/staff users
 #         if not request.user.is_staff:
 #             return Response({'error': 'Admin access required'}, status=403)
         
@@ -1381,7 +1799,6 @@
 
 
 # class TreatmentListView(APIView):
-#     """List all treatments for admin dashboard"""
 #     permission_classes = [IsAuthenticated]
     
 #     def get(self, request):
@@ -1393,7 +1810,6 @@
 
 
 # class KnowledgeBaseListView(APIView):
-#     """List all knowledge base entries for admin dashboard"""
 #     permission_classes = [IsAuthenticated]
     
 #     def get(self, request):
@@ -1404,21 +1820,7 @@
 #         return Response(list(entries))
 
 
-# # class DiagnosisListView(APIView):
-# #     """List all diagnoses for admin dashboard"""
-# #     permission_classes = [IsAuthenticated]
-    
-# #     def get(self, request):
-# #         if not request.user.is_staff:
-# #             return Response({'error': 'Admin access required'}, status=403)
-        
-# #         diagnoses = Diagnosis.objects.all().values(
-# #             'DiagnosisID', 'DiseaseName', 'ConfidenceLevel', 
-# #             'severity', 'treatment_outcome', 'DateDiagnosed'
-# #         )
-# #         return Response(list(diagnoses))
 # class DiagnosisListView(APIView):
-#     """List all diagnoses for admin dashboard"""
 #     permission_classes = [IsAuthenticated]
     
 #     def get(self, request):
@@ -1426,10 +1828,8 @@
 #             return Response({'error': 'Admin access required'}, status=403)
         
 #         try:
-#             # Get all diagnoses
 #             diagnoses = Diagnosis.objects.all()
             
-#             # Build result manually to handle NULL values
 #             result = []
 #             for d in diagnoses:
 #                 result.append({
@@ -1454,7 +1854,6 @@
 
 
 # class PlantListView(APIView):
-#     """List all plants for admin dashboard"""
 #     permission_classes = [IsAuthenticated]
     
 #     def get(self, request):
@@ -1464,219 +1863,6 @@
 #         plants = Plant.objects.all().values('PlantID', 'CropType', 'DateCaptured', 'gps_district')
 #         return Response(list(plants))
 
-
-# # ── 12. COMMUNITY ────────────────────────────────────────────────────────────
-
-# @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
-# def get_community_posts(request):
-#     """GET /api/community/posts/ - Get paginated community posts"""
-#     try:
-#         page = int(request.query_params.get('page', 1))
-#         limit = int(request.query_params.get('limit', 20))
-#         crop_type = request.query_params.get('crop_type')
-        
-#         queryset = CommunityPost.objects.select_related('farmer').all()
-        
-#         if crop_type:
-#             queryset = queryset.filter(crop_type__iexact=crop_type)
-        
-#         total_posts = queryset.count()
-#         total_pages = (total_posts + limit - 1) // limit
-#         offset = (page - 1) * limit
-        
-#         posts = queryset[offset:offset + limit]
-        
-#         user = request.user
-#         liked_post_ids = set(PostLike.objects.filter(
-#             farmer=user, post__in=posts
-#         ).values_list('post_id', flat=True))
-        
-#         data = []
-#         for post in posts:
-#             data.append({
-#                 'id': post.id,
-#                 'userId': post.farmer.id,
-#                 'username': post.farmer.username,
-#                 'userPhotoUrl': post.farmer.profile_photo_url,
-#                 'content': post.content,
-#                 'imageUrl': post.image_url,
-#                 'likes': post.likes_count,
-#                 'commentsCount': post.comments_count,
-#                 'isLikedByUser': post.id in liked_post_ids,
-#                 'createdAt': post.created_at.isoformat(),
-#                 'postType': post.post_type,
-#                 'cropType': post.crop_type,
-#             })
-        
-#         return Response({
-#             'posts': data,
-#             'page': page,
-#             'limit': limit,
-#             'totalPages': total_pages,
-#             'totalPosts': total_posts,
-#         })
-#     except Exception as e:
-#         return Response({'error': str(e)}, status=500)
-
-
-# @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
-# def create_community_post(request):
-#     """POST /api/community/posts/ - Create a new post"""
-#     try:
-#         content = request.data.get('content')
-#         if not content:
-#             return Response({'error': 'Content is required'}, status=400)
-        
-#         post = CommunityPost.objects.create(
-#             farmer=request.user,
-#             content=content,
-#             image_url=request.data.get('imageUrl'),
-#             post_type=request.data.get('post_type', 'general'),
-#             crop_type=request.data.get('crop_type'),
-#         )
-        
-#         return Response({
-#             'id': post.id,
-#             'userId': post.farmer.id,
-#             'username': post.farmer.username,
-#             'userPhotoUrl': post.farmer.profile_photo_url,
-#             'content': post.content,
-#             'imageUrl': post.image_url,
-#             'likes': 0,
-#             'commentsCount': 0,
-#             'isLikedByUser': False,
-#             'createdAt': post.created_at.isoformat(),
-#             'postType': post.post_type,
-#             'cropType': post.crop_type,
-#         }, status=201)
-#     except Exception as e:
-#         return Response({'error': str(e)}, status=500)
-
-
-# @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
-# def like_community_post(request, post_id):
-#     """POST /api/community/posts/{id}/like/ - Like or unlike a post"""
-#     try:
-#         post = CommunityPost.objects.get(id=post_id)
-#         like, created = PostLike.objects.get_or_create(post=post, farmer=request.user)
-        
-#         if not created:
-#             like.delete()
-#             post.likes_count = post.likes.count()
-#             post.save()
-#             return Response({'liked': False, 'likes_count': post.likes_count})
-        
-#         post.likes_count = post.likes.count()
-#         post.save()
-#         return Response({'liked': True, 'likes_count': post.likes_count})
-#     except CommunityPost.DoesNotExist:
-#         return Response({'error': 'Post not found'}, status=404)
-#     except Exception as e:
-#         return Response({'error': str(e)}, status=500)
-
-
-# @api_view(['DELETE'])
-# @permission_classes([IsAuthenticated])
-# def delete_community_post(request, post_id):
-#     """
-#     DELETE /api/community/posts/{id}/ - Delete a post (owner only)
-#     Security: Only the post owner can delete their own post
-#     """
-#     try:
-#         # SECURITY: Ensure only the post owner can delete
-#         post = CommunityPost.objects.get(id=post_id, farmer=request.user)
-#         post.delete()
-#         return Response(status=204)
-#     except CommunityPost.DoesNotExist:
-#         return Response({'error': 'Post not found or you do not have permission'}, status=404)
-#     except Exception as e:
-#         return Response({'error': str(e)}, status=500)
-
-
-# @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
-# def get_community_comments(request, post_id):
-#     """GET /api/community/posts/{id}/comments/ - Get all comments for a post"""
-#     try:
-#         post = CommunityPost.objects.get(id=post_id)
-#         comments = post.comments.select_related('farmer')
-        
-#         data = []
-#         for comment in comments:
-#             data.append({
-#                 'id': comment.id,
-#                 'postId': comment.post.id,
-#                 'userId': comment.farmer.id,
-#                 'username': comment.farmer.username,
-#                 'userPhotoUrl': comment.farmer.profile_photo_url,
-#                 'content': comment.content,
-#                 'likes': 0,
-#                 'createdAt': comment.created_at.isoformat(),
-#             })
-#         return Response(data)
-#     except CommunityPost.DoesNotExist:
-#         return Response({'error': 'Post not found'}, status=404)
-#     except Exception as e:
-#         return Response({'error': str(e)}, status=500)
-
-
-# @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
-# def add_community_comment(request, post_id):
-#     """POST /api/community/posts/{id}/comments/ - Add a comment to a post"""
-#     try:
-#         post = CommunityPost.objects.get(id=post_id)
-#         content = request.data.get('content')
-        
-#         if not content:
-#             return Response({'error': 'Content is required'}, status=400)
-        
-#         comment = CommunityComment.objects.create(
-#             post=post,
-#             farmer=request.user,
-#             content=content
-#         )
-        
-#         post.comments_count = post.comments.count()
-#         post.save()
-        
-#         return Response({
-#             'id': comment.id,
-#             'postId': comment.post.id,
-#             'userId': comment.farmer.id,
-#             'username': comment.farmer.username,
-#             'userPhotoUrl': comment.farmer.profile_photo_url,
-#             'content': comment.content,
-#             'likes': 0,
-#             'createdAt': comment.created_at.isoformat(),
-#         }, status=201)
-#     except CommunityPost.DoesNotExist:
-#         return Response({'error': 'Post not found'}, status=404)
-#     except Exception as e:
-#         return Response({'error': str(e)}, status=500)
-
-
-# @api_view(['GET'])
-# @permission_classes([IsAuthenticated])
-# def get_community_profile(request):
-#     """GET /api/community/profile/ - Get current user's profile for community"""
-#     try:
-#         farmer = request.user
-#         return Response({
-#             'id': farmer.id,
-#             'username': farmer.username,
-#             'first_name': farmer.first_name,
-#             'last_name': farmer.last_name,
-#             'email': farmer.email,
-#             'district': farmer.district,
-#             'profile_photo_url': farmer.profile_photo_url,
-#             'experience_level': farmer.experience_level,
-#         })
-#     except Exception as e:
-#         return Response({'error': str(e)}, status=500)
 
 
 
@@ -1873,8 +2059,11 @@ def change_password(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def google_auth(request):
-    from django.conf import settings as django_settings
-
+    from django.conf import settings
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
     id_token_str = request.data.get('id_token', '').strip()
     if not id_token_str:
         return Response({'error': 'id_token is required.'}, status=400)
@@ -1883,19 +2072,37 @@ def google_auth(request):
         from google.oauth2 import id_token as google_id_token
         from google.auth.transport import requests as google_requests
 
-        client_id = getattr(django_settings, 'GOOGLE_CLIENT_ID', '')
+        # ✅ Get client ID from settings with fallback
+        client_id = getattr(settings, 'GOOGLE_CLIENT_ID', None)
+        
+        # ✅ Log the client ID being used (for debugging)
+        logger.warning(f"[GoogleAuth] Using Client ID: {client_id}")
+        
+        if not client_id:
+            return Response(
+                {'error': 'GOOGLE_CLIENT_ID not configured in settings'},
+                status=500,
+            )
+        
+        # ✅ Verify the token with the specific client ID
         id_info = google_id_token.verify_oauth2_token(
             id_token_str,
             google_requests.Request(),
             client_id,
         )
+        
+        logger.warning(f"[GoogleAuth] Token verified successfully for: {id_info.get('email')}")
+        
     except ImportError:
         return Response(
             {'error': 'google-auth package not installed. Run: pip install google-auth'},
             status=500,
         )
     except ValueError as exc:
-        return Response({'error': f'Invalid Google token: {exc}'}, status=401)
+        # ✅ More detailed error logging
+        error_msg = str(exc)
+        logger.error(f"[GoogleAuth] Token validation error: {error_msg}")
+        return Response({'error': f'Invalid Google token: {error_msg}'}, status=401)
 
     email = id_info.get('email', '').lower()
     first_name = id_info.get('given_name', '')
@@ -3545,6 +3752,7 @@ class PlantListView(APIView):
         
         plants = Plant.objects.all().values('PlantID', 'CropType', 'DateCaptured', 'gps_district')
         return Response(list(plants))
+
 
 
 
