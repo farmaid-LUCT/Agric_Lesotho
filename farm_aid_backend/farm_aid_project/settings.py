@@ -16,7 +16,8 @@
 #     'localhost',
 #     '127.0.0.1',
 #     '10.0.2.2',
-#     '.onrender.com'
+#     '.onrender.com',
+#     '.render.com',
 # ]
 
 # # --- APPS ---
@@ -47,7 +48,6 @@
 
 # # --- MIDDLEWARE ---
 # MIDDLEWARE = [
-#     # 'farm_aid_project.middleware.CorsExceptionMiddleware',  # DISABLED - file not found
 #     'corsheaders.middleware.CorsMiddleware',
 #     'django.middleware.security.SecurityMiddleware',
 #     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -82,7 +82,6 @@
 # WSGI_APPLICATION = 'farm_aid_project.wsgi.application'
 
 # # --- DATABASE (Neon.tech) ---
-# # FIXED: Get DATABASE_URL from environment variable, not hardcoded
 # DATABASE_URL = os.environ.get('DATABASE_URL', '')
 # DATABASES = {
 #     'default': dj_database_url.parse(DATABASE_URL)
@@ -166,14 +165,64 @@
 # CORS_ALLOW_HEADERS = list(default_headers) + ['authorization', 'content-type', 'accept']
 # APPEND_SLASH = True
 
-# # --- EMAIL ---
-# EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST          = 'smtp.gmail.com'
-# EMAIL_PORT          = 587
-# EMAIL_USE_TLS       = True
-# EMAIL_HOST_USER     = os.environ.get('EMAIL_HOST_USER', 'ramokhelekeeke@gmail.com')
-# EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')  # FIXED: Removed hardcoded password
-# DEFAULT_FROM_EMAIL  = 'FarmAid Support <ramokhelekeeke@gmail.com>'
+# # ============================================================
+# # EMAIL CONFIGURATION FOR RENDER (FIXED)
+# # ============================================================
+
+# # Get Render domain for activation links
+# RENDER_EXTERNAL_URL = os.environ.get('RENDER_EXTERNAL_URL', 'https://farmaid-backend.onrender.com')
+# RENDER_DOMAIN = RENDER_EXTERNAL_URL.replace('https://', '').replace('http://', '')
+
+# # Site domain for activation links
+# SITE_DOMAIN = RENDER_DOMAIN
+# SITE_PROTOCOL = 'https'
+
+# # Email backend settings
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+
+# # Get email credentials from environment variables
+# EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'ramokhelekeeke@gmail.com')
+# EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+
+# # Only set DEFAULT_FROM_EMAIL if we have a valid email
+# if EMAIL_HOST_USER:
+#     DEFAULT_FROM_EMAIL = f'FarmAid Support <{EMAIL_HOST_USER}>'
+#     SERVER_EMAIL = DEFAULT_FROM_EMAIL
+# else:
+#     DEFAULT_FROM_EMAIL = 'noreply@farmaid.co.ls'
+#     SERVER_EMAIL = 'noreply@farmaid.co.ls'
+
+# # Email timeout settings
+# EMAIL_TIMEOUT = 30
+
+# # For Render production environment
+# if RENDER_EXTERNAL_URL:
+#     # Use secure settings for production
+#     EMAIL_USE_TLS = True
+#     EMAIL_PORT = 587
+    
+#     # For debugging email issues on Render
+#     if DEBUG:
+#         EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# # ============================================================
+# # SITE CONFIGURATION FOR ACTIVATION LINKS
+# # ============================================================
+
+# # # This is used by Django to generate absolute URLs
+# # if RENDER_EXTERNAL_URL:
+# #     # For Render, set the site URL
+# #     from django.contrib.sites.models import Site
+# #     try:
+# #         current_site = Site.objects.get_current()
+# #         current_site.domain = RENDER_DOMAIN
+# #         current_site.name = 'FarmAid'
+# #         current_site.save()
+# #     except:
+# #         pass
 
 # # --- TIMEZONE ---
 # LANGUAGE_CODE = 'en-us'
@@ -267,18 +316,6 @@
 #                 "icon":        "fas fa-language",
 #                 "permissions": ["api.view_translationcache"],
 #             },
-#             {
-#                 "name":        "Personalized Rules",
-#                 "url":         "admin:api_personalizedrule_changelist",
-#                 "icon":        "fas fa-gavel",
-#                 "permissions": ["api.view_personalizedrule"],
-#             },
-#             {
-#                 "name":        "Market Prices",
-#                 "url":         "admin:api_marketprice_changelist",
-#                 "icon":        "fas fa-chart-line",
-#                 "permissions": ["api.view_marketprice"],
-#             },
 #         ],
 #     },
 
@@ -299,10 +336,8 @@
 #         "api.KnowledgeBase":                   "fas fa-book-open",
 #         "api.AIModel":                         "fas fa-robot",
 #         "api.TranslationCache":                "fas fa-language",
-#         "api.PersonalizedRule":                "fas fa-gavel",
 #         "api.FarmerInsight":                   "fas fa-chart-pie",
 #         "api.GrowthJournalEntry":              "fas fa-journal-whills",
-#         "api.MarketPrice":                     "fas fa-chart-line",
 #         "django_celery_beat.PeriodicTask":     "fas fa-clock",
 #         "django_celery_beat.CrontabSchedule":  "fas fa-calendar",
 #         "django_celery_beat.IntervalSchedule": "fas fa-redo",
@@ -327,10 +362,8 @@
 #         "api.WeatherData",
 #         "api.KnowledgeBase",
 #         "api.TranslationCache",
-#         "api.PersonalizedRule",
 #         "api.FarmerInsight",
 #         "api.GrowthJournalEntry",
-#         "api.MarketPrice",
 #         "django_celery_beat",
 #         "django_celery_results",
 #         "auth",
@@ -357,7 +390,6 @@
 # LOGOUT_ON_GET      = True
 # LOGIN_URL          = '/admin/login/'
 # LOGIN_REDIRECT_URL = '/admin/'
-
 
 
 import dj_database_url
@@ -486,24 +518,29 @@ REST_FRAMEWORK = {
     ],
 }
 
-# --- ALLAUTH ---
+# --- ALLAUTH CONFIGURATION ---
 SITE_ID = 1
 
 ACCOUNT_LOGIN_METHODS      = {'email'}
 ACCOUNT_SIGNUP_FIELDS      = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 
+# ✅ GOOGLE OAUTH CONFIGURATION - UPDATED WITH YOUR CLIENT ID
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
         'SCOPE': ['profile', 'email'],
         'AUTH_PARAMS': {'access_type': 'online'},
         'APP': {
-            'client_id': os.environ.get('GOOGLE_CLIENT_ID', ''),
+            'client_id': os.environ.get('GOOGLE_CLIENT_ID', '40483998095-jtmsfnithmn4jr4r552mt5rqpvisn7qu.apps.googleusercontent.com'),
             'secret':    os.environ.get('GOOGLE_CLIENT_SECRET', ''),
             'key':       '',
         },
     }
 }
+
+# ✅ Add this for direct Google token validation in your custom views
+GOOGLE_OAUTH2_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '40483998095-jtmsfnithmn4jr4r552mt5rqpvisn7qu.apps.googleusercontent.com')
+GOOGLE_OAUTH2_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
 # --- CORS & SECURITY ---
 CORS_ALLOW_CREDENTIALS = True
@@ -569,22 +606,6 @@ if RENDER_EXTERNAL_URL:
     # For debugging email issues on Render
     if DEBUG:
         EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-# ============================================================
-# SITE CONFIGURATION FOR ACTIVATION LINKS
-# ============================================================
-
-# # This is used by Django to generate absolute URLs
-# if RENDER_EXTERNAL_URL:
-#     # For Render, set the site URL
-#     from django.contrib.sites.models import Site
-#     try:
-#         current_site = Site.objects.get_current()
-#         current_site.domain = RENDER_DOMAIN
-#         current_site.name = 'FarmAid'
-#         current_site.save()
-#     except:
-#         pass
 
 # --- TIMEZONE ---
 LANGUAGE_CODE = 'en-us'
