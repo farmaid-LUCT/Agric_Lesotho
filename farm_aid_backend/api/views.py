@@ -190,8 +190,11 @@
 # @api_view(['POST'])
 # @permission_classes([AllowAny])
 # def google_auth(request):
-#     from django.conf import settings as django_settings
-
+#     from django.conf import settings
+#     import logging
+    
+#     logger = logging.getLogger(__name__)
+    
 #     id_token_str = request.data.get('id_token', '').strip()
 #     if not id_token_str:
 #         return Response({'error': 'id_token is required.'}, status=400)
@@ -200,19 +203,37 @@
 #         from google.oauth2 import id_token as google_id_token
 #         from google.auth.transport import requests as google_requests
 
-#         client_id = getattr(django_settings, 'GOOGLE_CLIENT_ID', '')
+#         # ✅ Get client ID from settings with fallback
+#         client_id = getattr(settings, 'GOOGLE_CLIENT_ID', None)
+        
+#         # ✅ Log the client ID being used (for debugging)
+#         logger.warning(f"[GoogleAuth] Using Client ID: {client_id}")
+        
+#         if not client_id:
+#             return Response(
+#                 {'error': 'GOOGLE_CLIENT_ID not configured in settings'},
+#                 status=500,
+#             )
+        
+#         # ✅ Verify the token with the specific client ID
 #         id_info = google_id_token.verify_oauth2_token(
 #             id_token_str,
 #             google_requests.Request(),
 #             client_id,
 #         )
+        
+#         logger.warning(f"[GoogleAuth] Token verified successfully for: {id_info.get('email')}")
+        
 #     except ImportError:
 #         return Response(
 #             {'error': 'google-auth package not installed. Run: pip install google-auth'},
 #             status=500,
 #         )
 #     except ValueError as exc:
-#         return Response({'error': f'Invalid Google token: {exc}'}, status=401)
+#         # ✅ More detailed error logging
+#         error_msg = str(exc)
+#         logger.error(f"[GoogleAuth] Token validation error: {error_msg}")
+#         return Response({'error': f'Invalid Google token: {error_msg}'}, status=401)
 
 #     email = id_info.get('email', '').lower()
 #     first_name = id_info.get('given_name', '')
@@ -1864,9 +1885,6 @@
 #         return Response(list(plants))
 
 
-
-
-
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -1889,6 +1907,7 @@ from django.core.mail import EmailMessage
 from django.contrib.auth.tokens import default_token_generator
 from django.shortcuts import render
 from django.http import HttpResponse
+from django.conf import settings
 
 from .models import (
     Farmer, Plant, Diagnosis, Treatment,
@@ -1948,15 +1967,194 @@ def register_farmer(request):
 
 
 def send_activation_email(request, user):
-    current_site = get_current_site(request)
+    """
+    Send activation email with HTML button and correct domain
+    """
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
-    activation_link = f"http://{current_site.domain}/api/activate/{uid}/{token}/"
-    EmailMessage(
-        'Activate your FarmAid Lesotho Account',
-        f"Dumela {user.first_name},\n\nPlease click link to verify: {activation_link}",
+    
+    # Use the domain from settings (set on Render)
+    domain = getattr(settings, 'SITE_DOMAIN', 'farmaid-backend.onrender.com')
+    protocol = getattr(settings, 'SITE_PROTOCOL', 'https')
+    
+    activation_link = f"{protocol}://{domain}/api/activate/{uid}/{token}/"
+    
+    # HTML email with button
+    html_message = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>FarmAid Email Verification</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                background-color: #f4f4f4;
+                margin: 0;
+                padding: 0;
+            }}
+            .container {{
+                max-width: 600px;
+                margin: 20px auto;
+                background-color: #ffffff;
+                border-radius: 10px;
+                overflow: hidden;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }}
+            .header {{
+                background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+                color: white;
+                padding: 30px 20px;
+                text-align: center;
+            }}
+            .header h1 {{
+                margin: 0;
+                font-size: 28px;
+            }}
+            .content {{
+                padding: 30px;
+                background-color: #ffffff;
+            }}
+            .greeting {{
+                font-size: 18px;
+                margin-bottom: 20px;
+            }}
+            .message {{
+                margin-bottom: 20px;
+                color: #555;
+            }}
+            .button-container {{
+                text-align: center;
+                margin: 30px 0;
+            }}
+            .button {{
+                display: inline-block;
+                padding: 14px 32px;
+                background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+                color: white !important;
+                text-decoration: none;
+                border-radius: 50px;
+                font-weight: bold;
+                font-size: 16px;
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+                box-shadow: 0 4px 10px rgba(46,125,50,0.3);
+            }}
+            .button:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 6px 15px rgba(46,125,50,0.4);
+            }}
+            .button:active {{
+                transform: translateY(0);
+            }}
+            .link-text {{
+                text-align: center;
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 1px solid #eee;
+            }}
+            .link-text p {{
+                font-size: 12px;
+                color: #999;
+                word-break: break-all;
+            }}
+            .footer {{
+                background-color: #f8f9fa;
+                padding: 20px;
+                text-align: center;
+                font-size: 12px;
+                color: #777;
+                border-top: 1px solid #eee;
+            }}
+            .footer p {{
+                margin: 5px 0;
+            }}
+            .expiry-note {{
+                font-size: 12px;
+                color: #888;
+                text-align: center;
+                margin-top: 20px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🌱 FarmAid Lesotho</h1>
+                <p>Grow Smarter. Feed the Nation.</p>
+            </div>
+            
+            <div class="content">
+                <div class="greeting">
+                    <strong>Dumela {user.first_name or user.email}!</strong>
+                </div>
+                
+                <div class="message">
+                    <p>Thank you for registering with <strong>FarmAid Lesotho</strong>.</p>
+                    <p>Please verify your email address to activate your account and start using our services. You'll be able to:</p>
+                    <ul>
+                        <li>📸 Scan crops for disease detection</li>
+                        <li>📊 Track your farm analytics</li>
+                        <li>💬 Join the farming community</li>
+                        <li>📈 Get personalized recommendations</li>
+                    </ul>
+                </div>
+                
+                <div class="button-container">
+                    <a href="{activation_link}" class="button">✅ Verify Email Address</a>
+                </div>
+                
+                <div class="expiry-note">
+                    <p>⏰ This verification link will expire in <strong>24 hours</strong>.</p>
+                </div>
+                
+                <div class="link-text">
+                    <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                    <p><strong>{activation_link}</strong></p>
+                </div>
+                
+                <div class="message">
+                    <p>If you did not create an account with FarmAid, please ignore this email.</p>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>&copy; 2025 FarmAid Lesotho. All rights reserved.</p>
+                <p>🌍 Empowering Lesotho's farmers through technology</p>
+                <p>📧 Contact us: support@farmaid.co.ls</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Plain text fallback
+    plain_message = f"""
+Dumela {user.first_name or user.email}!
+
+Thank you for registering with FarmAid Lesotho.
+
+Please click the link below to verify your email address and activate your account:
+
+{activation_link}
+
+This verification link will expire in 24 hours.
+
+If you did not create an account with FarmAid, please ignore this email.
+
+Thank you for joining FarmAid Lesotho! 🌱
+
+---
+FarmAid Lesotho | Grow Smarter. Feed the Nation.
+"""
+    
+    email = EmailMessage(
+        'Activate Your FarmAid Account',
+        plain_message,
         to=[user.email],
-    ).send()
+    )
+    email.send()
 
 
 @api_view(['POST'])
@@ -1985,23 +2183,79 @@ def activate_account(request, uidb64, token):
         user.is_active = True
         user.save()
         return HttpResponse("""
+        <!DOCTYPE html>
         <html>
-        <head><title>Account Activated</title></head>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h1 style="color: green;">✅ Account Activated!</h1>
-            <p>Your FarmAid account has been successfully activated.</p>
-            <p>You can now close this window and log in to the app.</p>
-            <a href="#" onclick="window.close(); return false;" style="color: green;">Close Window</a>
+        <head>
+            <title>Account Activated - FarmAid Lesotho</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    padding: 50px;
+                    background: linear-gradient(135deg, #f4f4f4 0%, #e8f5e9 100%);
+                }
+                .container {
+                    max-width: 500px;
+                    margin: 0 auto;
+                    background: white;
+                    padding: 40px;
+                    border-radius: 20px;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                }
+                h1 { color: #2E7D32; }
+                .button {
+                    display: inline-block;
+                    padding: 12px 30px;
+                    background: #2E7D32;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 25px;
+                    margin-top: 20px;
+                }
+                .button:hover { background: #1B5E20; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>✅ Account Activated!</h1>
+                <p>Your FarmAid account has been successfully activated.</p>
+                <p>You can now close this window and log in to the app.</p>
+                <a href="#" onclick="window.close(); return false;" class="button">Close Window</a>
+                <p style="margin-top: 30px; font-size: 12px; color: #888;">FarmAid Lesotho | Grow Smarter. Feed the Nation.</p>
+            </div>
         </body>
         </html>
         """)
     return HttpResponse("""
+    <!DOCTYPE html>
     <html>
-    <head><title>Activation Failed</title></head>
-    <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-        <h1 style="color: red;">❌ Activation Failed</h1>
-        <p>The activation link is invalid or has expired.</p>
-        <p>Please request a new activation email from the FarmAid app.</p>
+    <head>
+        <title>Activation Failed - FarmAid Lesotho</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 50px;
+                background: linear-gradient(135deg, #f4f4f4 0%, #ffebee 100%);
+            }
+            .container {
+                max-width: 500px;
+                margin: 0 auto;
+                background: white;
+                padding: 40px;
+                border-radius: 20px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            }
+            h1 { color: #c62828; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>❌ Activation Failed</h1>
+            <p>The activation link is invalid or has expired.</p>
+            <p>Please request a new activation email from the FarmAid app.</p>
+            <p style="margin-top: 30px; font-size: 12px; color: #888;">FarmAid Lesotho | Grow Smarter. Feed the Nation.</p>
+        </div>
     </body>
     </html>
     """, status=400)
@@ -2072,10 +2326,8 @@ def google_auth(request):
         from google.oauth2 import id_token as google_id_token
         from google.auth.transport import requests as google_requests
 
-        # ✅ Get client ID from settings with fallback
         client_id = getattr(settings, 'GOOGLE_CLIENT_ID', None)
         
-        # ✅ Log the client ID being used (for debugging)
         logger.warning(f"[GoogleAuth] Using Client ID: {client_id}")
         
         if not client_id:
@@ -2084,7 +2336,6 @@ def google_auth(request):
                 status=500,
             )
         
-        # ✅ Verify the token with the specific client ID
         id_info = google_id_token.verify_oauth2_token(
             id_token_str,
             google_requests.Request(),
@@ -2099,7 +2350,6 @@ def google_auth(request):
             status=500,
         )
     except ValueError as exc:
-        # ✅ More detailed error logging
         error_msg = str(exc)
         logger.error(f"[GoogleAuth] Token validation error: {error_msg}")
         return Response({'error': f'Invalid Google token: {error_msg}'}, status=401)
@@ -3752,8 +4002,6 @@ class PlantListView(APIView):
         
         plants = Plant.objects.all().values('PlantID', 'CropType', 'DateCaptured', 'gps_district')
         return Response(list(plants))
-
-
 
 
 
