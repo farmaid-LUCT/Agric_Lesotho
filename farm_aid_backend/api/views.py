@@ -2795,14 +2795,9 @@ class AlertCountView(APIView):
 # ── 6. AI SCAN & SAVE ────────────────────────────────────────────────────────
 
 # Helper Q filter for healthy diagnoses (used across multiple views)
-HEALTHY_Q = (
-    Q(DiseaseName__iexact='healthy') |
-    Q(DiseaseName__iexact='Healthy') |
-    Q(DiseaseName__icontains='_healthy') |
-    Q(DiseaseName__icontains='_Healthy') |
-    Q(DiseaseName__icontains='healthy_') |
-    Q(DiseaseName__icontains='Healthy_')
-)
+# Matches any disease label containing 'healthy' (case-insensitive)
+# e.g. 'Healthy', 'Tomato healthy', 'Tomato___healthy', 'Pepper healthy'
+HEALTHY_Q = Q(DiseaseName__icontains='healthy')
 
 
 class SaveScanView(APIView):
@@ -3633,28 +3628,15 @@ class FarmerInsightView(APIView):
         total_scans = plants.count()
         diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
 
-        # ✅ FIX: Count healthy scans with comprehensive case-insensitive filter
-        healthy = diagnoses.filter(
-            Q(DiseaseName__iexact='healthy') |
-            Q(DiseaseName__iexact='Healthy') |
-            Q(DiseaseName__icontains='_healthy') |
-            Q(DiseaseName__icontains='_Healthy') |
-            Q(DiseaseName__icontains='healthy_') |
-            Q(DiseaseName__icontains='Healthy_')
-        ).count()
+        # ✅ FIX: Match any label containing 'healthy' (case-insensitive)
+        # Catches: 'Healthy', 'Tomato healthy', 'Tomato___healthy', 'Pepper healthy', etc.
+        healthy = diagnoses.filter(Q(DiseaseName__icontains='healthy')).count()
 
         total_diseases = total_scans - healthy
 
         # Get most common disease (excluding healthy ones)
         top = (diagnoses
-               .exclude(
-                   Q(DiseaseName__iexact='healthy') |
-                   Q(DiseaseName__iexact='Healthy') |
-                   Q(DiseaseName__icontains='_healthy') |
-                   Q(DiseaseName__icontains='_Healthy') |
-                   Q(DiseaseName__icontains='healthy_') |
-                   Q(DiseaseName__icontains='Healthy_')
-               )
+               .exclude(Q(DiseaseName__icontains='healthy'))
                .values('DiseaseName')
                .annotate(c=Count('DiseaseName'))
                .order_by('-c')
@@ -3970,15 +3952,9 @@ class FarmerInsightsTrendsView(APIView):
             # ============================================================
             total_scans = plants.count()
 
-            # ✅ FIX: Count healthy scans with comprehensive filter
-            healthy_q = (
-                Q(DiseaseName__iexact='healthy') |
-                Q(DiseaseName__iexact='Healthy') |
-                Q(DiseaseName__icontains='_healthy') |
-                Q(DiseaseName__icontains='_Healthy') |
-                Q(DiseaseName__icontains='healthy_') |
-                Q(DiseaseName__icontains='Healthy_')
-            )
+            # ✅ FIX: Match any label containing 'healthy' (case-insensitive)
+            # Catches: 'Healthy', 'Tomato healthy', 'Tomato___healthy', 'Pepper healthy', etc.
+            healthy_q = Q(DiseaseName__icontains='healthy')
 
             total_healthy = diagnoses.filter(healthy_q).count()
             total_diseases = total_scans - total_healthy
@@ -4325,4 +4301,5 @@ class PlantListView(APIView):
             'PlantID', 'CropType', 'DateCaptured', 'gps_district'
         )
         return Response(list(plants))
+
 
