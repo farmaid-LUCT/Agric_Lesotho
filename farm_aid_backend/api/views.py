@@ -629,14 +629,9 @@
 # # ── 6. AI SCAN & SAVE ────────────────────────────────────────────────────────
 
 # # Helper Q filter for healthy diagnoses (used across multiple views)
-# HEALTHY_Q = (
-#     Q(DiseaseName__iexact='healthy') |
-#     Q(DiseaseName__iexact='Healthy') |
-#     Q(DiseaseName__icontains='_healthy') |
-#     Q(DiseaseName__icontains='_Healthy') |
-#     Q(DiseaseName__icontains='healthy_') |
-#     Q(DiseaseName__icontains='Healthy_')
-# )
+# # Matches any disease label containing 'healthy' (case-insensitive)
+# # e.g. 'Healthy', 'Tomato healthy', 'Tomato___healthy', 'Pepper healthy'
+# HEALTHY_Q = Q(DiseaseName__icontains='healthy')
 
 
 # class SaveScanView(APIView):
@@ -1114,9 +1109,6 @@
 #                          or request.data.get('DiseaseName')
 #                          or 'Healthy')
 #             clean_label = raw_label.replace('___', ' ').replace('_', ' ').strip()
-#             # ✅ Normalize all healthy variants to a single canonical label
-#             if 'healthy' in clean_label.lower():
-#                 clean_label = 'Healthy'
 #             logger.warning(f"[SaveScan] 🦠 Disease: '{clean_label}'")
 
 #             image_url = (request.data.get('imageUrl')
@@ -1470,28 +1462,15 @@
 #         total_scans = plants.count()
 #         diagnoses = Diagnosis.objects.filter(PlantID__in=plants)
 
-#         # ✅ FIX: Count healthy scans with comprehensive case-insensitive filter
-#         healthy = diagnoses.filter(
-#             Q(DiseaseName__iexact='healthy') |
-#             Q(DiseaseName__iexact='Healthy') |
-#             Q(DiseaseName__icontains='_healthy') |
-#             Q(DiseaseName__icontains='_Healthy') |
-#             Q(DiseaseName__icontains='healthy_') |
-#             Q(DiseaseName__icontains='Healthy_')
-#         ).count()
+#         # ✅ FIX: Match any label containing 'healthy' (case-insensitive)
+#         # Catches: 'Healthy', 'Tomato healthy', 'Tomato___healthy', 'Pepper healthy', etc.
+#         healthy = diagnoses.filter(Q(DiseaseName__icontains='healthy')).count()
 
 #         total_diseases = total_scans - healthy
 
 #         # Get most common disease (excluding healthy ones)
 #         top = (diagnoses
-#                .exclude(
-#                    Q(DiseaseName__iexact='healthy') |
-#                    Q(DiseaseName__iexact='Healthy') |
-#                    Q(DiseaseName__icontains='_healthy') |
-#                    Q(DiseaseName__icontains='_Healthy') |
-#                    Q(DiseaseName__icontains='healthy_') |
-#                    Q(DiseaseName__icontains='Healthy_')
-#                )
+#                .exclude(Q(DiseaseName__icontains='healthy'))
 #                .values('DiseaseName')
 #                .annotate(c=Count('DiseaseName'))
 #                .order_by('-c')
@@ -1807,15 +1786,9 @@
 #             # ============================================================
 #             total_scans = plants.count()
 
-#             # ✅ FIX: Count healthy scans with comprehensive filter
-#             healthy_q = (
-#                 Q(DiseaseName__iexact='healthy') |
-#                 Q(DiseaseName__iexact='Healthy') |
-#                 Q(DiseaseName__icontains='_healthy') |
-#                 Q(DiseaseName__icontains='_Healthy') |
-#                 Q(DiseaseName__icontains='healthy_') |
-#                 Q(DiseaseName__icontains='Healthy_')
-#             )
+#             # ✅ FIX: Match any label containing 'healthy' (case-insensitive)
+#             # Catches: 'Healthy', 'Tomato healthy', 'Tomato___healthy', 'Pepper healthy', etc.
+#             healthy_q = Q(DiseaseName__icontains='healthy')
 
 #             total_healthy = diagnoses.filter(healthy_q).count()
 #             total_diseases = total_scans - total_healthy
@@ -3325,6 +3298,10 @@ class SaveScanView(APIView):
                     pk=profile_id, FarmerID=user
                 ).first()
 
+            # If no profile selected, try to get active one
+            if not target_profile:
+                target_profile = user.crop_profiles.filter(IsActive=True).first()
+
             crop_type = (target_profile.VegetableType
                          if target_profile
                          else request.data.get('cropType', 'Vegetable'))
@@ -3358,6 +3335,9 @@ class SaveScanView(APIView):
             tq = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
             treat = Treatment.objects.filter(tq).first()
             kb_entry = KnowledgeBase.objects.filter(tq).first()
+
+            # Get causes from KnowledgeBase
+            causes = kb_entry.Causes if kb_entry and kb_entry.Causes else None
 
             # Default values (English)
             res_pesticide = treat.RecommendedPesticide if treat else 'Consult local expert'
@@ -3403,6 +3383,11 @@ class SaveScanView(APIView):
                 if st_steps:
                     res_steps = st_steps
                     logger.warning("[SaveScan] ✅ Sesotho STEPS applied")
+
+                # Also translate causes if available
+                if causes:
+                    # You could add Sesotho translation for causes here if needed
+                    pass
 
             # ============================================================
             # PERSONALIZED MODE
@@ -3454,6 +3439,33 @@ class SaveScanView(APIView):
                         },
                     }
 
+                # ============================================================
+                # STORE THE PERSONALIZED RECOMMENDATION SNAPSHOT
+                # ============================================================
+                snapshot_data = {
+                    'advice_text': personalized_advice,
+                    'context': matched_context,
+                    'farmer_level': user.experience_level,
+                    'language': lang,
+                    'valid_until': (date.today() + timedelta(days=14)).isoformat(),
+                }
+                diagnosis.recommendation_snapshot = snapshot_data
+                diagnosis.save()
+                logger.warning("[SaveScan] ✅ Personalized recommendation snapshot saved to diagnosis")
+
+            # ============================================================
+            # UPDATE FARMER INSIGHTS
+            # ============================================================
+            insight, _ = FarmerInsight.objects.get_or_create(FarmerID=user)
+            insight.total_scans = Plant.objects.filter(FarmerID=user).count()
+            
+            # Update healthy/diseased counts
+            all_diagnoses = Diagnosis.objects.filter(PlantID__FarmerID=user)
+            insight.total_healthy_scans = all_diagnoses.filter(Q(DiseaseName__icontains='healthy')).count()
+            insight.total_diseases_detected = insight.total_scans - insight.total_healthy_scans
+            insight.last_scan_date = timezone.now()
+            insight.save()
+
             personalized_block = None
             if wants_personalized and target_profile:
                 personalized_block = {
@@ -3491,6 +3503,7 @@ class SaveScanView(APIView):
                 'personalized': personalized_block,
                 'results': {
                     'disease': res_disease,
+                    'causes': causes,
                     'pesticide': res_pesticide,
                     'dosage': res_dosage,
                     'steps': res_steps,
@@ -3554,13 +3567,32 @@ class FarmerReportsView(APIView):
                 treat = Treatment.objects.filter(
                     DiseaseName__iexact=diag.DiseaseName
                 ).first()
+                
+                # Get causes from KnowledgeBase
+                kb_entry = KnowledgeBase.objects.filter(
+                    DiseaseName__iexact=diag.DiseaseName
+                ).first()
+                causes = kb_entry.Causes if kb_entry and kb_entry.Causes else None
+                
+                # Get personalized advice from snapshot
+                personalized_advice = diag.recommendation_snapshot.get('advice_text') if diag.recommendation_snapshot else None
+                
                 report_data.append({
+                    'id': diag.DiagnosisID,
                     'FarmerID_id': request.user.id,
                     'ReportDate': p.DateCaptured.isoformat(),
                     'DiagnosisSummary': diag.DiseaseName.replace('_', ' ').upper(),
                     'TreatmentSummary': (treat.ApplicationSteps
                                          if treat else 'Isolate plant immediately.'),
                     'ImageURL': p.ImageFile,
+                    'crop_type': p.CropType,
+                    'severity': diag.severity,
+                    'follow_up_date': diag.follow_up_date.isoformat() if diag.follow_up_date else None,
+                    'treatment_outcome': diag.treatment_outcome,
+                    'treatment_applied': diag.treatment_applied,
+                    'farmer_feedback': diag.farmer_feedback,
+                    'causes': causes,
+                    'personalized_advice': personalized_advice,
                 })
         return Response(report_data)
 
@@ -4301,5 +4333,3 @@ class PlantListView(APIView):
             'PlantID', 'CropType', 'DateCaptured', 'gps_district'
         )
         return Response(list(plants))
-
-
