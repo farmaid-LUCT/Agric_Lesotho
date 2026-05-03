@@ -1,38 +1,54 @@
-# --- CORE BACKEND ---
+# ============================================================
+# CORE BACKEND
+# ============================================================
 Django==5.1.6
 gunicorn==23.0.0
 django-cors-headers==4.7.0
 asgiref==3.8.1
 sqlparse==0.5.3
 
-# --- UI & DASHBOARD ---
+# ============================================================
+# UI & DASHBOARD
+# ============================================================
 django-jazzmin==3.0.1
 
-# --- API & REST FRAMEWORK ---
+# ============================================================
+# API & REST FRAMEWORK
+# ============================================================
 djangorestframework==3.15.2
 
-# --- DATABASE (NEON & POSTGRES) ---
+# ============================================================
+# DATABASE (NEON & POSTGRES)
+# ============================================================
 dj-database-url==2.3.0
 psycopg2-binary==2.9.10
 psycopg==3.2.4
 python-dotenv==1.0.1
 
-# --- AI & IMAGE PROCESSING (OPTIMIZED FOR RENDER) ---
+# ============================================================
+# AI & IMAGE PROCESSING (OPTIMIZED FOR RENDER FREE TIER)
+# ============================================================
 tensorflow-cpu==2.15.0
 numpy==1.26.4
 pillow==10.4.0
 
-# --- STATIC FILES ---
+# ============================================================
+# STATIC FILES
+# ============================================================
 whitenoise==6.9.0
 
-# --- BACKGROUND TASKS (CELERY + REDIS) - OPTIONAL ---
+# ============================================================
+# BACKGROUND TASKS (CELERY + REDIS) - OPTIONAL
+# ============================================================
 celery==5.4.0
 django-celery-beat==2.7.0
 django-celery-results==2.5.1
 django-timezone-field==7.1
 redis==5.2.1
 
-# --- SOCIAL AUTH & GOOGLE LOGIN ---
+# ============================================================
+# SOCIAL AUTH & GOOGLE LOGIN
+# ============================================================
 django-allauth==65.3.0
 google-auth==2.38.0
 google-auth-httplib2==0.2.0
@@ -42,10 +58,14 @@ PyJWT==2.9.0
 cryptography==42.0.8
 oauthlib==3.2.2
 
-# --- SOLAR SCHEDULED EVENTS ---
+# ============================================================
+# SOLAR SCHEDULED EVENTS
+# ============================================================
 ephem==4.1.6
 
-# --- UTILITIES ---
+# ============================================================
+# UTILITIES
+# ============================================================
 requests==2.32.3
 urllib3==2.3.0
 certifi==2025.1.31
@@ -55,15 +75,16 @@ certifi==2025.1.31
 # ============================================================
 
 # Core Transformers - using compatible versions
-transformers==4.36.0
-tokenizers==0.14.1
+transformers==4.30.2
+tokenizers==0.13.3
 sentencepiece==0.1.99
 protobuf==3.20.3
+huggingface-hub==0.16.4
 
 # PyTorch CPU-only version (using --index-url for CPU-only wheels)
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.1.0
-torchvision==0.16.0
+torch==2.0.1
+torchvision==0.15.2
 
 # Memory-efficient inference
 accelerate==0.24.1
