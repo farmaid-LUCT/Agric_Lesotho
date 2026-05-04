@@ -1,4 +1,17 @@
 <!-- api/templates/admin/index.html -->
-<script>
-    window.location.href = "/api/admin/dashboard/";
-</script>
+{% load i18n static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=/api/admin/dashboard/">
+    <title>Redirecting to FarmAid Dashboard...</title>
+    <script>
+        window.location.href = "/api/admin/dashboard/";
+    </script>
+</head>
+<body>
+    <p>Redirecting to <a href="/api/admin/dashboard/">FarmAid Dashboard</a>...</p>
+</body>
+</html>
