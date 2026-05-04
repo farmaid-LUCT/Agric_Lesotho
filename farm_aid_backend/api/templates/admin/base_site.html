@@ -1,0 +1,18 @@
+{% extends "admin/base.html" %}
+
+{% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}">
+    🌱 FarmAid Management
+  </a>
+</h1>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  #header { background: #2e7d32; }
+  #branding h1 a { color: white; }
+  .module h2 { background: #388e3c; }
+</style>
+{% endblock %}
