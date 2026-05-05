@@ -165,14 +165,9 @@ from .views import (
     PlantListView,
 )
 
-# Import the admin dashboard view
-from .admin_views import admin_dashboard
-
+# ❌ REMOVED: from .admin_views import admin_dashboard  ← this was the broken line
 
 urlpatterns = [
-
-    # ── 0. ADMIN DASHBOARD ─────────────────────────────────────────────────
-    path('admin/dashboard/',                 admin_dashboard,                name='admin-dashboard'),
 
     # ── 1. AUTHENTICATION ──────────────────────────────────────────────────
     path('register/',                        register_farmer,         name='register'),
@@ -233,13 +228,13 @@ urlpatterns = [
     path('community/posts/<int:post_id>/comments/add/', add_community_comment, name='add_community_comment'),
     path('community/profile/',               get_community_profile,      name='community_profile'),
 
-    # ── 14. INSIGHTS & TRENDS ───────────────────────────────────────────────
+    # ── 14. INSIGHTS & TRENDS ──────────────────────────────────────────────
     path('insights-trends/',                 FarmerInsightsTrendsView.as_view(), name='insights-trends'),
 
-    # ── 15. ADMIN DATA VIEWS ────────────────────────────────────────────────
-    path('admin/farmers/',                   FarmerListView.as_view(),       name='admin-farmers'),
-    path('admin/treatments/',                TreatmentListView.as_view(),    name='admin-treatments'),
+    # ── 15. ADMIN DATA VIEWS ───────────────────────────────────────────────
+    path('admin/farmers/',                   FarmerListView.as_view(),        name='admin-farmers'),
+    path('admin/treatments/',                TreatmentListView.as_view(),     name='admin-treatments'),
     path('admin/knowledgebase/',             KnowledgeBaseListView.as_view(), name='admin-knowledgebase'),
-    path('admin/diagnoses/',                 DiagnosisListView.as_view(),    name='admin-diagnoses'),
-    path('admin/plants/',                    PlantListView.as_view(),        name='admin-plants'),
+    path('admin/diagnoses/',                 DiagnosisListView.as_view(),     name='admin-diagnoses'),
+    path('admin/plants/',                    PlantListView.as_view(),         name='admin-plants'),
 ]
