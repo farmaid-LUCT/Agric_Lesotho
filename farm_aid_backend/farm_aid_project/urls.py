@@ -21,7 +21,6 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-
 from api.dashboard_views import (
     dashboard_stats,
     recent_diagnoses,
