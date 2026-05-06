@@ -397,7 +397,6 @@
 # LOGIN_REDIRECT_URL = '/admin/'
 
 
-
 import dj_database_url
 import os
 from pathlib import Path
@@ -466,7 +465,7 @@ ROOT_URLCONF = 'farm_aid_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'api', 'templates')],  # ← changed
+        'DIRS': [os.path.join(BASE_DIR, 'api', 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -669,6 +668,7 @@ JAZZMIN_SETTINGS = {
     "welcome_sign": "FarmAid Management System",
     "copyright":    "FarmAid Lesotho",
 
+    # ── FIXED: removed "model": "admin.LogEntry" which caused the 500 ──
     "topmenu_links": [
         {
             "name":        "Home",
@@ -676,8 +676,9 @@ JAZZMIN_SETTINGS = {
             "permissions": ["auth.view_user"],
         },
         {
-            "name":  "Activity Log",
-            "model": "admin.LogEntry",
+            "name": "Activity Log",
+            "url":  "/admin/admin/logentry/",
+            "icon": "fas fa-history",
         },
         {
             "name": "Sign Out",
