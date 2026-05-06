@@ -199,7 +199,6 @@
 #     def irrigation_badge(self, obj):
 #         try:
 #             icons = {'rain': '🌧️', 'drip': '💧', 'flood': '🌊', 'sprinkler': '💦'}
-#             icon = icons.get(obj.irrigation_method, '💧')
 #             return format_html('<span>{}</span>', obj.get_irrigation_method_display() if obj.irrigation_method else '—')
 #         except Exception:
 #             return 'Error'
@@ -264,12 +263,29 @@
 #     farmer_link.short_description = 'Farmer'
 
 #     def location_preview(self, obj):
+#         """Display GPS coordinates with proper handling of None and zero values"""
 #         try:
-#             if obj.latitude and obj.longitude:
-#                 return format_html('<span style="font-family: monospace;">{:.4f}, {:.4f}</span>', obj.latitude, obj.longitude)
-#         except Exception:
-#             return 'Error'
-#         return '—'
+#             lat = obj.latitude
+#             lng = obj.longitude
+            
+#             # Check if values exist (not None)
+#             if lat is not None and lng is not None:
+#                 # Convert to float if needed (they should already be floats)
+#                 try:
+#                     lat_val = float(lat)
+#                     lng_val = float(lng)
+#                     return format_html(
+#                         '<span style="font-family: monospace;">{:.6f}, {:.6f}</span>', 
+#                         lat_val, lng_val
+#                     )
+#                 except (TypeError, ValueError):
+#                     return format_html('<span style="color: #dc3545;">Invalid format</span>')
+#             else:
+#                 return format_html('<span style="color: #6c757d;">—</span>')
+#         except Exception as e:
+#             # Log the actual error for debugging
+#             print(f"GPS Error for Plant {getattr(obj, 'PlantID', 'unknown')}: {e}")
+#             return format_html('<span style="color: #dc3545;">Error</span>')
 #     location_preview.short_description = 'GPS Coordinates'
 
 
@@ -440,7 +456,6 @@
 
 #     def alert_type_badge(self, obj):
 #         try:
-#             icons = {'weather': '☁️', 'disease': '🦠', 'market': '💰', 'reminder': '⏰', 'system': '⚙️'}
 #             return format_html('<span>{}</span>', obj.get_alert_type_display())
 #         except Exception:
 #             return 'Error'
@@ -728,7 +743,6 @@
 
 
 
-
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
@@ -929,7 +943,6 @@ class CropProfileAdmin(BaseAdmin):
 
     def irrigation_badge(self, obj):
         try:
-            icons = {'rain': '🌧️', 'drip': '💧', 'flood': '🌊', 'sprinkler': '💦'}
             return format_html('<span>{}</span>', obj.get_irrigation_method_display() if obj.irrigation_method else '—')
         except Exception:
             return 'Error'
@@ -994,23 +1007,49 @@ class PlantAdmin(BaseAdmin):
     farmer_link.short_description = 'Farmer'
 
     def location_preview(self, obj):
-        """Display GPS coordinates with proper handling of None and zero values"""
+        """Display GPS coordinates with robust validation and error handling"""
         try:
             lat = obj.latitude
             lng = obj.longitude
             
-            # Check if values exist (not None)
+            # Check if values exist
             if lat is not None and lng is not None:
-                # Convert to float if needed (they should already be floats)
                 try:
+                    # Convert to float (handles both numbers and numeric strings)
                     lat_val = float(lat)
                     lng_val = float(lng)
+                    
+                    # Validate latitude range (-90 to 90)
+                    if lat_val < -90 or lat_val > 90:
+                        return format_html(
+                            '<span style="color: #fd7e14;">⚠️ Lat {:.1f}° (invalid)</span>', 
+                            lat_val
+                        )
+                    
+                    # Validate longitude range (-180 to 180)
+                    if lng_val < -180 or lng_val > 180:
+                        return format_html(
+                            '<span style="color: #fd7e14;">⚠️ Lng {:.1f}° (invalid)</span>', 
+                            lng_val
+                        )
+                    
+                    # Check for suspicious values (likely altitude stored in lat field)
+                    if abs(lat_val) > 90 and lat_val > 500:
+                        return format_html(
+                            '<span style="color: #fd7e14;">⚠️ Lat looks like altitude ({:.0f}m)</span>', 
+                            lat_val
+                        )
+                    
+                    # Valid coordinates
                     return format_html(
-                        '<span style="font-family: monospace;">{:.6f}, {:.6f}</span>', 
+                        '<span style="font-family: monospace; color: #28a745;">✓ {:.6f}, {:.6f}</span>', 
                         lat_val, lng_val
                     )
-                except (TypeError, ValueError):
-                    return format_html('<span style="color: #dc3545;">Invalid format</span>')
+                except (TypeError, ValueError) as e:
+                    return format_html(
+                        '<span style="color: #dc3545;">Invalid format ({})</span>', 
+                        str(lat) if lat else 'null'
+                    )
             else:
                 return format_html('<span style="color: #6c757d;">—</span>')
         except Exception as e:
