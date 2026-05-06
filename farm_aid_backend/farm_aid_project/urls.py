@@ -18,6 +18,7 @@
 #     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
 # farm_aid_project/urls.py
+from django.contrib import admin  # Use default admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
@@ -27,17 +28,24 @@ from api.dashboard_views import (
     disease_breakdown,
     recent_activity,
 )
-from api.admin import admin_site  # Import custom admin site
 
 urlpatterns = [
-    # ── Dashboard API endpoints (must be BEFORE admin/)
+    # Dashboard API endpoints
     path('admin/dashboard-stats/',   dashboard_stats,   name='dashboard_stats'),
     path('admin/recent-diagnoses/',  recent_diagnoses,  name='recent_diagnoses'),
     path('admin/disease-breakdown/', disease_breakdown, name='disease_breakdown'),
     path('admin/recent-activity/',   recent_activity,   name='recent_activity'),
 
-    # ── Admin Panel (Custom admin site)
-    path('admin/', admin_site.urls),  # Use custom admin instead of default
+    # Admin Panel (using default admin)
+    path('admin/', admin.site.urls),  # ← Use default admin
+
+    # API Routes
+    path('api/', include('api.urls')),
+]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
     # ── API Routes
     path('api/', include('api.urls')),
