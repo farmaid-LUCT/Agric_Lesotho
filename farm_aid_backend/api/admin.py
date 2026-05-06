@@ -594,8 +594,6 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils import timezone
-from django.shortcuts import render
-from django.urls import path
 from .models import (
     Farmer, KnowledgeBase, AIModel, Diagnosis,
     Treatment, TranslationCache,
@@ -610,65 +608,38 @@ from allauth.socialaccount.models import SocialAccount, SocialToken, SocialApp
 
 
 # ============================================================
-# --- CUSTOM ADMIN SITE WITH DASHBOARD ---
+# --- CUSTOM ADMIN SITE CONFIGURATION (Default Admin) ---
 # ============================================================
 
-class FarmAidAdminSite(admin.AdminSite):
-    """Custom admin site with custom dashboard template"""
-    site_header = "🌱 FarmAid Management System"
-    site_title = "FarmAid Admin Portal"
-    index_title = "Dashboard | FarmAid Agriculture Management"
-    site_url = "/"
-    
-    def get_urls(self):
-        urls = super().get_urls()
-        # Add custom URL for the dashboard (must come first)
-        custom_urls = [
-            path('', self.admin_view(self.dashboard), name='index'),
-        ]
-        return custom_urls + urls
-    
-    def dashboard(self, request):
-        """Render custom dashboard template"""
-        context = {
-            'title': 'Dashboard',
-            'site_header': self.site_header,
-            'site_title': self.site_title,
-            **self.each_context(request),
-        }
-        return render(request, 'admin/custom_dashboard.html', context)
-    
-    def index(self, request, extra_context=None):
-        """Override index to use custom dashboard"""
-        return self.dashboard(request)
-
-
-# Create the custom admin site instance
-admin_site = FarmAidAdminSite(name='farmaid_admin')
+# Customize the default admin site header and title
+admin.site.site_header = "🌱 FarmAid Management System"
+admin.site.site_title = "FarmAid Admin Portal"
+admin.site.index_title = "Dashboard | FarmAid Agriculture Management"
+admin.site.site_url = "/"
 
 # Unregister to prevent duplicates
 try:
-    admin_site.unregister(Group)
+    admin.site.unregister(Group)
 except (admin.sites.NotRegistered, Exception):
     pass
 
 try:
-    admin_site.unregister(EmailAddress)
+    admin.site.unregister(EmailAddress)
 except (admin.sites.NotRegistered, Exception):
     pass
 
 try:
-    admin_site.unregister(SocialAccount)
+    admin.site.unregister(SocialAccount)
 except (admin.sites.NotRegistered, Exception):
     pass
 
 try:
-    admin_site.unregister(SocialToken)
+    admin.site.unregister(SocialToken)
 except (admin.sites.NotRegistered, Exception):
     pass
 
 try:
-    admin_site.unregister(SocialApp)
+    admin.site.unregister(SocialApp)
 except (admin.sites.NotRegistered, Exception):
     pass
 
@@ -686,7 +657,7 @@ class BaseAdmin(admin.ModelAdmin):
 # ============================================================
 # --- 1. FARMER (Enhanced Admin) ---
 # ============================================================
-@admin.register(Farmer, site=admin_site)
+@admin.register(Farmer)
 class FarmerAdmin(UserAdmin):
     list_display = (
         'username', 'get_full_name', 'email', 'phone_number', 'district',
@@ -735,7 +706,7 @@ class FarmerAdmin(UserAdmin):
 # ============================================================
 # --- 2. CROP PROFILE ---
 # ============================================================
-@admin.register(CropProfile, site=admin_site)
+@admin.register(CropProfile)
 class CropProfileAdmin(BaseAdmin):
     list_display = (
         'ProfileID', 'farmer_link', 'VegetableType', 'SoilEnvironment', 'irrigation_method',
@@ -756,7 +727,7 @@ class CropProfileAdmin(BaseAdmin):
 # ============================================================
 # --- 3. PLANT ---
 # ============================================================
-@admin.register(Plant, site=admin_site)
+@admin.register(Plant)
 class PlantAdmin(BaseAdmin):
     list_display = (
         'PlantID', 'farmer_link', 'CropType', 'gps_district',
@@ -783,7 +754,7 @@ class PlantAdmin(BaseAdmin):
 # ============================================================
 # --- 4. DIAGNOSIS ---
 # ============================================================
-@admin.register(Diagnosis, site=admin_site)
+@admin.register(Diagnosis)
 class DiagnosisAdmin(BaseAdmin):
     list_display = (
         'DiagnosisID', 'farmer_link', 'disease_badge', 'confidence_display',
@@ -828,7 +799,7 @@ class DiagnosisAdmin(BaseAdmin):
 # ============================================================
 # --- 5. TREATMENT ---
 # ============================================================
-@admin.register(Treatment, site=admin_site)
+@admin.register(Treatment)
 class TreatmentAdmin(BaseAdmin):
     list_display = ('TreatmentID', 'DiseaseName', 'RecommendedPesticide', 'Dosage', 'dosage_per_hectare_g')
     search_fields = ('DiseaseName', 'RecommendedPesticide')
@@ -837,7 +808,7 @@ class TreatmentAdmin(BaseAdmin):
 # ============================================================
 # --- 6. APP ALERT ---
 # ============================================================
-@admin.register(AppAlert, site=admin_site)
+@admin.register(AppAlert)
 class AppAlertAdmin(BaseAdmin):
     list_display = (
         'AlertID', 'farmer_link', 'alert_type', 'priority',
@@ -860,7 +831,7 @@ class AppAlertAdmin(BaseAdmin):
 # ============================================================
 # --- 7. WEATHER DATA ---
 # ============================================================
-@admin.register(WeatherData, site=admin_site)
+@admin.register(WeatherData)
 class WeatherDataAdmin(BaseAdmin):
     list_display = ('WeatherID', 'district', 'Temperature', 'Humidity', 'Rainfall', 'DateUpdated')
     list_filter = ('district',)
@@ -870,7 +841,7 @@ class WeatherDataAdmin(BaseAdmin):
 # ============================================================
 # --- 8. KNOWLEDGE BASE ---
 # ============================================================
-@admin.register(KnowledgeBase, site=admin_site)
+@admin.register(KnowledgeBase)
 class KnowledgeBaseAdmin(BaseAdmin):
     list_display = ('DiseaseName', 'has_causes', 'LastUpdated')
     search_fields = ('DiseaseName',)
@@ -885,7 +856,7 @@ class KnowledgeBaseAdmin(BaseAdmin):
 # ============================================================
 # --- 9. AI MODEL ---
 # ============================================================
-@admin.register(AIModel, site=admin_site)
+@admin.register(AIModel)
 class AIModelAdmin(BaseAdmin):
     list_display = ('ModelID', 'Version', 'accuracy_display', 'LastTrainedDate')
     
@@ -899,7 +870,7 @@ class AIModelAdmin(BaseAdmin):
 # ============================================================
 # --- 10. TRANSLATION CACHE ---
 # ============================================================
-@admin.register(TranslationCache, site=admin_site)
+@admin.register(TranslationCache)
 class TranslationCacheAdmin(BaseAdmin):
     list_display = ('disease_name_en', 'pesticide_st', 'dosage_st', 'last_updated')
     search_fields = ('disease_name_en',)
@@ -908,7 +879,7 @@ class TranslationCacheAdmin(BaseAdmin):
 # ============================================================
 # --- 11. FARMER INSIGHT ---
 # ============================================================
-@admin.register(FarmerInsight, site=admin_site)
+@admin.register(FarmerInsight)
 class FarmerInsightAdmin(BaseAdmin):
     list_display = (
         'farmer_link', 'total_scans', 'total_diseases_detected', 'total_healthy_scans',
@@ -932,7 +903,7 @@ class FarmerInsightAdmin(BaseAdmin):
 # ============================================================
 # --- 12. GROWTH JOURNAL ---
 # ============================================================
-@admin.register(GrowthJournalEntry, site=admin_site)
+@admin.register(GrowthJournalEntry)
 class GrowthJournalEntryAdmin(BaseAdmin):
     list_display = (
         'EntryID', 'farmer_link', 'crop_link', 'title', 'mood', 'entry_date'
