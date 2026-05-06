@@ -959,13 +959,17 @@ class FarmerAdmin(UserAdmin, BaseAdmin):
 @admin.register(Plant, site=admin_site)
 class PlantAdmin(ReadOnlyAdmin):
     list_display = (
-        'id', 'farmer_name', 'crop_type', 'district',
+        'plant_id', 'farmer_name', 'crop_type', 'district',
         'gps_coordinates', 'captured_date'
     )
     list_filter = ('CropType', 'gps_district')
     search_fields = ('CropType', 'FarmerID__username', 'gps_district')
     list_select_related = ('FarmerID', 'CropProfile')
     list_per_page = 25
+
+    def plant_id(self, obj):
+        return obj.PlantID
+    plant_id.short_description = 'ID'
 
     def farmer_name(self, obj):
         if obj.FarmerID:
@@ -1009,13 +1013,17 @@ class PlantAdmin(ReadOnlyAdmin):
 @admin.register(Diagnosis, site=admin_site)
 class DiagnosisAdmin(ReadOnlyAdmin):
     list_display = (
-        'id', 'farmer_name', 'disease_name', 'confidence',
+        'diagnosis_id', 'farmer_name', 'disease_name', 'confidence',
         'severity_level', 'diagnosis_date'
     )
     list_filter = ('DiseaseName', 'severity')
     search_fields = ('DiseaseName', 'PlantID__FarmerID__username')
     list_select_related = ('PlantID__FarmerID',)
     list_per_page = 25
+
+    def diagnosis_id(self, obj):
+        return obj.DiagnosisID
+    diagnosis_id.short_description = 'ID'
 
     def farmer_name(self, obj):
         if obj.PlantID and obj.PlantID.FarmerID:
@@ -1073,12 +1081,16 @@ class DiagnosisAdmin(ReadOnlyAdmin):
 @admin.register(WeatherData, site=admin_site)
 class WeatherDataAdmin(ReadOnlyAdmin):
     list_display = (
-        'id', 'district_name', 'temperature', 'humidity',
+        'weather_id', 'district_name', 'temperature', 'humidity',
         'rainfall', 'alert', 'record_date'
     )
     list_filter = ('district',)
     search_fields = ('district',)
     list_per_page = 25
+
+    def weather_id(self, obj):
+        return obj.WeatherID
+    weather_id.short_description = 'ID'
 
     def district_name(self, obj):
         return obj.district or '—'
@@ -1127,9 +1139,13 @@ class WeatherDataAdmin(ReadOnlyAdmin):
 
 @admin.register(Treatment, site=admin_site)
 class TreatmentAdmin(BaseAdmin):
-    list_display = ('id', 'disease', 'pesticide', 'dosage')
+    list_display = ('treatment_id', 'disease', 'pesticide', 'dosage')
     search_fields = ('DiseaseName', 'RecommendedPesticide')
     list_per_page = 25
+
+    def treatment_id(self, obj):
+        return obj.TreatmentID
+    treatment_id.short_description = 'ID'
 
     def disease(self, obj):
         return obj.DiseaseName or '—'
@@ -1189,8 +1205,16 @@ class KnowledgeBaseAdmin(BaseAdmin):
 
 @admin.register(AIModel, site=admin_site)
 class AIModelAdmin(BaseAdmin):
-    list_display = ('id', 'version', 'accuracy', 'trained_date')
+    list_display = ('model_id', 'version', 'accuracy', 'trained_date')
     list_per_page = 25
+
+    def model_id(self, obj):
+        return obj.ModelID
+    model_id.short_description = 'ID'
+
+    def version(self, obj):
+        return obj.Version
+    version.short_description = 'Version'
 
     def accuracy(self, obj):
         pct = obj.AccuracyRate * 100
