@@ -773,6 +773,8 @@ from django.utils.html import format_html
 from django.urls import reverse
 from django.utils import timezone
 from django.contrib.admin import SimpleListFilter
+from django.shortcuts import render
+from django.urls import path
 from .models import (
     Farmer, KnowledgeBase, AIModel, Diagnosis,
     Treatment, TranslationCache,
@@ -780,61 +782,65 @@ from .models import (
     FarmerInsight, GrowthJournalEntry,
 )
 
-# Unregister default models that might cause duplicates
+# Unregister default models
 from django.contrib.auth.models import Group
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount, SocialToken, SocialApp
 
-# Custom admin site header and title
-admin.site.site_header = "🌱 FarmAid Management System"
+# Custom admin site header
+admin.site.site_header = "FarmAid Management System"
 admin.site.site_title = "FarmAid Admin Portal"
-admin.site.index_title = "Dashboard | FarmAid Agriculture Management"
+admin.site.index_title = "Administration Dashboard"
 admin.site.site_url = "/"
-
-# Unregister to prevent duplicates
-try:
-    admin.site.unregister(Group)
-except admin.sites.NotRegistered:
-    pass
-
-try:
-    admin.site.unregister(EmailAddress)
-except admin.sites.NotRegistered:
-    pass
-
-try:
-    admin.site.unregister(SocialAccount)
-except admin.sites.NotRegistered:
-    pass
-
-try:
-    admin.site.unregister(SocialToken)
-except admin.sites.NotRegistered:
-    pass
-
-try:
-    admin.site.unregister(SocialApp)
-except admin.sites.NotRegistered:
-    pass
 
 
 # ============================================================
-# --- CUSTOM ADMIN CLASSES WITH STYLING ---
+# --- CUSTOM ADMIN SITE WITH STYLED DASHBOARD ---
+# ============================================================
+
+class FarmAidAdminSite(admin.AdminSite):
+    """Custom admin site with professional dashboard"""
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('', self.admin_view(self.dashboard), name='index'),
+        ]
+        return custom_urls + urls
+    
+    def dashboard(self, request):
+        """Render professional dashboard"""
+        context = {
+            'title': 'Dashboard',
+            'site_header': self.site_header,
+            'site_title': self.site_title,
+            **self.each_context(request),
+        }
+        return render(request, 'admin/dashboard.html', context)
+    
+    def index(self, request, extra_context=None):
+        return self.dashboard(request)
+
+
+# Replace default admin site
+admin_site = FarmAidAdminSite(name='farmaid_admin')
+
+
+# ============================================================
+# --- HELPER CLASSES ---
 # ============================================================
 
 class BaseAdmin(admin.ModelAdmin):
-    """Base admin class with common styling"""
+    """Base admin with professional styling"""
     save_on_top = True
     list_per_page = 25
-    
-    def get_readonly_fields(self, request, obj=None):
-        if obj:
-            return self.readonly_fields + ('created_at', 'updated_at') if hasattr(self, 'readonly_fields') else ()
-        return self.readonly_fields
+    actions_on_top = True
+    actions_on_bottom = True
+    show_full_result_count = True
 
 
 class ReadOnlyAdmin(BaseAdmin):
-    """Admin class that prevents adding, editing, or deleting"""
+    """Read-only admin (view only)"""
     def has_add_permission(self, request):
         return False
     
@@ -848,26 +854,18 @@ class ReadOnlyAdmin(BaseAdmin):
         return True
 
 
-class InteractiveAdmin(BaseAdmin):
-    """Admin with interactive features and inline editing"""
-    list_editable = ()
-    actions_on_top = True
-    actions_on_bottom = True
-    show_full_result_count = True
-
-
 # ============================================================
 # --- CUSTOM FILTERS ---
 # ============================================================
 
-class ActiveFilter(SimpleListFilter):
-    title = 'Status'
+class StatusFilter(SimpleListFilter):
+    title = 'Account Status'
     parameter_name = 'is_active'
     
     def lookups(self, request, model_admin):
         return (
-            ('active', '✓ Active'),
-            ('inactive', '✗ Inactive'),
+            ('active', 'Active'),
+            ('inactive', 'Inactive'),
         )
     
     def queryset(self, request, queryset):
@@ -879,42 +877,41 @@ class ActiveFilter(SimpleListFilter):
 
 
 # ============================================================
-# --- SECTION 1: USER MANAGEMENT 👥 ---
+# --- SECTION 1: USER MANAGEMENT ---
 # ============================================================
 
-@admin.register(Farmer)
-class FarmerAdmin(InteractiveAdmin, UserAdmin):
+@admin.register(Farmer, site=admin_site)
+class FarmerAdmin(UserAdmin, BaseAdmin):
     list_display = (
-        'username', 'display_name', 'email', 'display_phone', 'district',
-        'display_experience', 'status_badge', 'last_active_badge'
+        'username', 'full_name', 'email', 'phone_number', 'district',
+        'experience_level', 'account_status', 'last_activity'
     )
     search_fields = ('username', 'email', 'first_name', 'last_name', 'district', 'phone_number')
-    list_filter = ('district', 'experience_level', 'is_active', 'is_staff', ActiveFilter)
+    list_filter = ('district', 'experience_level', 'is_active', 'is_staff', StatusFilter)
     list_per_page = 25
-    list_editable = ()
     
     fieldsets = UserAdmin.fieldsets + (
-        ('🌾 FarmAid — Farmer Profile', {
-            'classes': ('wide', 'collapse'),
+        ('Farmer Profile', {
+            'classes': ('wide',),
             'fields': (
                 'phone_number', 'district', 'language_preferences',
                 'profile_photo_url', 'farm_size_hectares', 'experience_level',
             ),
         }),
-        ('🔔 Notification Preferences', {
-            'classes': ('wide', 'collapse'),
+        ('Notification Preferences', {
+            'classes': ('collapse',),
             'fields': (
                 'notification_diseases', 'notification_weather', 'notification_market',
             ),
         }),
-        ('📱 App Status', {
-            'classes': ('wide', 'collapse'),
+        ('Application Status', {
+            'classes': ('collapse',),
             'fields': ('onboarding_complete', 'last_active'),
         }),
     )
 
     add_fieldsets = UserAdmin.add_fieldsets + (
-        ('🌾 FarmAid — Farmer Profile', {
+        ('Farmer Profile', {
             'fields': (
                 'email', 'phone_number', 'district',
                 'language_preferences', 'experience_level',
@@ -922,477 +919,350 @@ class FarmerAdmin(InteractiveAdmin, UserAdmin):
         }),
     )
 
-    def display_name(self, obj):
-        try:
-            full_name = f"{obj.first_name} {obj.last_name}".strip()
-            if full_name:
-                return format_html('<span style="font-weight: 600; color: #2d6a4f;">{}</span>', full_name)
-        except Exception:
-            return '—'
+    def full_name(self, obj):
+        name = f"{obj.first_name} {obj.last_name}".strip()
+        return name or '—'
+    full_name.short_description = 'Full Name'
+    full_name.admin_order_field = 'first_name'
+
+    def account_status(self, obj):
+        if obj.is_active:
+            return format_html(
+                '<span class="status-active" style="display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: #e8f5e9; color: #2e7d32;">Active</span>'
+            )
+        return format_html(
+            '<span class="status-inactive" style="display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: #ffebee; color: #c62828;">Inactive</span>'
+        )
+    account_status.short_description = 'Status'
+
+    def last_activity(self, obj):
+        if obj.last_active:
+            days = (timezone.now() - obj.last_active).days
+            if days <= 1:
+                return format_html('<span style="color: #2e7d32;">Recent</span>')
+            elif days <= 7:
+                return format_html('<span style="color: #ed6c02;">{} days ago</span>', days)
+            return format_html('<span style="color: #6c757d;">{} days ago</span>', days)
         return '—'
-    display_name.short_description = 'Full Name'
-    display_name.admin_order_field = 'first_name'
-
-    def display_phone(self, obj):
-        try:
-            if obj.phone_number:
-                return format_html('<code style="background: #f0f2f0; padding: 2px 6px; border-radius: 6px;">{}</code>', obj.phone_number)
-        except Exception:
-            return '—'
-        return '—'
-    display_phone.short_description = 'Phone'
-
-    def display_experience(self, obj):
-        try:
-            colors = {'beginner': '#6c757d', 'intermediate': '#fd7e14', 'expert': '#28a745'}
-            color = colors.get(obj.experience_level, '#6c757d')
-            icons = {'beginner': '🌱', 'intermediate': '🌿', 'expert': '🌾'}
-            icon = icons.get(obj.experience_level, '🌱')
-            return format_html('<span style="color: {}; font-weight: 500;">{} {}</span>', color, icon, obj.get_experience_level_display())
-        except Exception:
-            return '—'
-    display_experience.short_description = 'Experience'
-
-    def status_badge(self, obj):
-        try:
-            if obj.is_active:
-                return format_html('<span style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">✓ Active</span>')
-        except Exception:
-            return '—'
-        return format_html('<span style="background: #dc3545; color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">✗ Inactive</span>')
-    status_badge.short_description = 'Status'
-
-    def last_active_badge(self, obj):
-        try:
-            if obj.last_active:
-                days_ago = (timezone.now() - obj.last_active).days
-                if days_ago <= 1:
-                    return format_html('<span style="color: #28a745;">🟢 Recently active</span>')
-                elif days_ago <= 7:
-                    return format_html('<span style="color: #fd7e14;">🟡 {} days ago</span>', days_ago)
-                else:
-                    return format_html('<span style="color: #6c757d;">⚪ {} days ago</span>', days_ago)
-        except Exception:
-            return '—'
-        return '—'
-    last_active_badge.short_description = 'Last Active'
+    last_activity.short_description = 'Last Active'
+    
+    class Media:
+        css = {
+            'all': ('admin/css/custom-hover.css',)
+        }
 
 
 # ============================================================
-# --- SECTION 2: CROP MANAGEMENT 🌾 ---
+# --- SECTION 2: PLANT MANAGEMENT (READ ONLY) ---
 # ============================================================
 
-@admin.register(Plant)
-class PlantAdmin(InteractiveAdmin):
+@admin.register(Plant, site=admin_site)
+class PlantAdmin(ReadOnlyAdmin):
     list_display = (
-        'PlantID', 'farmer_link', 'crop_type_badge', 'gps_district',
-        'location_preview', 'date_captured_badge'
+        'id', 'farmer_name', 'crop_type', 'district',
+        'gps_coordinates', 'captured_date'
     )
     list_filter = ('CropType', 'gps_district')
     search_fields = ('CropType', 'FarmerID__username', 'gps_district')
     list_select_related = ('FarmerID', 'CropProfile')
     list_per_page = 25
 
-    def farmer_link(self, obj):
-        try:
-            if obj.FarmerID:
-                url = reverse('admin:api_farmer_change', args=[obj.FarmerID.id])
-                return format_html('<a href="{}" style="color: #2d6a4f; font-weight: 500; text-decoration: none;">👨‍🌾 {}</a>', url, obj.FarmerID.username)
-        except Exception:
-            return '—'
+    def farmer_name(self, obj):
+        if obj.FarmerID:
+            url = reverse('admin:api_farmer_change', args=[obj.FarmerID.id])
+            return format_html(
+                '<a href="{}" class="hover-link" style="color: #1976d2; text-decoration: none;">{}</a>',
+                url, obj.FarmerID.username
+            )
         return '—'
-    farmer_link.short_description = 'Farmer'
+    farmer_name.short_description = 'Farmer'
 
-    def crop_type_badge(self, obj):
-        try:
-            return format_html('<span style="background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;">🌿 {}</span>', obj.CropType)
-        except Exception:
-            return '—'
-    crop_type_badge.short_description = 'Crop Type'
+    def crop_type(self, obj):
+        return obj.CropType or '—'
+    crop_type.short_description = 'Crop Type'
 
-    def location_preview(self, obj):
-        try:
-            lat = obj.latitude
-            lng = obj.longitude
-            
-            if lat is not None and lng is not None:
-                try:
-                    lat_str = str(lat).strip()
-                    lng_str = str(lng).strip()
-                    
-                    import re
-                    lat_match = re.search(r'-?\d+\.?\d*(?:[eE][-+]?\d+)?', lat_str)
-                    lng_match = re.search(r'-?\d+\.?\d*(?:[eE][-+]?\d+)?', lng_str)
-                    
-                    if lat_match and lng_match:
-                        lat_val = float(lat_match.group())
-                        lng_val = float(lng_match.group())
-                        
-                        if -90 <= lat_val <= 90 and -180 <= lng_val <= 180:
-                            return format_html(
-                                '<span style="font-family: monospace; background: #f8f9fa; padding: 4px 8px; border-radius: 6px;">📍 {:.6f}, {:.6f}</span>', 
-                                lat_val, lng_val
-                            )
-                except:
-                    pass
-            return format_html('<span style="color: #6c757d;">📍 No GPS</span>')
-        except Exception:
-            return format_html('<span style="color: #6c757d;">—</span>')
-    location_preview.short_description = 'GPS Coordinates'
+    def district(self, obj):
+        return obj.gps_district or '—'
+    district.short_description = 'District'
 
-    def date_captured_badge(self, obj):
-        try:
-            if obj.DateCaptured:
-                date_str = obj.DateCaptured.strftime('%d %b %Y')
-                return format_html('<span style="color: #6c757d; font-size: 11px;">📅 {}</span>', date_str)
-        except Exception:
-            return '—'
+    def gps_coordinates(self, obj):
+        lat, lng = obj.latitude, obj.longitude
+        if lat is not None and lng is not None:
+            return format_html(
+                '<code style="background: #f5f5f5; padding: 4px 8px; border-radius: 4px; font-size: 11px;">{:.6f}, {:.6f}</code>',
+                float(lat), float(lng)
+            )
         return '—'
-    date_captured_badge.short_description = 'Date Captured'
+    gps_coordinates.short_description = 'GPS Coordinates'
+
+    def captured_date(self, obj):
+        if obj.DateCaptured:
+            return obj.DateCaptured.strftime('%d %b %Y, %H:%M')
+        return '—'
+    captured_date.short_description = 'Capture Date'
 
 
 # ============================================================
-# --- SECTION 3: DIAGNOSTICS & HEALTH 🔬 (READ ONLY) ---
+# --- SECTION 3: DIAGNOSTICS (READ ONLY) ---
 # ============================================================
 
-@admin.register(Diagnosis)
+@admin.register(Diagnosis, site=admin_site)
 class DiagnosisAdmin(ReadOnlyAdmin):
     list_display = (
-        'DiagnosisID', 'farmer_link', 'disease_badge', 'confidence_display',
-        'severity_badge', 'date_diagnosed_badge'
+        'id', 'farmer_name', 'disease_name', 'confidence',
+        'severity_level', 'diagnosis_date'
     )
     list_filter = ('DiseaseName', 'severity')
     search_fields = ('DiseaseName', 'PlantID__FarmerID__username')
     list_select_related = ('PlantID__FarmerID',)
     list_per_page = 25
-    
-    def has_add_permission(self, request):
-        return False
-    
-    def has_change_permission(self, request, obj=None):
-        return False
-    
-    def has_delete_permission(self, request, obj=None):
-        return False
 
-    def farmer_link(self, obj):
-        try:
-            if obj.PlantID and obj.PlantID.FarmerID:
-                url = reverse('admin:api_farmer_change', args=[obj.PlantID.FarmerID.id])
-                return format_html('<a href="{}" style="color: #2d6a4f;">👨‍🌾 {}</a>', url, obj.PlantID.FarmerID.username)
-        except Exception:
-            return '—'
+    def farmer_name(self, obj):
+        if obj.PlantID and obj.PlantID.FarmerID:
+            url = reverse('admin:api_farmer_change', args=[obj.PlantID.FarmerID.id])
+            return format_html(
+                '<a href="{}" class="hover-link" style="color: #1976d2; text-decoration: none;">{}</a>',
+                url, obj.PlantID.FarmerID.username
+            )
         return '—'
-    farmer_link.short_description = 'Farmer'
+    farmer_name.short_description = 'Farmer'
 
-    def disease_badge(self, obj):
-        try:
-            is_healthy = 'healthy' in obj.DiseaseName.lower()
-            color = '#28a745' if is_healthy else '#dc3545'
-            bg = '#d4edda' if is_healthy else '#f8d7da'
-            return format_html('<span style="background: {}; color: {}; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500;">🔬 {}</span>', 
-                              bg, color, obj.DiseaseName.replace('_', ' '))
-        except Exception:
-            return '—'
-    disease_badge.short_description = 'Disease'
+    def disease_name(self, obj):
+        return obj.DiseaseName.replace('_', ' ') if obj.DiseaseName else '—'
+    disease_name.short_description = 'Disease'
 
-    def confidence_display(self, obj):
-        try:
-            if obj.ConfidenceLevel is None:
-                return '—'
-            pct = int(obj.ConfidenceLevel * 100)
+    def confidence(self, obj):
+        if obj.ConfidenceLevel:
+            pct = obj.ConfidenceLevel * 100
             if pct >= 75:
-                color = '#28a745'
-                icon = '✅'
+                style = 'color: #2e7d32;'
             elif pct >= 50:
-                color = '#fd7e14'
-                icon = '⚠️'
+                style = 'color: #ed6c02;'
             else:
-                color = '#dc3545'
-                icon = '❌'
-            return format_html('<span style="color: {}; font-weight: bold;">{} {:.0f}%</span>', color, icon, obj.ConfidenceLevel * 100)
-        except Exception:
-            return '—'
-    confidence_display.short_description = 'Confidence'
-
-    def severity_badge(self, obj):
-        try:
-            colors = {'mild': '#17a2b8', 'moderate': '#fd7e14', 'severe': '#dc3545'}
-            bg_colors = {'mild': '#d1ecf1', 'moderate': '#fff3cd', 'severe': '#f8d7da'}
-            color = colors.get(obj.severity, '#6c757d')
-            bg = bg_colors.get(obj.severity, '#e9ecef')
-            icons = {'mild': '🟢', 'moderate': '🟡', 'severe': '🔴'}
-            icon = icons.get(obj.severity, '⚪')
-            display = obj.get_severity_display() if obj.severity else '—'
-            return format_html('<span style="background: {}; color: {}; padding: 4px 12px; border-radius: 20px; font-size: 11px;">{} {}</span>', 
-                              bg, color, icon, display)
-        except Exception:
-            return '—'
-    severity_badge.short_description = 'Severity'
-
-    def date_diagnosed_badge(self, obj):
-        try:
-            if obj.DateDiagnosed:
-                return format_html('<span style="color: #6c757d;">📅 {}</span>', obj.DateDiagnosed.strftime('%d %b %Y, %H:%M'))
-        except Exception:
-            return '—'
+                style = 'color: #c62828;'
+            return format_html('<span style="{}; font-weight: 500;">{:.0f}%</span>', style, pct)
         return '—'
-    date_diagnosed_badge.short_description = 'Date Diagnosed'
+    confidence.short_description = 'Confidence'
+
+    def severity_level(self, obj):
+        levels = {
+            'mild': ('#e3f2fd', '#1976d2', 'Mild'),
+            'moderate': ('#fff3e0', '#ed6c02', 'Moderate'),
+            'severe': ('#ffebee', '#c62828', 'Severe')
+        }
+        if obj.severity and obj.severity in levels:
+            bg, color, label = levels[obj.severity]
+            return format_html(
+                '<span style="display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 500; background: {}; color: {};">{}</span>',
+                bg, color, label
+            )
+        return '—'
+    severity_level.short_description = 'Severity'
+
+    def diagnosis_date(self, obj):
+        if obj.DateDiagnosed:
+            return obj.DateDiagnosed.strftime('%d %b %Y')
+        return '—'
+    diagnosis_date.short_description = 'Date'
 
 
 # ============================================================
-# --- SECTION 4: WEATHER & ENVIRONMENT ☁️ (READ ONLY) ---
+# --- SECTION 4: WEATHER DATA (READ ONLY) ---
 # ============================================================
 
-@admin.register(WeatherData)
+@admin.register(WeatherData, site=admin_site)
 class WeatherDataAdmin(ReadOnlyAdmin):
     list_display = (
-        'WeatherID', 'district_badge', 'temperature_display', 'humidity_display', 
-        'rainfall_display', 'alert_status', 'date_updated_badge'
+        'id', 'district_name', 'temperature', 'humidity',
+        'rainfall', 'alert', 'record_date'
     )
     list_filter = ('district',)
     search_fields = ('district',)
     list_per_page = 25
-    
-    def has_add_permission(self, request):
-        return False
-    
-    def has_change_permission(self, request, obj=None):
-        return False
-    
-    def has_delete_permission(self, request, obj=None):
-        return False
 
-    def district_badge(self, obj):
-        try:
-            return format_html('<span style="background: #e3f2fd; color: #1976d2; padding: 4px 12px; border-radius: 20px; font-size: 12px;">📍 {}</span>', 
-                              obj.district or '—')
-        except Exception:
-            return '—'
-    district_badge.short_description = 'District'
+    def district_name(self, obj):
+        return obj.district or '—'
+    district_name.short_description = 'District'
 
-    def temperature_display(self, obj):
-        try:
-            temp = obj.Temperature
-            if temp > 30:
-                icon = '🔥'
-                color = '#dc3545'
-            elif temp < 10:
-                icon = '❄️'
-                color = '#17a2b8'
-            else:
-                icon = '🌡️'
-                color = '#28a745'
-            return format_html('<span style="color: {}; font-weight: bold;">{} {}°C</span>', color, icon, temp)
-        except Exception:
-            return '—'
-    temperature_display.short_description = 'Temperature'
+    def temperature(self, obj):
+        temp = obj.Temperature
+        if temp > 30:
+            color = '#c62828'
+        elif temp < 10:
+            color = '#1976d2'
+        else:
+            color = '#2e7d32'
+        return format_html('<span style="color: {}; font-weight: 500;">{}°C</span>', color, temp)
+    temperature.short_description = 'Temperature'
 
-    def humidity_display(self, obj):
-        try:
-            humidity = obj.Humidity
-            if humidity < 40:
-                color = '#fd7e14'
-                icon = '🔥'
-            elif humidity > 80:
-                color = '#17a2b8'
-                icon = '💧'
-            else:
-                color = '#28a745'
-                icon = '💨'
-            return format_html('<span style="color: {};">{} {}%</span>', color, icon, humidity)
-        except Exception:
-            return '—'
-    humidity_display.short_description = 'Humidity'
+    def humidity(self, obj):
+        return f"{obj.Humidity}%"
+    humidity.short_description = 'Humidity'
 
-    def rainfall_display(self, obj):
-        try:
-            rain = obj.Rainfall
-            if rain > 50:
-                return format_html('<span style="color: #dc3545;">🌧️ {}mm (Heavy)</span>', rain)
-            elif rain > 20:
-                return format_html('<span style="color: #fd7e14;">🌦️ {}mm (Moderate)</span>', rain)
-            elif rain > 0:
-                return format_html('<span style="color: #28a745;">☔ {}mm (Light)</span>', rain)
-            else:
-                return format_html('<span style="color: #6c757d;">☀️ {}mm (Dry)</span>', rain)
-        except Exception:
-            return '—'
-    rainfall_display.short_description = 'Rainfall'
+    def rainfall(self, obj):
+        return f"{obj.Rainfall} mm"
+    rainfall.short_description = 'Rainfall'
 
-    def alert_status(self, obj):
-        try:
-            if obj.AlertMessage:
-                return format_html('<span style="background: #fff3cd; color: #856404; padding: 4px 12px; border-radius: 20px; font-size: 11px;">⚠️ {}</span>', 
-                                  obj.AlertMessage[:30])
-            return format_html('<span style="background: #d4edda; color: #155724; padding: 4px 12px; border-radius: 20px; font-size: 11px;">✅ Normal</span>')
-        except Exception:
-            return '—'
-    alert_status.short_description = 'Alert Status'
+    def alert(self, obj):
+        if obj.AlertMessage:
+            return format_html(
+                '<span style="display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 11px; background: #fff3e0; color: #ed6c02;">⚠ {}</span>',
+                obj.AlertMessage[:30]
+            )
+        return format_html(
+            '<span style="color: #6c757d;">Normal</span>'
+        )
+    alert.short_description = 'Alert Status'
 
-    def date_updated_badge(self, obj):
-        try:
-            if obj.DateUpdated:
-                return format_html('<span style="color: #6c757d; font-size: 11px;">🕒 {}</span>', 
-                                  obj.DateUpdated.strftime('%d %b %Y, %H:%M'))
-        except Exception:
-            return '—'
+    def record_date(self, obj):
+        if obj.DateUpdated:
+            return obj.DateUpdated.strftime('%d %b %Y, %H:%M')
         return '—'
-    date_updated_badge.short_description = 'Last Updated'
+    record_date.short_description = 'Recorded'
 
 
 # ============================================================
-# --- SECTION 5: TREATMENT & KNOWLEDGE 📚 ---
+# --- SECTION 5: TREATMENT DATABASE ---
 # ============================================================
 
-@admin.register(Treatment)
-class TreatmentAdmin(InteractiveAdmin):
-    list_display = ('TreatmentID', 'disease_badge', 'pesticide_display', 'dosage_display')
+@admin.register(Treatment, site=admin_site)
+class TreatmentAdmin(BaseAdmin):
+    list_display = ('id', 'disease', 'pesticide', 'dosage')
     search_fields = ('DiseaseName', 'RecommendedPesticide')
     list_per_page = 25
 
-    def disease_badge(self, obj):
-        try:
-            return format_html('<span style="background: #f8d7da; color: #721c24; padding: 4px 12px; border-radius: 20px; font-weight: 500;">💊 {}</span>', 
-                              obj.DiseaseName if obj.DiseaseName else '—')
-        except Exception:
-            return '—'
-    disease_badge.short_description = 'Disease'
+    def disease(self, obj):
+        return obj.DiseaseName or '—'
+    disease.short_description = 'Disease'
 
-    def pesticide_display(self, obj):
-        try:
-            return format_html('<code style="background: #f0f2f0; padding: 4px 8px; border-radius: 6px;">🧪 {}</code>', obj.RecommendedPesticide)
-        except Exception:
-            return '—'
-    pesticide_display.short_description = 'Pesticide'
+    def pesticide(self, obj):
+        return obj.RecommendedPesticide
+    pesticide.short_description = 'Pesticide'
 
-    def dosage_display(self, obj):
-        try:
-            return format_html('<span style="font-family: monospace;">📊 {}</span>', obj.Dosage)
-        except Exception:
-            return '—'
-    dosage_display.short_description = 'Dosage'
+    def dosage(self, obj):
+        return obj.Dosage
+    dosage.short_description = 'Dosage'
 
 
-@admin.register(KnowledgeBase)
-class KnowledgeBaseAdmin(InteractiveAdmin):
-    list_display = ('DiseaseName', 'has_causes', 'last_updated_badge')
+# ============================================================
+# --- SECTION 6: KNOWLEDGE BASE ---
+# ============================================================
+
+@admin.register(KnowledgeBase, site=admin_site)
+class KnowledgeBaseAdmin(BaseAdmin):
+    list_display = ('disease', 'has_causes', 'last_updated')
     search_fields = ('DiseaseName',)
     list_per_page = 25
-    
+
     fieldsets = (
-        ('📋 Disease Information', {
+        ('Disease Information', {
             'fields': ('DiseaseName',),
-            'classes': ('wide',),
         }),
-        ('🩺 Symptoms & Causes', {
+        ('Symptoms and Causes', {
             'fields': ('Symptoms', 'Causes'),
-            'classes': ('wide',),
         }),
-        ('💊 Treatment Information', {
+        ('Treatment Protocol', {
             'fields': ('TreatmentInfo',),
-            'classes': ('wide',),
         }),
     )
 
+    def disease(self, obj):
+        return obj.DiseaseName
+    disease.short_description = 'Disease'
+
     def has_causes(self, obj):
-        try:
-            if obj.Causes:
-                return format_html('<span style="color: #28a745;">✓ Yes</span>')
-        except Exception:
-            return '—'
-        return format_html('<span style="color: #dc3545;">✗ Missing</span>')
-    has_causes.short_description = 'Has Causes'
+        if obj.Causes:
+            return format_html('<span style="color: #2e7d32;">✓ Documented</span>')
+        return format_html('<span style="color: #c62828;">✗ Missing</span>')
+    has_causes.short_description = 'Causes'
 
-    def last_updated_badge(self, obj):
-        try:
-            if obj.LastUpdated:
-                return format_html('<span style="color: #6c757d; font-size: 11px;">🕒 {}</span>', 
-                                  obj.LastUpdated.strftime('%d %b %Y'))
-        except Exception:
-            return '—'
+    def last_updated(self, obj):
+        if obj.LastUpdated:
+            return obj.LastUpdated.strftime('%d %b %Y')
         return '—'
-    last_updated_badge.short_description = 'Last Updated'
+    last_updated.short_description = 'Last Updated'
 
 
 # ============================================================
-# --- SECTION 6: AI & TRANSLATION 🤖 ---
+# --- SECTION 7: AI MODELS ---
 # ============================================================
 
-@admin.register(AIModel)
-class AIModelAdmin(InteractiveAdmin):
-    list_display = ('ModelID', 'Version', 'accuracy_display', 'last_trained_badge')
+@admin.register(AIModel, site=admin_site)
+class AIModelAdmin(BaseAdmin):
+    list_display = ('id', 'version', 'accuracy', 'trained_date')
     list_per_page = 25
-    
-    def accuracy_display(self, obj):
-        try:
-            pct = obj.AccuracyRate * 100
-            if pct >= 85:
-                color = '#28a745'
-                icon = '🚀'
-            elif pct >= 70:
-                color = '#fd7e14'
-                icon = '📈'
-            else:
-                color = '#dc3545'
-                icon = '⚠️'
-            return format_html('<span style="color: {}; font-weight: bold;">{} {:.1f}%</span>', color, icon, pct)
-        except Exception:
-            return '—'
-    accuracy_display.short_description = 'Accuracy'
 
-    def last_trained_badge(self, obj):
-        try:
-            if obj.LastTrainedDate:
-                return format_html('<span style="color: #6c757d; font-size: 11px;">🧠 {}</span>', 
-                                  obj.LastTrainedDate.strftime('%d %b %Y'))
-        except Exception:
-            return '—'
+    def accuracy(self, obj):
+        pct = obj.AccuracyRate * 100
+        if pct >= 85:
+            color = '#2e7d32'
+        elif pct >= 70:
+            color = '#ed6c02'
+        else:
+            color = '#c62828'
+        return format_html('<span style="color: {}; font-weight: 500;">{:.1f}%</span>', color, pct)
+    accuracy.short_description = 'Accuracy'
+
+    def trained_date(self, obj):
+        if obj.LastTrainedDate:
+            return obj.LastTrainedDate.strftime('%d %b %Y')
         return '—'
-    last_trained_badge.short_description = 'Last Trained'
+    trained_date.short_description = 'Last Trained'
 
 
-@admin.register(TranslationCache)
-class TranslationCacheAdmin(InteractiveAdmin):
-    list_display = ('disease_name_en', 'pesticide_st', 'dosage_st', 'last_updated_badge')
+# ============================================================
+# --- SECTION 8: TRANSLATION CACHE ---
+# ============================================================
+
+@admin.register(TranslationCache, site=admin_site)
+class TranslationCacheAdmin(BaseAdmin):
+    list_display = ('disease', 'pesticide', 'dosage', 'updated')
     search_fields = ('disease_name_en',)
     list_per_page = 25
 
-    def last_updated_badge(self, obj):
-        try:
-            if obj.last_updated:
-                return format_html('<span style="color: #6c757d; font-size: 11px;">🔄 {}</span>', 
-                                  obj.last_updated.strftime('%d %b %Y'))
-        except Exception:
-            return '—'
+    def disease(self, obj):
+        return obj.disease_name_en
+    disease.short_description = 'Disease (English)'
+
+    def pesticide(self, obj):
+        return obj.pesticide_st or '—'
+    pesticide.short_description = 'Pesticide (Sesotho)'
+
+    def dosage(self, obj):
+        return obj.dosage_st or '—'
+    dosage.short_description = 'Dosage (Sesotho)'
+
+    def updated(self, obj):
+        if obj.last_updated:
+            return obj.last_updated.strftime('%d %b %Y')
         return '—'
-    last_updated_badge.short_description = 'Last Updated'
+    updated.short_description = 'Last Updated'
 
 
 # ============================================================
-# --- HIDDEN MODELS (System Generated Only) ---
+# --- HIDDEN MODELS (System Managed) ---
 # ============================================================
 
-# AppAlert - Hidden (system generated only)
+# AppAlert - System generated only
 try:
-    admin.site.unregister(AppAlert)
+    admin_site.unregister(AppAlert)
 except:
     pass
 
-# CropProfile - Hidden (managed through Plant model)
+# CropProfile - Managed through Plant model
 try:
-    admin.site.unregister(CropProfile)
+    admin_site.unregister(CropProfile)
 except:
     pass
 
-# FarmerInsight - Hidden (auto-generated)
+# FarmerInsight - Auto-generated
 try:
-    admin.site.unregister(FarmerInsight)
+    admin_site.unregister(FarmerInsight)
 except:
     pass
 
-# GrowthJournalEntry - Hidden (user app only)
+# GrowthJournalEntry - User application only
 try:
-    admin.site.unregister(GrowthJournalEntry)
+    admin_site.unregister(GrowthJournalEntry)
 except:
     pass
