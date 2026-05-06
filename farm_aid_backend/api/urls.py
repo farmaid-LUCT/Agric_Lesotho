@@ -118,6 +118,7 @@
 # ]
 
 
+# api/urls.py
 from django.urls import path
 from .views import (
     # Auth
@@ -165,10 +166,7 @@ from .views import (
     PlantListView,
 )
 
-# ❌ REMOVED: from .admin_views import admin_dashboard  ← this was the broken line
-
 urlpatterns = [
-
     # ── 1. AUTHENTICATION ──────────────────────────────────────────────────
     path('register/',                        register_farmer,         name='register'),
     path('login/',                           login_farmer,            name='login'),
@@ -186,7 +184,6 @@ urlpatterns = [
     path('auth/profile/update/',             ProfileView.as_view(),   name='profile-update'),
     path('auth/profile/language/',           ProfileView.as_view(),   name='profile-language'),
     path('auth/change-password/',            change_password,         name='change-password'),
-    path('auth/password/change/',            change_password,         name='change-password-legacy'),
 
     # ── 4. WEATHER ─────────────────────────────────────────────────────────
     path('weather/latest/',                  LatestWeatherView.as_view(), name='latest-weather'),
