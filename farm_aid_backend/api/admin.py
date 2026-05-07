@@ -453,9 +453,6 @@
 #     pass
 
 
-
-
-
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
@@ -465,6 +462,17 @@ from django.contrib.admin import SimpleListFilter
 from .models import (
     Farmer, KnowledgeBase, AIModel, Diagnosis,
     Treatment,
+)
+
+# IMPORT the models you want to hide (must import before unregistering)
+from .models import (
+    TranslationCache,
+    CropProfile,
+    Plant,
+    AppAlert,
+    WeatherData,
+    FarmerInsight,
+    GrowthJournalEntry,
 )
 
 # Unregister default models that might cause duplicates
@@ -478,7 +486,7 @@ admin.site.site_title = "FarmAid Admin Portal"
 admin.site.index_title = "Dashboard | FarmAid Agriculture Management"
 admin.site.site_url = "/"
 
-# Unregister to prevent duplicates
+# Unregister default auth models
 try:
     admin.site.unregister(Group)
 except admin.sites.NotRegistered:
@@ -865,47 +873,75 @@ class AIModelAdmin(InteractiveAdmin):
 
 
 # ============================================================
-# --- HIDDEN MODELS (Not Displayed in Admin) ---
+# --- HIDDEN MODELS (System Generated Only) ---
 # ============================================================
+
+# IMPORTANT: Import models first (done at top), then unregister
 
 # TranslationCache - Hidden (system managed)
 try:
     admin.site.unregister(TranslationCache)
-except:
+except (admin.sites.NotRegistered, NameError):
     pass
 
 # CropProfile - Hidden (managed through Plant model)
 try:
     admin.site.unregister(CropProfile)
-except:
+except (admin.sites.NotRegistered, NameError):
     pass
 
-# Plant - Hidden
+# Plant - Hidden (crop management UI)
 try:
     admin.site.unregister(Plant)
-except:
+except (admin.sites.NotRegistered, NameError):
     pass
 
 # AppAlert - Hidden (system generated only)
 try:
     admin.site.unregister(AppAlert)
-except:
+except (admin.sites.NotRegistered, NameError):
     pass
 
 # WeatherData - Hidden (system generated only)
 try:
     admin.site.unregister(WeatherData)
-except:
+except (admin.sites.NotRegistered, NameError):
     pass
 
 # FarmerInsight - Hidden (auto-generated)
 try:
     admin.site.unregister(FarmerInsight)
-except:
+except (admin.sites.NotRegistered, NameError):
     pass
 
 # GrowthJournalEntry - Hidden (user app only)
 try:
     admin.site.unregister(GrowthJournalEntry)
-except:
+except (admin.sites.NotRegistered, NameError):
     pass
+
+
+# ============================================================
+# --- FORCE HIDE ANY ROGUE MODELS ---
+# ============================================================
+
+# List of model names to ensure they're hidden
+HIDE_MODELS = [
+    'TranslationCache',
+    'CropProfile',
+    'Plant', 
+    'AppAlert',
+    'WeatherData',
+    'FarmerInsight',
+    'GrowthJournalEntry',
+]
+
+from django.apps import apps
+for model_name in HIDE_MODELS:
+    try:
+        model = apps.get_model('api', model_name)
+        if model in admin.site._registry:
+            del admin.site._registry[model]
+            print(f"✓ Force removed {model_name} from admin registry")
+    except (LookupError, KeyError):
+        pass
