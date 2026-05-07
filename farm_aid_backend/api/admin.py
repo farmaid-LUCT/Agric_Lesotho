@@ -7,7 +7,6 @@
 # from .models import (
 #     Farmer, KnowledgeBase, AIModel, Diagnosis,
 #     Treatment,
-#     # REMOVED: TranslationCache, CropProfile, Plant, AppAlert, WeatherData, FarmerInsight, GrowthJournalEntry
 # )
 
 # # Unregister default models that might cause duplicates
@@ -16,7 +15,7 @@
 # from allauth.socialaccount.models import SocialAccount, SocialToken, SocialApp
 
 # # Custom admin site header and title
-# admin.site.site_header = "🌱 FarmAid Management System"
+# admin.site.site_header = "FarmAid Management System"
 # admin.site.site_title = "FarmAid Admin Portal"
 # admin.site.index_title = "Dashboard | FarmAid Agriculture Management"
 # admin.site.site_url = "/"
@@ -95,8 +94,8 @@
     
 #     def lookups(self, request, model_admin):
 #         return (
-#             ('active', '✓ Active'),
-#             ('inactive', '✗ Inactive'),
+#             ('active', 'Active'),
+#             ('inactive', 'Inactive'),
 #         )
     
 #     def queryset(self, request, queryset):
@@ -452,6 +451,8 @@
 #     admin.site.unregister(GrowthJournalEntry)
 # except:
 #     pass
+
+
 
 
 
