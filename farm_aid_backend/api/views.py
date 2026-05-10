@@ -1220,39 +1220,41 @@ class SaveScanView(APIView):
             if treat and plot_ha:
                 dosage_calc = treat.calculate_for_plot(plot_ha)
 
-            # ============================================================
-            # APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
-            # ============================================================
-            if lang == 'st':
-                logger.warning(f"[SaveScan] 🎯 APPLYING SESOTHO TRANSLATION for disease: '{clean_label}'")
+# ============================================================
+# APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
+# ============================================================
+if lang == 'st':
+    logger.warning(f"[SaveScan] 🎯 APPLYING SESOTHO TRANSLATION for disease: '{clean_label}'")
 
-                st_pesticide = self._get_sesotho(clean_label, 'pesticide')
-                st_dosage = self._get_sesotho(clean_label, 'dosage')
-                st_steps = self._get_sesotho(clean_label, 'steps')
-                st_causes = self._get_sesotho(clean_label, 'causes')
+    st_pesticide = self._get_sesotho(clean_label, 'pesticide')
+    st_dosage = self._get_sesotho(clean_label, 'dosage')
+    st_steps = self._get_sesotho(clean_label, 'steps')
+    st_causes = self._get_sesotho(clean_label, 'causes')
 
-                if st_pesticide:
-                    res_pesticide = st_pesticide
-                    logger.warning("[SaveScan] ✅ Sesotho PESTICIDE applied")
-                else:
-                    logger.warning(f"[SaveScan] ⚠️ No Sesotho pesticide found for '{clean_label}'")
+    if st_pesticide:
+        res_pesticide = st_pesticide
+        logger.warning("[SaveScan] ✅ Sesotho PESTICIDE applied")
+    else:
+        logger.warning(f"[SaveScan] ⚠️ No Sesotho pesticide found for '{clean_label}'")
 
-                if st_dosage:
-                    res_dosage = st_dosage
-                    logger.warning("[SaveScan] ✅ Sesotho DOSAGE applied")
-                else:
-                    logger.warning(f"[SaveScan] ⚠️ No Sesotho dosage found for '{clean_label}'")
+    if st_dosage:
+        res_dosage = st_dosage
+        logger.warning("[SaveScan] ✅ Sesotho DOSAGE applied")
+    else:
+        logger.warning(f"[SaveScan] ⚠️ No Sesotho dosage found for '{clean_label}'")
 
-                if st_steps:
-                    res_steps = st_steps
-                    logger.warning("[SaveScan] ✅ Sesotho STEPS applied")
+    if st_steps:
+        res_steps = st_steps
+        logger.warning("[SaveScan] ✅ Sesotho STEPS applied")
+    else:
+        logger.warning(f"[SaveScan] ⚠️ No Sesotho steps found for '{clean_label}'")
 
-            # THIS BLOCK FOR CAUSES
-            if st_causes:
-                causes = st_causes
-                logger.warning("[SaveScan] ✅ Sesotho CAUSES applied")
-            else:
-                logger.warning(f"[SaveScan] ⚠️ No Sesotho causes found for '{clean_label}'")
+    # CAUSES - MOVE THIS INSIDE THE IF BLOCK
+    if st_causes:
+        causes = st_causes
+        logger.warning("[SaveScan] ✅ Sesotho CAUSES applied")
+    else:
+        logger.warning(f"[SaveScan] ⚠️ No Sesotho causes found for '{clean_label}'")
 
             # ============================================================
             # PERSONALIZED MODE
@@ -1363,6 +1365,7 @@ class SaveScanView(APIView):
                         'pesticide': self._get_sesotho(clean_label, 'pesticide') is not None,
                         'dosage': self._get_sesotho(clean_label, 'dosage') is not None,
                         'steps': self._get_sesotho(clean_label, 'steps') is not None,
+                        'causes': self._get_sesotho(clean_label, 'causes') is not None, 
                     } if lang == 'st' else None,
                 },
                 'personalized': personalized_block,
