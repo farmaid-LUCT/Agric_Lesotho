@@ -1229,6 +1229,7 @@ class SaveScanView(APIView):
                 st_pesticide = self._get_sesotho(clean_label, 'pesticide')
                 st_dosage = self._get_sesotho(clean_label, 'dosage')
                 st_steps = self._get_sesotho(clean_label, 'steps')
+                st_causes = self._get_sesotho(clean_label, 'causes')
 
                 if st_pesticide:
                     res_pesticide = st_pesticide
