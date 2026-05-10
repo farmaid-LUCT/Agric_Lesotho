@@ -647,6 +647,7 @@ class SaveScanView(APIView):
                 'pesticide': cache.pesticide_st,
                 'dosage': cache.dosage_st,
                 'steps': cache.steps_st,
+                'causes': cache.causes_st, 
             }
             result = translations.get(field)
 
