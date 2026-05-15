@@ -2239,7 +2239,6 @@
 
 
 
-
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -2279,7 +2278,7 @@ from .serializers import CropProfileSerializer, AppAlertSerializer, WeatherDataS
 
 
 # ============================================================
-# ADMIN DASHBOARD STATS VIEW - ADD THIS
+# ADMIN DASHBOARD STATS VIEW
 # ============================================================
 
 class AdminDashboardStatsView(APIView):
@@ -2291,20 +2290,19 @@ class AdminDashboardStatsView(APIView):
             return Response({'error': 'Admin access required'}, status=403)
         
         today = timezone.now().date()
-        thirty_days_ago = today - timedelta(days=30)
         
         logger = logging.getLogger(__name__)
-        logger.warning(f"[AdminDashboard] Generating stats for admin user: {request.user.username}")
+        logger.info(f"[AdminDashboard] Generating stats for admin user: {request.user.username}")
         
         try:
             # ── STATS CARDS ──────────────────────────────────────────────
-            total_farmers = Farmer.objects.count()
-            total_diagnoses = Diagnosis.objects.count()
-            total_plants = Plant.objects.count()
+            total_scans = Diagnosis.objects.count()
+            diseases_detected = Diagnosis.objects.exclude(DiseaseName__icontains='healthy').count()
             
             # Calculate average confidence (accuracy proxy)
             avg_confidence_result = Diagnosis.objects.aggregate(avg=Avg('ConfidenceLevel'))
             avg_confidence = avg_confidence_result['avg'] or 0
+            identification_accuracy = round(avg_confidence * 100, 1)
             
             # New diseases this month (unique diseases detected this month)
             first_day_of_month = today.replace(day=1)
@@ -2312,30 +2310,24 @@ class AdminDashboardStatsView(APIView):
                 DateDiagnosed__date__gte=first_day_of_month
             ).values('DiseaseName').distinct().count()
             
-            # Total diseased scans (excluding healthy)
-            total_diseased = Diagnosis.objects.exclude(
-                DiseaseName__icontains='healthy'
-            ).count()
-            
-            # ── WEEKLY SCAN TRENDS ───────────────────────────────────────
+            # ── WEEKLY SCAN TRENDS (Last 7 days) ─────────────────────────
             weekly_trends = []
+            day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            
             for i in range(6, -1, -1):
-                week_start = today - timedelta(days=i*7)
-                week_end = week_start + timedelta(days=6)
-                week_scans = Diagnosis.objects.filter(
-                    DateDiagnosed__date__gte=week_start,
-                    DateDiagnosed__date__lte=week_end
+                target_date = today - timedelta(days=i)
+                day_scans = Diagnosis.objects.filter(
+                    DateDiagnosed__date=target_date
                 ).count()
                 weekly_trends.append({
-                    'day': week_start.strftime('%b %d'),
-                    'scans': week_scans
+                    'day': day_names[target_date.weekday()],
+                    'scans': day_scans
                 })
             
             # ── UNVERIFIED REPORTS ───────────────────────────────────────
-            # Reports with low confidence or no treatment outcome
             unverified_reports = Diagnosis.objects.filter(
                 Q(ConfidenceLevel__lt=0.7) | Q(treatment_outcome__isnull=True)
-            ).select_related('PlantID__FarmerID').order_by('-DateDiagnosed')[:10]
+            ).select_related('PlantID__FarmerID').order_by('-DateDiagnosed')[:5]
             
             unverified_list = []
             for d in unverified_reports:
@@ -2355,12 +2347,13 @@ class AdminDashboardStatsView(APIView):
                 DiseaseName__icontains='healthy'
             ).values('DiseaseName').annotate(
                 count=Count('DiagnosisID')
-            ).order_by('-count')[:10]
+            ).order_by('-count')
             
             total_diseased_count = sum(d['count'] for d in disease_distribution_raw)
             disease_heatmap = []
             
-            for d in disease_distribution_raw[:5]:  # Top 5 diseases
+            # Top 5 diseases
+            for d in disease_distribution_raw[:5]:
                 percentage = round((d['count'] / total_diseased_count) * 100, 1) if total_diseased_count > 0 else 0
                 disease_heatmap.append({
                     'name': d['DiseaseName'].replace('_', ' ').title(),
@@ -2368,13 +2361,11 @@ class AdminDashboardStatsView(APIView):
                     'percentage': percentage
                 })
             
-            # Add "Others" category for remaining diseases
+            # Add "Others" category
             top_5_names = [d['DiseaseName'] for d in disease_distribution_raw[:5]]
             other_count = Diagnosis.objects.exclude(
                 DiseaseName__icontains='healthy'
-            ).exclude(
-                DiseaseName__in=top_5_names
-            ).count()
+            ).exclude(DiseaseName__in=top_5_names).count()
             
             if other_count > 0:
                 other_percentage = round((other_count / total_diseased_count) * 100, 1) if total_diseased_count > 0 else 0
@@ -2386,11 +2377,9 @@ class AdminDashboardStatsView(APIView):
             
             # ── RECENT ACTIVITY FEED ─────────────────────────────────────
             recent_activity = []
-            
-            # Recent diagnoses
             recent_diagnoses = Diagnosis.objects.select_related(
                 'PlantID__FarmerID'
-            ).order_by('-DateDiagnosed')[:15]
+            ).order_by('-DateDiagnosed')[:10]
             
             for d in recent_diagnoses:
                 farmer_name = f"{d.PlantID.FarmerID.first_name} {d.PlantID.FarmerID.last_name}".strip() or d.PlantID.FarmerID.username
@@ -2400,9 +2389,11 @@ class AdminDashboardStatsView(APIView):
                 if time_diff.days > 0:
                     time_str = f"{time_diff.days}d ago"
                 elif time_diff.seconds > 3600:
-                    time_str = f"{time_diff.seconds // 3600}h ago"
+                    hours = time_diff.seconds // 3600
+                    time_str = f"{hours}h ago"
                 elif time_diff.seconds > 60:
-                    time_str = f"{time_diff.seconds // 60}m ago"
+                    minutes = time_diff.seconds // 60
+                    time_str = f"{minutes}m ago"
                 else:
                     time_str = "Just now"
                 
@@ -2416,46 +2407,44 @@ class AdminDashboardStatsView(APIView):
                 })
             
             # ── SYSTEM HEALTH ────────────────────────────────────────────
-            # Calculate model accuracy using average confidence
-            model_accuracy = avg_confidence * 100
+            model_accuracy = identification_accuracy
             
-            # Image store usage (estimate based on plants with images)
+            # Determine model status
+            if model_accuracy >= 85:
+                model_status = 'Online'
+                model_color = '#4CAF50'
+            elif model_accuracy >= 70:
+                model_status = 'Degraded'
+                model_color = '#FFC107'
+            else:
+                model_status = 'Critical'
+                model_color = '#F44336'
+            
+            # Image store usage
             plants_with_images = Plant.objects.exclude(ImageFile='').count()
             total_plants_count = Plant.objects.count()
             image_store_usage = round((plants_with_images / total_plants_count) * 100, 1) if total_plants_count > 0 else 0
             
-            # Determine status colors and messages
-            model_status = 'Online'
-            model_color = '#4CAF50'
-            if model_accuracy < 85:
-                model_status = 'Degraded'
-                model_color = '#FFC107'
-            if model_accuracy < 70:
-                model_status = 'Critical'
-                model_color = '#F44336'
-            
-            data_lake_status = 'Optimal'
-            data_lake_color = '#2196F3'
-            
-            image_store_status = 'Optimal'
-            image_store_color = '#4CAF50'
-            if image_store_usage > 85:
+            if image_store_usage <= 85:
+                image_store_status = 'Optimal'
+                image_store_color = '#4CAF50'
+            elif image_store_usage <= 95:
                 image_store_status = 'Warning'
                 image_store_color = '#FFC107'
-            if image_store_usage > 95:
+            else:
                 image_store_status = 'Critical'
                 image_store_color = '#F44336'
             
             system_health = {
                 'disease_model': {
                     'status': model_status,
-                    'value': f"{model_accuracy:.1f}%",
+                    'value': f"{model_accuracy}%",
                     'color': model_color
                 },
                 'data_lake': {
-                    'status': data_lake_status,
+                    'status': 'Optimal',
                     'value': None,
-                    'color': data_lake_color
+                    'color': '#2196F3'
                 },
                 'image_store': {
                     'status': image_store_status,
@@ -2467,9 +2456,9 @@ class AdminDashboardStatsView(APIView):
             # ── RESPONSE ─────────────────────────────────────────────────
             response_data = {
                 'stats': {
-                    'total_scans': total_diagnoses,
-                    'diseases_detected': total_diseased,
-                    'identification_accuracy': round(model_accuracy, 1),
+                    'total_scans': total_scans,
+                    'diseases_detected': diseases_detected,
+                    'identification_accuracy': identification_accuracy,
                     'new_diseases_logged': new_diseases_this_month,
                 },
                 'weekly_trends': weekly_trends,
@@ -2479,7 +2468,7 @@ class AdminDashboardStatsView(APIView):
                 'system_health': system_health,
             }
             
-            logger.warning(f"[AdminDashboard] Stats generated successfully. Total scans: {total_diagnoses}")
+            logger.info(f"[AdminDashboard] Stats generated successfully. Total scans: {total_scans}")
             return Response(response_data)
             
         except Exception as e:
