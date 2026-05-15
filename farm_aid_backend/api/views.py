@@ -2342,7 +2342,7 @@ class AdminDashboardStatsView(APIView):
                     'farmer': farmer_name,
                 })
             
-            # ── DISEASE DISTRIBUTION (Heat Map) ──────────────────────────
+            # ── DISEASE DISTRIBUTION (for Pie Chart) ──────────────────────
             disease_distribution_raw = Diagnosis.objects.exclude(
                 DiseaseName__icontains='healthy'
             ).values('DiseaseName').annotate(
@@ -2350,29 +2350,49 @@ class AdminDashboardStatsView(APIView):
             ).order_by('-count')
             
             total_diseased_count = sum(d['count'] for d in disease_distribution_raw)
-            disease_heatmap = []
+            disease_distribution = []
             
-            # Top 5 diseases
-            for d in disease_distribution_raw[:5]:
+            for d in disease_distribution_raw:
                 percentage = round((d['count'] / total_diseased_count) * 100, 1) if total_diseased_count > 0 else 0
-                disease_heatmap.append({
+                disease_distribution.append({
                     'name': d['DiseaseName'].replace('_', ' ').title(),
                     'count': d['count'],
                     'percentage': percentage
                 })
             
-            # Add "Others" category
-            top_5_names = [d['DiseaseName'] for d in disease_distribution_raw[:5]]
-            other_count = Diagnosis.objects.exclude(
-                DiseaseName__icontains='healthy'
-            ).exclude(DiseaseName__in=top_5_names).count()
+            # ── FIELD DATA HEAT MAP (by district) ─────────────────────────
+            # Get disease counts by district for heat map
+            districts = ['Berea', 'Maseru', 'Leribe', 'Mafeteng', "Mohale's Hoek", 'Quthing', "Qacha's Nek", 'Thaba-Tseka', 'Mokhotlong', 'Butha-Buthe']
             
-            if other_count > 0:
-                other_percentage = round((other_count / total_diseased_count) * 100, 1) if total_diseased_count > 0 else 0
-                disease_heatmap.append({
-                    'name': 'Others',
-                    'count': other_count,
-                    'percentage': other_percentage
+            # Find max count for intensity scaling
+            district_counts = []
+            for district in districts:
+                district_count = Diagnosis.objects.filter(
+                    Q(PlantID__gps_district__iexact=district) | 
+                    Q(PlantID__FarmerID__district__iexact=district)
+                ).count()
+                district_counts.append(district_count)
+            
+            max_count = max(district_counts) if district_counts else 1
+            
+            heat_map_data = []
+            for i, district in enumerate(districts):
+                district_count = district_counts[i]
+                intensity = district_count / max_count if max_count > 0 else 0
+                
+                # Get top disease in this district
+                top_disease = Diagnosis.objects.filter(
+                    Q(PlantID__gps_district__iexact=district) | 
+                    Q(PlantID__FarmerID__district__iexact=district)
+                ).exclude(DiseaseName__icontains='healthy').values('DiseaseName').annotate(
+                    count=Count('DiagnosisID')
+                ).order_by('-count').first()
+                
+                heat_map_data.append({
+                    'district': district,
+                    'count': district_count,
+                    'intensity': round(intensity, 2),
+                    'top_disease': top_disease['DiseaseName'].replace('_', ' ').title() if top_disease else 'None',
                 })
             
             # ── RECENT ACTIVITY FEED ─────────────────────────────────────
@@ -2463,7 +2483,8 @@ class AdminDashboardStatsView(APIView):
                 },
                 'weekly_trends': weekly_trends,
                 'unverified_reports': unverified_list,
-                'disease_distribution': disease_heatmap,
+                'disease_distribution': disease_distribution,
+                'heat_map_data': heat_map_data,  # NEW: for field data heat map
                 'recent_activity': recent_activity,
                 'system_health': system_health,
             }
@@ -2479,6 +2500,7 @@ class AdminDashboardStatsView(APIView):
                 {'error': f'Failed to load dashboard stats: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
 
 
 # ── 1. AUTHENTICATION ────────────────────────────────────────────────────────
