@@ -1,3 +1,7 @@
+
+
+
+
 # from rest_framework import status
 # from rest_framework.response import Response
 # from rest_framework.decorators import api_view, permission_classes
@@ -676,10 +680,9 @@
 
 #     def _generate_personalized_advice(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
 #         """Generate personalized advice in English USING GPS coordinates"""
-
+#         # (Keep your existing implementation - it's long but working)
 #         experience_level = farmer.experience_level
 #         district = gps_district or farmer.district or 'your area'
-
 #         crop_type = crop_profile.VegetableType if crop_profile else 'your crop'
 #         soil_type = crop_profile.SoilEnvironment or 'your soil type'
 #         irrigation = crop_profile.irrigation_method or 'your irrigation method'
@@ -882,10 +885,9 @@
 
 #     def _generate_personalized_advice_sesotho(self, disease_name, farmer, crop_profile, gps_district, gps_lat, gps_lon, gps_alt):
 #         """Generate personalized advice in Sesotho USING GPS coordinates"""
-
+#         # (Keep your existing implementation)
 #         experience_level = farmer.experience_level
 #         district = gps_district or farmer.district or 'sebaka sa heno'
-
 #         crop_type = crop_profile.VegetableType if crop_profile else 'sejalo sa heno'
 #         soil_type = crop_profile.SoilEnvironment or 'mobu oa heno'
 #         irrigation = crop_profile.irrigation_method or 'mokhoa oa heno oa nosetso'
@@ -1182,13 +1184,13 @@
 
 #             # ── Fetch English treatment / KB records ─────────────────────
 #             tq = Q(DiseaseName__iexact=clean_label) | Q(DiseaseName__iexact=raw_label)
-#             treat    = Treatment.objects.filter(tq).first()
+#             treat = Treatment.objects.filter(tq).first()
 #             kb_entry = KnowledgeBase.objects.filter(tq).first()
 
 #             # Default English values
-#             causes       = kb_entry.Causes if kb_entry and kb_entry.Causes else None
+#             causes = kb_entry.Causes if kb_entry and kb_entry.Causes else None
 #             res_pesticide = treat.RecommendedPesticide if treat else 'Consult local expert'
-#             res_dosage    = treat.Dosage if treat else 'N/A'
+#             res_dosage = treat.Dosage if treat else 'N/A'
 
 #             if treat and treat.ApplicationSteps:
 #                 res_steps = treat.ApplicationSteps
@@ -1207,16 +1209,14 @@
 
 #             # ============================================================
 #             # APPLY SESOTHO TRANSLATIONS IF LANGUAGE IS 'st'
-#             # All four fields — pesticide, dosage, steps, causes — are
-#             # overwritten when a Sesotho value is found in TranslationCache.
 #             # ============================================================
 #             if lang == 'st':
 #                 logger.warning(f"[SaveScan] 🎯 APPLYING SESOTHO TRANSLATION for disease: '{clean_label}'")
 
 #                 st_pesticide = self._get_sesotho(clean_label, 'pesticide')
-#                 st_dosage    = self._get_sesotho(clean_label, 'dosage')
-#                 st_steps     = self._get_sesotho(clean_label, 'steps')
-#                 st_causes    = self._get_sesotho(clean_label, 'causes')   # ← key fix
+#                 st_dosage = self._get_sesotho(clean_label, 'dosage')
+#                 st_steps = self._get_sesotho(clean_label, 'steps')
+#                 st_causes = self._get_sesotho(clean_label, 'causes')
 
 #                 if st_pesticide:
 #                     res_pesticide = st_pesticide
@@ -1236,8 +1236,6 @@
 #                 else:
 #                     logger.warning(f"[SaveScan] ⚠️ No Sesotho steps found for '{clean_label}'")
 
-#                 # ← THIS is the fix: causes is now properly overwritten
-#                 # when a Sesotho translation exists in the database.
 #                 if st_causes:
 #                     causes = st_causes
 #                     logger.warning("[SaveScan] ✅ Sesotho CAUSES applied")
@@ -1248,7 +1246,7 @@
 #             # PERSONALIZED MODE
 #             # ============================================================
 #             personalized_advice = None
-#             matched_context     = None
+#             matched_context = None
 #             personalized_dosage = None
 
 #             if wants_personalized and target_profile:
@@ -1278,51 +1276,83 @@
 #                     logger.warning("[SaveScan] ✅ Generated personalized advice in ENGLISH")
 
 #                 personalized_advice = personalized['advice']
-#                 matched_context     = personalized['matched_on']
+#                 matched_context = personalized['matched_on']
 
 #                 if dosage_calc:
 #                     personalized_dosage = {
 #                         'product': res_pesticide,
-#                         'amount':  dosage_calc.get('product_display'),
-#                         'water':   dosage_calc.get('water_display'),
-#                         'unit':    dosage_calc.get('dosage_unit'),
+#                         'amount': dosage_calc.get('product_display'),
+#                         'water': dosage_calc.get('water_display'),
+#                         'unit': dosage_calc.get('dosage_unit'),
 #                         'plot_hectares': dosage_calc.get('plot_hectares'),
 #                         'raw': {
 #                             'product_amount': dosage_calc.get('product_amount'),
-#                             'water_litres':   dosage_calc.get('water_litres'),
-#                             'buckets_10l':    dosage_calc.get('buckets_10l'),
+#                             'water_litres': dosage_calc.get('water_litres'),
+#                             'buckets_10l': dosage_calc.get('buckets_10l'),
 #                         },
 #                     }
 
-#                 # Save snapshot
-#                 snapshot_data = {
-#                     'advice_text': personalized_advice,
-#                     'context':     matched_context,
-#                     'farmer_level': user.experience_level,
-#                     'language':    lang,
-#                     'valid_until': (date.today() + timedelta(days=14)).isoformat(),
-#                 }
-#                 diagnosis.recommendation_snapshot = snapshot_data
-#                 diagnosis.save()
-#                 logger.warning("[SaveScan] ✅ Personalized recommendation snapshot saved to diagnosis")
+#             # ============================================================
+#             # SAVE COMPREHENSIVE SNAPSHOT TO DIAGNOSIS
+#             # This preserves exactly what the farmer saw at scan time
+#             # ============================================================
+#             snapshot_data = {
+#                 # Personalized advice (if generated)
+#                 'advice_text': personalized_advice,
+#                 'context': matched_context,
+                
+#                 # Disease information (what was displayed to farmer)
+#                 'disease_name': res_disease,
+#                 'causes': causes,
+#                 'pesticide': res_pesticide,
+#                 'dosage': res_dosage,
+#                 'steps': res_steps,
+#                 'confidence': confidence,
+                
+#                 # Metadata about the scan
+#                 'farmer_level': user.experience_level,
+#                 'language': lang,
+#                 'scan_mode': scan_mode,
+#                 'crop_type': crop_type,
+                
+#                 # GPS context
+#                 'gps_data': {
+#                     'latitude': gps_lat,
+#                     'longitude': gps_lon,
+#                     'altitude': gps_alt,
+#                     'district': gps_district,
+#                 },
+                
+#                 # Dosage calculation (if applicable)
+#                 'dosage_calculation': dosage_calc,
+#                 'personalized_dosage': personalized_dosage,
+                
+#                 # Validity
+#                 'valid_until': (date.today() + timedelta(days=14)).isoformat(),
+#                 'created_at': timezone.now().isoformat(),
+#             }
+            
+#             diagnosis.recommendation_snapshot = snapshot_data
+#             diagnosis.save()
+#             logger.warning("[SaveScan] ✅ Comprehensive snapshot saved to diagnosis")
 
 #             # ── Update farmer insights ────────────────────────────────────
 #             insight, _ = FarmerInsight.objects.get_or_create(FarmerID=user)
 #             insight.total_scans = Plant.objects.filter(FarmerID=user).count()
 
 #             all_diagnoses = Diagnosis.objects.filter(PlantID__FarmerID=user)
-#             insight.total_healthy_scans    = all_diagnoses.filter(Q(DiseaseName__icontains='healthy')).count()
+#             insight.total_healthy_scans = all_diagnoses.filter(Q(DiseaseName__icontains='healthy')).count()
 #             insight.total_diseases_detected = insight.total_scans - insight.total_healthy_scans
-#             insight.last_scan_date         = timezone.now()
+#             insight.last_scan_date = timezone.now()
 #             insight.save()
 
 #             # ── Build response ────────────────────────────────────────────
 #             personalized_block = None
 #             if wants_personalized and target_profile:
 #                 personalized_block = {
-#                     'advice':      personalized_advice,
-#                     'dosage':      personalized_dosage,
-#                     'matched_on':  matched_context,
+#                     'advice': personalized_advice,
+#                     'dosage': personalized_dosage,
+#                     'matched_on': matched_context,
 #                     'farmer_level': user.experience_level,
 #                 }
 
@@ -1334,43 +1364,43 @@
 #                 'scan_mode': scan_mode,
 #                 'language_used': lang,
 #                 'gps_data': {
-#                     'latitude':  gps_lat,
+#                     'latitude': gps_lat,
 #                     'longitude': gps_lon,
-#                     'altitude':  gps_alt,
-#                     'district':  gps_district,
+#                     'altitude': gps_alt,
+#                     'district': gps_district,
 #                 },
 #                 '_debug': {
-#                     'received_scan_mode':    scan_mode,
-#                     'wants_personalized':    wants_personalized,
-#                     'target_profile_found':  target_profile is not None,
-#                     'gps_received':          gps_lat is not None,
-#                     'language':              lang,
+#                     'received_scan_mode': scan_mode,
+#                     'wants_personalized': wants_personalized,
+#                     'target_profile_found': target_profile is not None,
+#                     'gps_received': gps_lat is not None,
+#                     'language': lang,
 #                     'sesotho_translations_available': {
 #                         'pesticide': self._get_sesotho(clean_label, 'pesticide') is not None,
-#                         'dosage':    self._get_sesotho(clean_label, 'dosage')    is not None,
-#                         'steps':     self._get_sesotho(clean_label, 'steps')     is not None,
-#                         'causes':    self._get_sesotho(clean_label, 'causes')    is not None,
+#                         'dosage': self._get_sesotho(clean_label, 'dosage') is not None,
+#                         'steps': self._get_sesotho(clean_label, 'steps') is not None,
+#                         'causes': self._get_sesotho(clean_label, 'causes') is not None,
 #                     } if lang == 'st' else None,
 #                 },
 #                 'personalized': personalized_block,
 #                 'results': {
-#                     'disease':    res_disease,
-#                     'causes':     causes,          # ← Sesotho causes served here when lang='st'
-#                     'pesticide':  res_pesticide,
-#                     'dosage':     res_dosage,
-#                     'steps':      res_steps,
+#                     'disease': res_disease,
+#                     'causes': causes,
+#                     'pesticide': res_pesticide,
+#                     'dosage': res_dosage,
+#                     'steps': res_steps,
 #                     'confidence': confidence,
-#                     'treatment_dose_display':  dosage_calc.get('product_display') if dosage_calc and wants_personalized else None,
-#                     'water_volume_display':    dosage_calc.get('water_display')   if dosage_calc and wants_personalized else None,
+#                     'treatment_dose_display': dosage_calc.get('product_display') if dosage_calc and wants_personalized else None,
+#                     'water_volume_display': dosage_calc.get('water_display') if dosage_calc and wants_personalized else None,
 #                 },
-#                 'treatment_product':    res_pesticide,
-#                 'personalized_advice':  personalized_advice if wants_personalized else None,
+#                 'treatment_product': res_pesticide,
+#                 'personalized_advice': personalized_advice if wants_personalized else None,
 #             }
 
 #             logger.warning(f"[SaveScan] 📤 RESPONSE SUMMARY:")
 #             logger.warning(f"[SaveScan]   - Language: {lang}")
 #             logger.warning(f"[SaveScan]   - Causes returned: {causes[:60] if causes else 'None'}")
-#             logger.warning(f"[SaveScan]   - Personalized advice length: {len(personalized_advice) if personalized_advice else 0} chars")
+#             logger.warning(f"[SaveScan]   - Snapshot saved with disease, causes, pesticide, dosage, steps")
 #             logger.warning("[SaveScan] ========== SCAN COMPLETE ==========")
 
 #             return Response(response_data)
@@ -1411,45 +1441,103 @@
 # class FarmerReportsView(APIView):
 #     permission_classes = [IsAuthenticated]
 
+#     def _get_sesotho(self, disease_name, field):
+#         """Reusable Sesotho lookup — mirrors SaveScanView._get_sesotho."""
+#         if not disease_name:
+#             return None
+#         try:
+#             cache = TranslationCache.objects.get(disease_name_en__iexact=disease_name)
+#             translations = {
+#                 'pesticide': cache.pesticide_st,
+#                 'dosage': cache.dosage_st,
+#                 'steps': cache.steps_st,
+#                 'causes': cache.causes_st,
+#             }
+#             return translations.get(field) or None
+#         except TranslationCache.DoesNotExist:
+#             return None
+#         except Exception:
+#             return None
+
 #     def get(self, request):
+#         # Determine the farmer's current language preference
+#         lang = request.user.language_preferences or 'en'
+
 #         plants = Plant.objects.filter(FarmerID=request.user).order_by('-DateCaptured')
 #         report_data = []
+
 #         for p in plants:
 #             diag = Diagnosis.objects.filter(PlantID=p).first()
-#             if diag:
-#                 treat = Treatment.objects.filter(
-#                     DiseaseName__iexact=diag.DiseaseName
-#                 ).first()
+#             if not diag:
+#                 continue
 
-#                 kb_entry = KnowledgeBase.objects.filter(
-#                     DiseaseName__iexact=diag.DiseaseName
-#                 ).first()
-#                 causes = kb_entry.Causes if kb_entry and kb_entry.Causes else None
+#             disease_name = diag.DiseaseName
 
-#                 personalized_advice = (
-#                     diag.recommendation_snapshot.get('advice_text')
-#                     if diag.recommendation_snapshot else None
-#                 )
+#             treat = Treatment.objects.filter(
+#                 DiseaseName__iexact=disease_name
+#             ).first()
 
-#                 report_data.append({
-#                     'id': diag.DiagnosisID,
-#                     'FarmerID_id': request.user.id,
-#                     'ReportDate': p.DateCaptured.isoformat(),
-#                     'DiagnosisSummary': diag.DiseaseName.replace('_', ' ').upper(),
-#                     'TreatmentSummary': (treat.ApplicationSteps
-#                                          if treat else 'Isolate plant immediately.'),
-#                     'ImageURL': p.ImageFile,
-#                     'crop_type': p.CropType,
-#                     'severity': diag.severity,
-#                     'follow_up_date': diag.follow_up_date.isoformat() if diag.follow_up_date else None,
-#                     'treatment_outcome': diag.treatment_outcome,
-#                     'treatment_applied': diag.treatment_applied,
-#                     'farmer_feedback': diag.farmer_feedback,
-#                     'causes': causes,
-#                     'personalized_advice': personalized_advice,
-#                     'pesticide': treat.RecommendedPesticide if treat else None,
-#                     'dosage': treat.Dosage if treat else None,
-#                 })
+#             kb_entry = KnowledgeBase.objects.filter(
+#                 DiseaseName__iexact=disease_name
+#             ).first()
+
+#             # ── Default English values ────────────────────────────────
+#             causes = kb_entry.Causes if kb_entry and kb_entry.Causes else None
+#             pesticide = treat.RecommendedPesticide if treat else None
+#             dosage = treat.Dosage if treat else None
+#             steps = treat.ApplicationSteps if treat else (
+#                 kb_entry.TreatmentInfo if kb_entry else 'Isolate plant immediately.'
+#             )
+
+#             # ── Override with Sesotho when lang == 'st' ───────────────
+#             if lang == 'st':
+#                 st_causes = self._get_sesotho(disease_name, 'causes')
+#                 st_pesticide = self._get_sesotho(disease_name, 'pesticide')
+#                 st_dosage = self._get_sesotho(disease_name, 'dosage')
+#                 st_steps = self._get_sesotho(disease_name, 'steps')
+
+#                 if st_causes: causes = st_causes
+#                 if st_pesticide: pesticide = st_pesticide
+#                 if st_dosage: dosage = st_dosage
+#                 if st_steps: steps = st_steps
+
+#             # Try to get from snapshot first (what was actually shown)
+#             if diag.recommendation_snapshot:
+#                 snapshot_causes = diag.recommendation_snapshot.get('causes')
+#                 snapshot_pesticide = diag.recommendation_snapshot.get('pesticide')
+#                 snapshot_dosage = diag.recommendation_snapshot.get('dosage')
+#                 snapshot_steps = diag.recommendation_snapshot.get('steps')
+                
+#                 # Use snapshot values if they exist (they represent what farmer actually saw)
+#                 if snapshot_causes: causes = snapshot_causes
+#                 if snapshot_pesticide: pesticide = snapshot_pesticide
+#                 if snapshot_dosage: dosage = snapshot_dosage
+#                 if snapshot_steps: steps = snapshot_steps
+
+#             personalized_advice = (
+#                 diag.recommendation_snapshot.get('advice_text')
+#                 if diag.recommendation_snapshot else None
+#             )
+
+#             report_data.append({
+#                 'id': diag.DiagnosisID,
+#                 'FarmerID_id': request.user.id,
+#                 'ReportDate': p.DateCaptured.isoformat(),
+#                 'DiagnosisSummary': disease_name.replace('_', ' ').upper(),
+#                 'TreatmentSummary': steps or 'Isolate plant immediately.',
+#                 'ImageURL': p.ImageFile,
+#                 'crop_type': p.CropType,
+#                 'severity': diag.severity,
+#                 'follow_up_date': diag.follow_up_date.isoformat() if diag.follow_up_date else None,
+#                 'treatment_outcome': diag.treatment_outcome,
+#                 'treatment_applied': diag.treatment_applied,
+#                 'farmer_feedback': diag.farmer_feedback,
+#                 'causes': causes,
+#                 'pesticide': pesticide,
+#                 'dosage': dosage,
+#                 'personalized_advice': personalized_advice,
+#             })
+
 #         return Response(report_data)
 
 
@@ -1936,9 +2024,9 @@
 #                 treatment_outcome__isnull=False
 #             ).exclude(treatment_outcome='')
 
-#             recovered  = diagnosed_with_feedback.filter(treatment_outcome='recovered').count()
-#             no_change  = diagnosed_with_feedback.filter(treatment_outcome='no_change').count()
-#             worsened   = diagnosed_with_feedback.filter(treatment_outcome='worsened').count()
+#             recovered = diagnosed_with_feedback.filter(treatment_outcome='recovered').count()
+#             no_change = diagnosed_with_feedback.filter(treatment_outcome='no_change').count()
+#             worsened = diagnosed_with_feedback.filter(treatment_outcome='worsened').count()
 
 #             recovery_rate = 0
 #             if diagnosed_with_feedback.count() > 0:
@@ -1947,7 +2035,7 @@
 #             recovery_data = [
 #                 {'label': 'Recovered', 'value': recovered, 'color': '#4CAF50'},
 #                 {'label': 'No Change', 'value': no_change, 'color': '#FFC107'},
-#                 {'label': 'Worsened',  'value': worsened,  'color': '#F44336'},
+#                 {'label': 'Worsened', 'value': worsened, 'color': '#F44336'},
 #             ]
 
 #             severity_data = (
@@ -1959,9 +2047,9 @@
 #             )
 
 #             severity_map = {
-#                 'mild':     {'label': 'Mild',     'color': '#8BC34A'},
+#                 'mild': {'label': 'Mild', 'color': '#8BC34A'},
 #                 'moderate': {'label': 'Moderate', 'color': '#FFC107'},
-#                 'severe':   {'label': 'Severe',   'color': '#F44336'},
+#                 'severe': {'label': 'Severe', 'color': '#F44336'},
 #             }
 
 #             severity_list = [
@@ -2021,27 +2109,27 @@
 
 #             response_data = {
 #                 'statistics': {
-#                     'total_scans':          total_scans,
-#                     'total_diseases':        total_diseases,
-#                     'total_healthy':         total_healthy,
-#                     'unique_crops':          len(crops_list),
-#                     'unique_diseases':       len(top_diseases_list),
-#                     'recovery_rate':         recovery_rate,
-#                     'healthy_percentage':    health_summary['healthy_percentage'],
-#                     'diseased_percentage':   health_summary['diseased_percentage'],
+#                     'total_scans': total_scans,
+#                     'total_diseases': total_diseases,
+#                     'total_healthy': total_healthy,
+#                     'unique_crops': len(crops_list),
+#                     'unique_diseases': len(top_diseases_list),
+#                     'recovery_rate': recovery_rate,
+#                     'healthy_percentage': health_summary['healthy_percentage'],
+#                     'diseased_percentage': health_summary['diseased_percentage'],
 #                 },
 #                 'charts': {
-#                     'trend_data':             trend_data,
-#                     'top_diseases':           top_diseases_list,
-#                     'scans_by_crop':          crops_list,
-#                     'health_summary':         health_summary,
-#                     'weekly_activity':        weekly_data,
+#                     'trend_data': trend_data,
+#                     'top_diseases': top_diseases_list,
+#                     'scans_by_crop': crops_list,
+#                     'health_summary': health_summary,
+#                     'weekly_activity': weekly_data,
 #                     'confidence_distribution': confidence_data,
-#                     'recovery_data':          recovery_data,
-#                     'severity_distribution':  severity_list,
-#                     'district_distribution':  district_list,
-#                     'crop_health_summary':    crop_health,
-#                     'seasonal_patterns':      seasonal_counts,
+#                     'recovery_data': recovery_data,
+#                     'severity_distribution': severity_list,
+#                     'district_distribution': district_list,
+#                     'crop_health_summary': crop_health,
+#                     'seasonal_patterns': seasonal_counts,
 #                 }
 #             }
 
@@ -2111,12 +2199,12 @@
 #             result = []
 #             for d in diagnoses:
 #                 result.append({
-#                     'DiagnosisID':       d.DiagnosisID,
-#                     'DiseaseName':       d.DiseaseName if d.DiseaseName else 'Unknown',
-#                     'ConfidenceLevel':   float(d.ConfidenceLevel) if d.ConfidenceLevel is not None else 0.0,
-#                     'severity':          d.severity if d.severity else 'Not specified',
+#                     'DiagnosisID': d.DiagnosisID,
+#                     'DiseaseName': d.DiseaseName if d.DiseaseName else 'Unknown',
+#                     'ConfidenceLevel': float(d.ConfidenceLevel) if d.ConfidenceLevel is not None else 0.0,
+#                     'severity': d.severity if d.severity else 'Not specified',
 #                     'treatment_outcome': d.treatment_outcome if d.treatment_outcome else 'Pending',
-#                     'DateDiagnosed':     d.DateDiagnosed.isoformat() if d.DateDiagnosed else None,
+#                     'DateDiagnosed': d.DateDiagnosed.isoformat() if d.DateDiagnosed else None,
 #                 })
 
 #             return Response(result)
@@ -2145,6 +2233,13 @@
 
 
 
+
+
+
+
+
+
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -2155,9 +2250,11 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Q
+from django.db.models import Q, Count, Avg
+from django.db.models.functions import TruncDate, TruncMonth
 from django.utils import timezone
 import hashlib
+import logging
 
 # Email Verification & Activation Imports
 from django.contrib.sites.shortcuts import get_current_site
@@ -2169,13 +2266,230 @@ from django.shortcuts import render
 from django.http import HttpResponse
 from django.conf import settings
 
+# Local imports - Models
 from .models import (
     Farmer, Plant, Diagnosis, Treatment,
     CropProfile, AppAlert, WeatherData, PersonalizedRule, KnowledgeBase,
     TranslationCache, MarketPrice, FarmerInsight, GrowthJournalEntry,
     RuleMatchingService, CommunityPost, PostLike, CommunityComment,
 )
+
+# Local imports - Serializers
 from .serializers import CropProfileSerializer, AppAlertSerializer, WeatherDataSerializer
+
+
+# ============================================================
+# ADMIN DASHBOARD STATS VIEW - ADD THIS
+# ============================================================
+
+class AdminDashboardStatsView(APIView):
+    """Comprehensive dashboard statistics for admin panel"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        if not request.user.is_staff:
+            return Response({'error': 'Admin access required'}, status=403)
+        
+        today = timezone.now().date()
+        thirty_days_ago = today - timedelta(days=30)
+        
+        logger = logging.getLogger(__name__)
+        logger.warning(f"[AdminDashboard] Generating stats for admin user: {request.user.username}")
+        
+        try:
+            # ── STATS CARDS ──────────────────────────────────────────────
+            total_farmers = Farmer.objects.count()
+            total_diagnoses = Diagnosis.objects.count()
+            total_plants = Plant.objects.count()
+            
+            # Calculate average confidence (accuracy proxy)
+            avg_confidence_result = Diagnosis.objects.aggregate(avg=Avg('ConfidenceLevel'))
+            avg_confidence = avg_confidence_result['avg'] or 0
+            
+            # New diseases this month (unique diseases detected this month)
+            first_day_of_month = today.replace(day=1)
+            new_diseases_this_month = Diagnosis.objects.filter(
+                DateDiagnosed__date__gte=first_day_of_month
+            ).values('DiseaseName').distinct().count()
+            
+            # Total diseased scans (excluding healthy)
+            total_diseased = Diagnosis.objects.exclude(
+                DiseaseName__icontains='healthy'
+            ).count()
+            
+            # ── WEEKLY SCAN TRENDS ───────────────────────────────────────
+            weekly_trends = []
+            for i in range(6, -1, -1):
+                week_start = today - timedelta(days=i*7)
+                week_end = week_start + timedelta(days=6)
+                week_scans = Diagnosis.objects.filter(
+                    DateDiagnosed__date__gte=week_start,
+                    DateDiagnosed__date__lte=week_end
+                ).count()
+                weekly_trends.append({
+                    'day': week_start.strftime('%b %d'),
+                    'scans': week_scans
+                })
+            
+            # ── UNVERIFIED REPORTS ───────────────────────────────────────
+            # Reports with low confidence or no treatment outcome
+            unverified_reports = Diagnosis.objects.filter(
+                Q(ConfidenceLevel__lt=0.7) | Q(treatment_outcome__isnull=True)
+            ).select_related('PlantID__FarmerID').order_by('-DateDiagnosed')[:10]
+            
+            unverified_list = []
+            for d in unverified_reports:
+                farmer_name = f"{d.PlantID.FarmerID.first_name} {d.PlantID.FarmerID.last_name}".strip() or d.PlantID.FarmerID.username
+                unverified_list.append({
+                    'id': d.DiagnosisID,
+                    'plant_image': d.PlantID.ImageFile if d.PlantID else '',
+                    'crop': d.PlantID.CropType if d.PlantID else 'Unknown',
+                    'disease': d.DiseaseName.replace('_', ' ').title() if d.DiseaseName else 'Unknown',
+                    'confidence': round(d.ConfidenceLevel * 100, 1) if d.ConfidenceLevel else 0,
+                    'region': d.PlantID.gps_district or d.PlantID.FarmerID.district or 'Unknown',
+                    'farmer': farmer_name,
+                })
+            
+            # ── DISEASE DISTRIBUTION (Heat Map) ──────────────────────────
+            disease_distribution_raw = Diagnosis.objects.exclude(
+                DiseaseName__icontains='healthy'
+            ).values('DiseaseName').annotate(
+                count=Count('DiagnosisID')
+            ).order_by('-count')[:10]
+            
+            total_diseased_count = sum(d['count'] for d in disease_distribution_raw)
+            disease_heatmap = []
+            
+            for d in disease_distribution_raw[:5]:  # Top 5 diseases
+                percentage = round((d['count'] / total_diseased_count) * 100, 1) if total_diseased_count > 0 else 0
+                disease_heatmap.append({
+                    'name': d['DiseaseName'].replace('_', ' ').title(),
+                    'count': d['count'],
+                    'percentage': percentage
+                })
+            
+            # Add "Others" category for remaining diseases
+            top_5_names = [d['DiseaseName'] for d in disease_distribution_raw[:5]]
+            other_count = Diagnosis.objects.exclude(
+                DiseaseName__icontains='healthy'
+            ).exclude(
+                DiseaseName__in=top_5_names
+            ).count()
+            
+            if other_count > 0:
+                other_percentage = round((other_count / total_diseased_count) * 100, 1) if total_diseased_count > 0 else 0
+                disease_heatmap.append({
+                    'name': 'Others',
+                    'count': other_count,
+                    'percentage': other_percentage
+                })
+            
+            # ── RECENT ACTIVITY FEED ─────────────────────────────────────
+            recent_activity = []
+            
+            # Recent diagnoses
+            recent_diagnoses = Diagnosis.objects.select_related(
+                'PlantID__FarmerID'
+            ).order_by('-DateDiagnosed')[:15]
+            
+            for d in recent_diagnoses:
+                farmer_name = f"{d.PlantID.FarmerID.first_name} {d.PlantID.FarmerID.last_name}".strip() or d.PlantID.FarmerID.username
+                
+                # Calculate time ago
+                time_diff = timezone.now() - d.DateDiagnosed
+                if time_diff.days > 0:
+                    time_str = f"{time_diff.days}d ago"
+                elif time_diff.seconds > 3600:
+                    time_str = f"{time_diff.seconds // 3600}h ago"
+                elif time_diff.seconds > 60:
+                    time_str = f"{time_diff.seconds // 60}m ago"
+                else:
+                    time_str = "Just now"
+                
+                disease_display = d.DiseaseName.replace('_', ' ').title() if d.DiseaseName else 'Unknown disease'
+                crop_display = d.PlantID.CropType if d.PlantID else 'crop'
+                
+                recent_activity.append({
+                    'text': f"Farmer {farmer_name} reported {disease_display} on {crop_display}",
+                    'time': time_str,
+                    'type': 'diagnosis'
+                })
+            
+            # ── SYSTEM HEALTH ────────────────────────────────────────────
+            # Calculate model accuracy using average confidence
+            model_accuracy = avg_confidence * 100
+            
+            # Image store usage (estimate based on plants with images)
+            plants_with_images = Plant.objects.exclude(ImageFile='').count()
+            total_plants_count = Plant.objects.count()
+            image_store_usage = round((plants_with_images / total_plants_count) * 100, 1) if total_plants_count > 0 else 0
+            
+            # Determine status colors and messages
+            model_status = 'Online'
+            model_color = '#4CAF50'
+            if model_accuracy < 85:
+                model_status = 'Degraded'
+                model_color = '#FFC107'
+            if model_accuracy < 70:
+                model_status = 'Critical'
+                model_color = '#F44336'
+            
+            data_lake_status = 'Optimal'
+            data_lake_color = '#2196F3'
+            
+            image_store_status = 'Optimal'
+            image_store_color = '#4CAF50'
+            if image_store_usage > 85:
+                image_store_status = 'Warning'
+                image_store_color = '#FFC107'
+            if image_store_usage > 95:
+                image_store_status = 'Critical'
+                image_store_color = '#F44336'
+            
+            system_health = {
+                'disease_model': {
+                    'status': model_status,
+                    'value': f"{model_accuracy:.1f}%",
+                    'color': model_color
+                },
+                'data_lake': {
+                    'status': data_lake_status,
+                    'value': None,
+                    'color': data_lake_color
+                },
+                'image_store': {
+                    'status': image_store_status,
+                    'value': f"{image_store_usage}%",
+                    'color': image_store_color
+                }
+            }
+            
+            # ── RESPONSE ─────────────────────────────────────────────────
+            response_data = {
+                'stats': {
+                    'total_scans': total_diagnoses,
+                    'diseases_detected': total_diseased,
+                    'identification_accuracy': round(model_accuracy, 1),
+                    'new_diseases_logged': new_diseases_this_month,
+                },
+                'weekly_trends': weekly_trends,
+                'unverified_reports': unverified_list,
+                'disease_distribution': disease_heatmap,
+                'recent_activity': recent_activity,
+                'system_health': system_health,
+            }
+            
+            logger.warning(f"[AdminDashboard] Stats generated successfully. Total scans: {total_diagnoses}")
+            return Response(response_data)
+            
+        except Exception as e:
+            logger.error(f"[AdminDashboard] Error generating stats: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {'error': f'Failed to load dashboard stats: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 # ── 1. AUTHENTICATION ────────────────────────────────────────────────────────
