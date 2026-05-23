@@ -503,7 +503,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.contrib.admin import SimpleListFilter
 from .models import (
-    Farmer, KnowledgeBase, AIModel, Diagnosis,
+    Farmer, KnowledgeBase, Diagnosis,
     Treatment,
 )
 
@@ -541,11 +541,43 @@ try:
 except ImportError:
     Site = None
 
+# Unregister Auth Token model
+try:
+    from rest_framework.authtoken.models import Token
+except ImportError:
+    Token = None
+
 # Custom admin site header and title
 admin.site.site_header = "FarmAid Management System"
 admin.site.site_title = "FarmAid Admin Portal"
 admin.site.index_title = "Dashboard | FarmAid Agriculture Management"
 admin.site.site_url = "/"
+
+# ============================================================
+# --- REMOVE "SIGN OUT" FROM TOP BAR (Log entries) ---
+# ============================================================
+
+# Override the admin template to remove Log out button
+from django.contrib.admin import AdminSite
+
+class CustomAdminSite(admin.AdminSite):
+    def each_context(self, request):
+        context = super().each_context(request)
+        # Remove the logout button from template context
+        context['has_permission'] = False
+        return context
+
+# Replace default admin site with custom one
+# Note: This must be done before any registrations
+original_site = admin.site
+admin.site = CustomAdminSite(name='admin')
+
+# Re-register all models with the new admin site
+# But we'll just use the existing registrations
+
+# ============================================================
+# --- UNREGISTER DEFAULT MODELS ---
+# ============================================================
 
 # Unregister default auth models
 try:
@@ -622,6 +654,16 @@ if ClockedSchedule is not None:
 if Site is not None:
     try:
         admin.site.unregister(Site)
+    except admin.sites.NotRegistered:
+        pass
+
+# ============================================================
+# --- HIDE AUTH TOKEN MODEL ---
+# ============================================================
+
+if Token is not None:
+    try:
+        admin.site.unregister(Token)
     except admin.sites.NotRegistered:
         pass
 
@@ -948,43 +990,6 @@ class KnowledgeBaseAdmin(InteractiveAdmin):
 
 
 # ============================================================
-# --- SECTION 5: AI MODELS ---
-# ============================================================
-
-@admin.register(AIModel)
-class AIModelAdmin(InteractiveAdmin):
-    list_display = ('ModelID', 'Version', 'accuracy_display', 'last_trained_badge')
-    list_per_page = 25
-    
-    def accuracy_display(self, obj):
-        try:
-            pct = obj.AccuracyRate * 100
-            if pct >= 85:
-                color = '#10b981'
-                icon = '🚀'
-            elif pct >= 70:
-                color = '#f59e0b'
-                icon = '📈'
-            else:
-                color = '#ef4444'
-                icon = '⚠️'
-            return format_html('<span style="color: {}; font-weight: 600;">{} {:.1f}%</span>', color, icon, pct)
-        except Exception:
-            return '—'
-    accuracy_display.short_description = 'Accuracy'
-
-    def last_trained_badge(self, obj):
-        try:
-            if obj.LastTrainedDate:
-                return format_html('<span style="color: #6b7280; font-size: 11px;">🧠 {}</span>', 
-                                  obj.LastTrainedDate.strftime('%d %b %Y'))
-        except Exception:
-            return '—'
-        return '—'
-    last_trained_badge.short_description = 'Last Trained'
-
-
-# ============================================================
 # --- HIDDEN MODELS (System Generated Only) ---
 # ============================================================
 
@@ -1051,6 +1056,8 @@ HIDE_MODELS = [
     'SolarSchedule',        # Celery Beat Solar
     'ClockedSchedule',      # Celery Beat Clocked
     'Site',                 # Django Sites
+    'Token',                # Auth Token
+    'AIModel',              # AI Models
 ]
 
 from django.apps import apps
@@ -1090,3 +1097,46 @@ try:
         print("✓ Force removed Site from admin registry")
 except (ImportError, LookupError, KeyError):
     pass
+
+# Also check rest_framework.authtoken app
+try:
+    from rest_framework.authtoken.models import Token
+    if Token and Token in admin.site._registry:
+        del admin.site._registry[Token]
+        print("✓ Force removed Token from admin registry")
+except (ImportError, LookupError, KeyError):
+    pass
+
+# Also check AIModel from api app
+try:
+    from .models import AIModel
+    if AIModel and AIModel in admin.site._registry:
+        del admin.site._registry[AIModel]
+        print("✓ Force removed AIModel from admin registry")
+except (ImportError, LookupError, KeyError):
+    pass
+
+
+# ============================================================
+# --- HIDE LOG OUT BUTTON (Alternative method) ---
+# ============================================================
+
+# Custom template filter to hide the logout link
+from django.template import Library
+register = Library()
+
+@register.simple_tag
+def hide_logout():
+    return ''
+
+# Add a custom template to override admin/base.html
+# Create a file at: templates/admin/base.html with:
+"""
+{% extends "admin/base.html" %}
+{% block userlinks %}
+    {% if user.is_active and user.is_staff %}
+        <a href="{% url 'admin:password_change' %}">Change password</a> /
+    {% endif %}
+    <a href="{% url 'admin:logout' %}">Log out</a>
+{% endblock %}
+"""
