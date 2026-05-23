@@ -9,6 +9,17 @@
 #     Treatment,
 # )
 
+# # IMPORT the models you want to hide (must import before unregistering)
+# from .models import (
+#     TranslationCache,
+#     CropProfile,
+#     Plant,
+#     AppAlert,
+#     WeatherData,
+#     FarmerInsight,
+#     GrowthJournalEntry,
+# )
+
 # # Unregister default models that might cause duplicates
 # from django.contrib.auth.models import Group
 # from allauth.account.models import EmailAddress
@@ -20,7 +31,7 @@
 # admin.site.index_title = "Dashboard | FarmAid Agriculture Management"
 # admin.site.site_url = "/"
 
-# # Unregister to prevent duplicates
+# # Unregister default auth models
 # try:
 #     admin.site.unregister(Group)
 # except admin.sites.NotRegistered:
@@ -407,50 +418,82 @@
 
 
 # # ============================================================
-# # --- HIDDEN MODELS (Not Displayed in Admin) ---
+# # --- HIDDEN MODELS (System Generated Only) ---
 # # ============================================================
+
+# # IMPORTANT: Import models first (done at top), then unregister
 
 # # TranslationCache - Hidden (system managed)
 # try:
 #     admin.site.unregister(TranslationCache)
-# except:
+# except (admin.sites.NotRegistered, NameError):
 #     pass
 
 # # CropProfile - Hidden (managed through Plant model)
 # try:
 #     admin.site.unregister(CropProfile)
-# except:
+# except (admin.sites.NotRegistered, NameError):
 #     pass
 
-# # Plant - Hidden
+# # Plant - Hidden (crop management UI)
 # try:
 #     admin.site.unregister(Plant)
-# except:
+# except (admin.sites.NotRegistered, NameError):
 #     pass
 
 # # AppAlert - Hidden (system generated only)
 # try:
 #     admin.site.unregister(AppAlert)
-# except:
+# except (admin.sites.NotRegistered, NameError):
 #     pass
 
 # # WeatherData - Hidden (system generated only)
 # try:
 #     admin.site.unregister(WeatherData)
-# except:
+# except (admin.sites.NotRegistered, NameError):
 #     pass
 
 # # FarmerInsight - Hidden (auto-generated)
 # try:
 #     admin.site.unregister(FarmerInsight)
-# except:
+# except (admin.sites.NotRegistered, NameError):
 #     pass
 
 # # GrowthJournalEntry - Hidden (user app only)
 # try:
 #     admin.site.unregister(GrowthJournalEntry)
-# except:
+# except (admin.sites.NotRegistered, NameError):
 #     pass
+
+
+# # ============================================================
+# # --- FORCE HIDE ANY ROGUE MODELS ---
+# # ============================================================
+
+# # List of model names to ensure they're hidden
+# HIDE_MODELS = [
+#     'TranslationCache',
+#     'CropProfile',
+#     'Plant', 
+#     'AppAlert',
+#     'WeatherData',
+#     'FarmerInsight',
+#     'GrowthJournalEntry',
+# ]
+
+# from django.apps import apps
+# for model_name in HIDE_MODELS:
+#     try:
+#         model = apps.get_model('api', model_name)
+#         if model in admin.site._registry:
+#             del admin.site._registry[model]
+#             print(f"✓ Force removed {model_name} from admin registry")
+#     except (LookupError, KeyError):
+#         pass
+
+
+
+
 
 
 from django.contrib import admin
@@ -479,6 +522,24 @@ from .models import (
 from django.contrib.auth.models import Group
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount, SocialToken, SocialApp
+
+# Unregister Celery models if they exist
+try:
+    from django_celery_results.models import TaskResult
+    from django_celery_beat.models import PeriodicTask, CrontabSchedule, IntervalSchedule, SolarSchedule, ClockedSchedule
+except ImportError:
+    TaskResult = None
+    PeriodicTask = None
+    CrontabSchedule = None
+    IntervalSchedule = None
+    SolarSchedule = None
+    ClockedSchedule = None
+
+# Unregister Sites framework model
+try:
+    from django.contrib.sites.models import Site
+except ImportError:
+    Site = None
 
 # Custom admin site header and title
 admin.site.site_header = "FarmAid Management System"
@@ -512,6 +573,57 @@ try:
 except admin.sites.NotRegistered:
     pass
 
+# ============================================================
+# --- HIDE CELERY MODELS ---
+# ============================================================
+
+# Hide Celery Results (TaskResult)
+if TaskResult is not None:
+    try:
+        admin.site.unregister(TaskResult)
+    except admin.sites.NotRegistered:
+        pass
+
+# Hide Celery Beat models (PeriodicTasks, Schedules)
+if PeriodicTask is not None:
+    try:
+        admin.site.unregister(PeriodicTask)
+    except admin.sites.NotRegistered:
+        pass
+
+if CrontabSchedule is not None:
+    try:
+        admin.site.unregister(CrontabSchedule)
+    except admin.sites.NotRegistered:
+        pass
+
+if IntervalSchedule is not None:
+    try:
+        admin.site.unregister(IntervalSchedule)
+    except admin.sites.NotRegistered:
+        pass
+
+if SolarSchedule is not None:
+    try:
+        admin.site.unregister(SolarSchedule)
+    except admin.sites.NotRegistered:
+        pass
+
+if ClockedSchedule is not None:
+    try:
+        admin.site.unregister(ClockedSchedule)
+    except admin.sites.NotRegistered:
+        pass
+
+# ============================================================
+# --- HIDE SITES MODEL ---
+# ============================================================
+
+if Site is not None:
+    try:
+        admin.site.unregister(Site)
+    except admin.sites.NotRegistered:
+        pass
 
 # ============================================================
 # --- CUSTOM ADMIN CLASSES WITH STYLING ---
@@ -876,8 +988,6 @@ class AIModelAdmin(InteractiveAdmin):
 # --- HIDDEN MODELS (System Generated Only) ---
 # ============================================================
 
-# IMPORTANT: Import models first (done at top), then unregister
-
 # TranslationCache - Hidden (system managed)
 try:
     admin.site.unregister(TranslationCache)
@@ -934,14 +1044,49 @@ HIDE_MODELS = [
     'WeatherData',
     'FarmerInsight',
     'GrowthJournalEntry',
+    'TaskResult',           # Celery Results
+    'PeriodicTask',         # Celery Beat Periodic Tasks
+    'CrontabSchedule',      # Celery Beat Crontab
+    'IntervalSchedule',     # Celery Beat Interval
+    'SolarSchedule',        # Celery Beat Solar
+    'ClockedSchedule',      # Celery Beat Clocked
+    'Site',                 # Django Sites
 ]
 
 from django.apps import apps
 for model_name in HIDE_MODELS:
     try:
         model = apps.get_model('api', model_name)
-        if model in admin.site._registry:
+        if model and model in admin.site._registry:
             del admin.site._registry[model]
             print(f"✓ Force removed {model_name} from admin registry")
     except (LookupError, KeyError):
         pass
+
+# Also check django_celery_results app
+try:
+    from django_celery_results.models import TaskResult
+    if TaskResult and TaskResult in admin.site._registry:
+        del admin.site._registry[TaskResult]
+        print("✓ Force removed TaskResult from admin registry")
+except (ImportError, LookupError, KeyError):
+    pass
+
+# Also check django_celery_beat app
+try:
+    from django_celery_beat.models import PeriodicTask, CrontabSchedule, IntervalSchedule, SolarSchedule, ClockedSchedule
+    for model in [PeriodicTask, CrontabSchedule, IntervalSchedule, SolarSchedule, ClockedSchedule]:
+        if model and model in admin.site._registry:
+            del admin.site._registry[model]
+            print(f"✓ Force removed {model.__name__} from admin registry")
+except (ImportError, LookupError, KeyError):
+    pass
+
+# Also check django.contrib.sites app
+try:
+    from django.contrib.sites.models import Site
+    if Site and Site in admin.site._registry:
+        del admin.site._registry[Site]
+        print("✓ Force removed Site from admin registry")
+except (ImportError, LookupError, KeyError):
+    pass
