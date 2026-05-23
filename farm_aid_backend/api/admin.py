@@ -494,7 +494,6 @@
 
 
 
-
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
@@ -502,12 +501,13 @@ from django.urls import reverse
 from django.utils import timezone
 from django.contrib.admin import SimpleListFilter
 from .models import (
-    Farmer, KnowledgeBase, Diagnosis, Treatment, TranslationCache,
+    Farmer, KnowledgeBase, AIModel, Diagnosis,
+    Treatment,
 )
 
-# Import all other models to unregister them
+# IMPORT the models you want to hide (must import before unregistering)
 from .models import (
-    AIModel,
+    TranslationCache,
     CropProfile,
     Plant,
     AppAlert,
@@ -520,12 +520,6 @@ from .models import (
 from django.contrib.auth.models import Group
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount, SocialToken, SocialApp
-
-# Unregister Auth Token model
-try:
-    from rest_framework.authtoken.models import Token
-except ImportError:
-    Token = None
 
 # Unregister Celery models if they exist
 try:
@@ -550,10 +544,6 @@ admin.site.site_header = "FarmAid Management System"
 admin.site.site_title = "FarmAid Admin Portal"
 admin.site.index_title = "Dashboard | FarmAid Agriculture Management"
 admin.site.site_url = "/"
-
-# ============================================================
-# --- UNREGISTER ALL DEFAULT MODELS ---
-# ============================================================
 
 # Unregister default auth models
 try:
@@ -582,148 +572,56 @@ except admin.sites.NotRegistered:
     pass
 
 # ============================================================
-# --- REMOVE ALL OTHER MODELS (KEEP ONLY Farmer, Diagnosis, Treatment, KnowledgeBase, TranslationCache) ---
+# --- HIDE CELERY MODELS ---
 # ============================================================
 
-# 1. Remove AIModel
-try:
-    admin.site.unregister(AIModel)
-    print("✓ Removed AIModel")
-except admin.sites.NotRegistered:
-    pass
-except Exception as e:
-    print(f"Error removing AIModel: {e}")
-
-# 2. Remove Auth Token
-if Token is not None:
-    try:
-        admin.site.unregister(Token)
-        print("✓ Removed Token")
-    except admin.sites.NotRegistered:
-        pass
-    except Exception as e:
-        print(f"Error removing Token: {e}")
-
-# 3. Remove CropProfile
-try:
-    admin.site.unregister(CropProfile)
-    print("✓ Removed CropProfile")
-except admin.sites.NotRegistered:
-    pass
-except Exception as e:
-    pass
-
-# 4. Remove Plant
-try:
-    admin.site.unregister(Plant)
-    print("✓ Removed Plant")
-except admin.sites.NotRegistered:
-    pass
-except Exception as e:
-    pass
-
-# 5. Remove AppAlert
-try:
-    admin.site.unregister(AppAlert)
-    print("✓ Removed AppAlert")
-except admin.sites.NotRegistered:
-    pass
-except Exception as e:
-    pass
-
-# 6. Remove WeatherData
-try:
-    admin.site.unregister(WeatherData)
-    print("✓ Removed WeatherData")
-except admin.sites.NotRegistered:
-    pass
-except Exception as e:
-    pass
-
-# 7. Remove FarmerInsight
-try:
-    admin.site.unregister(FarmerInsight)
-    print("✓ Removed FarmerInsight")
-except admin.sites.NotRegistered:
-    pass
-except Exception as e:
-    pass
-
-# 8. Remove GrowthJournalEntry
-try:
-    admin.site.unregister(GrowthJournalEntry)
-    print("✓ Removed GrowthJournalEntry")
-except admin.sites.NotRegistered:
-    pass
-except Exception as e:
-    pass
-
-# 9. Remove Celery Results
+# Hide Celery Results (TaskResult)
 if TaskResult is not None:
     try:
         admin.site.unregister(TaskResult)
-        print("✓ Removed TaskResult")
     except admin.sites.NotRegistered:
         pass
-    except Exception as e:
-        pass
 
-# 10. Remove Celery Beat models
+# Hide Celery Beat models (PeriodicTasks, Schedules)
 if PeriodicTask is not None:
     try:
         admin.site.unregister(PeriodicTask)
-        print("✓ Removed PeriodicTask")
     except admin.sites.NotRegistered:
-        pass
-    except Exception as e:
         pass
 
 if CrontabSchedule is not None:
     try:
         admin.site.unregister(CrontabSchedule)
-        print("✓ Removed CrontabSchedule")
     except admin.sites.NotRegistered:
-        pass
-    except Exception as e:
         pass
 
 if IntervalSchedule is not None:
     try:
         admin.site.unregister(IntervalSchedule)
-        print("✓ Removed IntervalSchedule")
     except admin.sites.NotRegistered:
-        pass
-    except Exception as e:
         pass
 
 if SolarSchedule is not None:
     try:
         admin.site.unregister(SolarSchedule)
-        print("✓ Removed SolarSchedule")
     except admin.sites.NotRegistered:
-        pass
-    except Exception as e:
         pass
 
 if ClockedSchedule is not None:
     try:
         admin.site.unregister(ClockedSchedule)
-        print("✓ Removed ClockedSchedule")
     except admin.sites.NotRegistered:
         pass
-    except Exception as e:
-        pass
 
-# 11. Remove Sites model
+# ============================================================
+# --- HIDE SITES MODEL ---
+# ============================================================
+
 if Site is not None:
     try:
         admin.site.unregister(Site)
-        print("✓ Removed Site")
     except admin.sites.NotRegistered:
         pass
-    except Exception as e:
-        pass
-
 
 # ============================================================
 # --- CUSTOM ADMIN CLASSES WITH STYLING ---
@@ -785,7 +683,7 @@ class ActiveFilter(SimpleListFilter):
 
 
 # ============================================================
-# --- SECTION 1: USER MANAGEMENT (Farmer) ---
+# --- SECTION 1: USER MANAGEMENT ---
 # ============================================================
 
 @admin.register(Farmer)
@@ -1048,21 +946,145 @@ class KnowledgeBaseAdmin(InteractiveAdmin):
 
 
 # ============================================================
-# --- SECTION 5: TRANSLATION CACHE (READ ONLY) ---
+# --- SECTION 5: AI MODELS ---
 # ============================================================
 
-@admin.register(TranslationCache)
-class TranslationCacheAdmin(ReadOnlyAdmin):
-    list_display = ('key', 'language', 'last_accessed')
-    search_fields = ('key',)
-    list_filter = ('language',)
+@admin.register(AIModel)
+class AIModelAdmin(InteractiveAdmin):
+    list_display = ('ModelID', 'Version', 'accuracy_display', 'last_trained_badge')
     list_per_page = 25
     
-    def has_add_permission(self, request):
-        return False
-    
-    def has_change_permission(self, request, obj=None):
-        return False
-    
-    def has_delete_permission(self, request, obj=None):
-        return False
+    def accuracy_display(self, obj):
+        try:
+            pct = obj.AccuracyRate * 100
+            if pct >= 85:
+                color = '#10b981'
+                icon = '🚀'
+            elif pct >= 70:
+                color = '#f59e0b'
+                icon = '📈'
+            else:
+                color = '#ef4444'
+                icon = '⚠️'
+            return format_html('<span style="color: {}; font-weight: 600;">{} {:.1f}%</span>', color, icon, pct)
+        except Exception:
+            return '—'
+    accuracy_display.short_description = 'Accuracy'
+
+    def last_trained_badge(self, obj):
+        try:
+            if obj.LastTrainedDate:
+                return format_html('<span style="color: #6b7280; font-size: 11px;">🧠 {}</span>', 
+                                  obj.LastTrainedDate.strftime('%d %b %Y'))
+        except Exception:
+            return '—'
+        return '—'
+    last_trained_badge.short_description = 'Last Trained'
+
+
+# ============================================================
+# --- HIDDEN MODELS (System Generated Only) ---
+# ============================================================
+
+# TranslationCache - Hidden (system managed)
+try:
+    admin.site.unregister(TranslationCache)
+except (admin.sites.NotRegistered, NameError):
+    pass
+
+# CropProfile - Hidden (managed through Plant model)
+try:
+    admin.site.unregister(CropProfile)
+except (admin.sites.NotRegistered, NameError):
+    pass
+
+# Plant - Hidden (crop management UI)
+try:
+    admin.site.unregister(Plant)
+except (admin.sites.NotRegistered, NameError):
+    pass
+
+# AppAlert - Hidden (system generated only)
+try:
+    admin.site.unregister(AppAlert)
+except (admin.sites.NotRegistered, NameError):
+    pass
+
+# WeatherData - Hidden (system generated only)
+try:
+    admin.site.unregister(WeatherData)
+except (admin.sites.NotRegistered, NameError):
+    pass
+
+# FarmerInsight - Hidden (auto-generated)
+try:
+    admin.site.unregister(FarmerInsight)
+except (admin.sites.NotRegistered, NameError):
+    pass
+
+# GrowthJournalEntry - Hidden (user app only)
+try:
+    admin.site.unregister(GrowthJournalEntry)
+except (admin.sites.NotRegistered, NameError):
+    pass
+
+
+# ============================================================
+# --- FORCE HIDE ANY ROGUE MODELS ---
+# ============================================================
+
+# List of model names to ensure they're hidden
+HIDE_MODELS = [
+    'TranslationCache',
+    'CropProfile',
+    'Plant', 
+    'AppAlert',
+    'WeatherData',
+    'FarmerInsight',
+    'GrowthJournalEntry',
+    'TaskResult',           # Celery Results
+    'PeriodicTask',         # Celery Beat Periodic Tasks
+    'CrontabSchedule',      # Celery Beat Crontab
+    'IntervalSchedule',     # Celery Beat Interval
+    'SolarSchedule',        # Celery Beat Solar
+    'ClockedSchedule',      # Celery Beat Clocked
+    'Site',                 # Django Sites
+]
+
+from django.apps import apps
+for model_name in HIDE_MODELS:
+    try:
+        model = apps.get_model('api', model_name)
+        if model and model in admin.site._registry:
+            del admin.site._registry[model]
+            print(f"✓ Force removed {model_name} from admin registry")
+    except (LookupError, KeyError):
+        pass
+
+# Also check django_celery_results app
+try:
+    from django_celery_results.models import TaskResult
+    if TaskResult and TaskResult in admin.site._registry:
+        del admin.site._registry[TaskResult]
+        print("✓ Force removed TaskResult from admin registry")
+except (ImportError, LookupError, KeyError):
+    pass
+
+# Also check django_celery_beat app
+try:
+    from django_celery_beat.models import PeriodicTask, CrontabSchedule, IntervalSchedule, SolarSchedule, ClockedSchedule
+    for model in [PeriodicTask, CrontabSchedule, IntervalSchedule, SolarSchedule, ClockedSchedule]:
+        if model and model in admin.site._registry:
+            del admin.site._registry[model]
+            print(f"✓ Force removed {model.__name__} from admin registry")
+except (ImportError, LookupError, KeyError):
+    pass
+
+# Also check django.contrib.sites app
+try:
+    from django.contrib.sites.models import Site
+    if Site and Site in admin.site._registry:
+        del admin.site._registry[Site]
+        print("✓ Force removed Site from admin registry")
+except (ImportError, LookupError, KeyError):
+    pass
