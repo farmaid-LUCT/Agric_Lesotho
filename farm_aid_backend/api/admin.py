@@ -495,7 +495,6 @@
 
 
 
-
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
@@ -503,13 +502,12 @@ from django.urls import reverse
 from django.utils import timezone
 from django.contrib.admin import SimpleListFilter
 from .models import (
-    Farmer, KnowledgeBase, Diagnosis,
-    Treatment,
+    Farmer, KnowledgeBase, Diagnosis, Treatment, TranslationCache,
 )
 
-# IMPORT the models you want to hide (must import before unregistering)
+# Import all other models to unregister them
 from .models import (
-    TranslationCache,
+    AIModel,
     CropProfile,
     Plant,
     AppAlert,
@@ -522,6 +520,12 @@ from .models import (
 from django.contrib.auth.models import Group
 from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount, SocialToken, SocialApp
+
+# Unregister Auth Token model
+try:
+    from rest_framework.authtoken.models import Token
+except ImportError:
+    Token = None
 
 # Unregister Celery models if they exist
 try:
@@ -541,12 +545,6 @@ try:
 except ImportError:
     Site = None
 
-# Unregister Auth Token model
-try:
-    from rest_framework.authtoken.models import Token
-except ImportError:
-    Token = None
-
 # Custom admin site header and title
 admin.site.site_header = "FarmAid Management System"
 admin.site.site_title = "FarmAid Admin Portal"
@@ -554,29 +552,7 @@ admin.site.index_title = "Dashboard | FarmAid Agriculture Management"
 admin.site.site_url = "/"
 
 # ============================================================
-# --- REMOVE "SIGN OUT" FROM TOP BAR (Log entries) ---
-# ============================================================
-
-# Override the admin template to remove Log out button
-from django.contrib.admin import AdminSite
-
-class CustomAdminSite(admin.AdminSite):
-    def each_context(self, request):
-        context = super().each_context(request)
-        # Remove the logout button from template context
-        context['has_permission'] = False
-        return context
-
-# Replace default admin site with custom one
-# Note: This must be done before any registrations
-original_site = admin.site
-admin.site = CustomAdminSite(name='admin')
-
-# Re-register all models with the new admin site
-# But we'll just use the existing registrations
-
-# ============================================================
-# --- UNREGISTER DEFAULT MODELS ---
+# --- UNREGISTER ALL DEFAULT MODELS ---
 # ============================================================
 
 # Unregister default auth models
@@ -606,66 +582,148 @@ except admin.sites.NotRegistered:
     pass
 
 # ============================================================
-# --- HIDE CELERY MODELS ---
+# --- REMOVE ALL OTHER MODELS (KEEP ONLY Farmer, Diagnosis, Treatment, KnowledgeBase, TranslationCache) ---
 # ============================================================
 
-# Hide Celery Results (TaskResult)
+# 1. Remove AIModel
+try:
+    admin.site.unregister(AIModel)
+    print("✓ Removed AIModel")
+except admin.sites.NotRegistered:
+    pass
+except Exception as e:
+    print(f"Error removing AIModel: {e}")
+
+# 2. Remove Auth Token
+if Token is not None:
+    try:
+        admin.site.unregister(Token)
+        print("✓ Removed Token")
+    except admin.sites.NotRegistered:
+        pass
+    except Exception as e:
+        print(f"Error removing Token: {e}")
+
+# 3. Remove CropProfile
+try:
+    admin.site.unregister(CropProfile)
+    print("✓ Removed CropProfile")
+except admin.sites.NotRegistered:
+    pass
+except Exception as e:
+    pass
+
+# 4. Remove Plant
+try:
+    admin.site.unregister(Plant)
+    print("✓ Removed Plant")
+except admin.sites.NotRegistered:
+    pass
+except Exception as e:
+    pass
+
+# 5. Remove AppAlert
+try:
+    admin.site.unregister(AppAlert)
+    print("✓ Removed AppAlert")
+except admin.sites.NotRegistered:
+    pass
+except Exception as e:
+    pass
+
+# 6. Remove WeatherData
+try:
+    admin.site.unregister(WeatherData)
+    print("✓ Removed WeatherData")
+except admin.sites.NotRegistered:
+    pass
+except Exception as e:
+    pass
+
+# 7. Remove FarmerInsight
+try:
+    admin.site.unregister(FarmerInsight)
+    print("✓ Removed FarmerInsight")
+except admin.sites.NotRegistered:
+    pass
+except Exception as e:
+    pass
+
+# 8. Remove GrowthJournalEntry
+try:
+    admin.site.unregister(GrowthJournalEntry)
+    print("✓ Removed GrowthJournalEntry")
+except admin.sites.NotRegistered:
+    pass
+except Exception as e:
+    pass
+
+# 9. Remove Celery Results
 if TaskResult is not None:
     try:
         admin.site.unregister(TaskResult)
+        print("✓ Removed TaskResult")
     except admin.sites.NotRegistered:
         pass
+    except Exception as e:
+        pass
 
-# Hide Celery Beat models (PeriodicTasks, Schedules)
+# 10. Remove Celery Beat models
 if PeriodicTask is not None:
     try:
         admin.site.unregister(PeriodicTask)
+        print("✓ Removed PeriodicTask")
     except admin.sites.NotRegistered:
+        pass
+    except Exception as e:
         pass
 
 if CrontabSchedule is not None:
     try:
         admin.site.unregister(CrontabSchedule)
+        print("✓ Removed CrontabSchedule")
     except admin.sites.NotRegistered:
+        pass
+    except Exception as e:
         pass
 
 if IntervalSchedule is not None:
     try:
         admin.site.unregister(IntervalSchedule)
+        print("✓ Removed IntervalSchedule")
     except admin.sites.NotRegistered:
+        pass
+    except Exception as e:
         pass
 
 if SolarSchedule is not None:
     try:
         admin.site.unregister(SolarSchedule)
+        print("✓ Removed SolarSchedule")
     except admin.sites.NotRegistered:
+        pass
+    except Exception as e:
         pass
 
 if ClockedSchedule is not None:
     try:
         admin.site.unregister(ClockedSchedule)
+        print("✓ Removed ClockedSchedule")
     except admin.sites.NotRegistered:
         pass
+    except Exception as e:
+        pass
 
-# ============================================================
-# --- HIDE SITES MODEL ---
-# ============================================================
-
+# 11. Remove Sites model
 if Site is not None:
     try:
         admin.site.unregister(Site)
+        print("✓ Removed Site")
     except admin.sites.NotRegistered:
         pass
-
-# ============================================================
-# --- HIDE AUTH TOKEN MODEL ---
-# ============================================================
-
-if Token is not None:
-    try:
-        admin.site.unregister(Token)
-    except admin.sites.NotRegistered:
+    except Exception as e:
         pass
+
 
 # ============================================================
 # --- CUSTOM ADMIN CLASSES WITH STYLING ---
@@ -727,7 +785,7 @@ class ActiveFilter(SimpleListFilter):
 
 
 # ============================================================
-# --- SECTION 1: USER MANAGEMENT ---
+# --- SECTION 1: USER MANAGEMENT (Farmer) ---
 # ============================================================
 
 @admin.register(Farmer)
@@ -990,153 +1048,21 @@ class KnowledgeBaseAdmin(InteractiveAdmin):
 
 
 # ============================================================
-# --- HIDDEN MODELS (System Generated Only) ---
+# --- SECTION 5: TRANSLATION CACHE (READ ONLY) ---
 # ============================================================
 
-# TranslationCache - Hidden (system managed)
-try:
-    admin.site.unregister(TranslationCache)
-except (admin.sites.NotRegistered, NameError):
-    pass
-
-# CropProfile - Hidden (managed through Plant model)
-try:
-    admin.site.unregister(CropProfile)
-except (admin.sites.NotRegistered, NameError):
-    pass
-
-# Plant - Hidden (crop management UI)
-try:
-    admin.site.unregister(Plant)
-except (admin.sites.NotRegistered, NameError):
-    pass
-
-# AppAlert - Hidden (system generated only)
-try:
-    admin.site.unregister(AppAlert)
-except (admin.sites.NotRegistered, NameError):
-    pass
-
-# WeatherData - Hidden (system generated only)
-try:
-    admin.site.unregister(WeatherData)
-except (admin.sites.NotRegistered, NameError):
-    pass
-
-# FarmerInsight - Hidden (auto-generated)
-try:
-    admin.site.unregister(FarmerInsight)
-except (admin.sites.NotRegistered, NameError):
-    pass
-
-# GrowthJournalEntry - Hidden (user app only)
-try:
-    admin.site.unregister(GrowthJournalEntry)
-except (admin.sites.NotRegistered, NameError):
-    pass
-
-
-# ============================================================
-# --- FORCE HIDE ANY ROGUE MODELS ---
-# ============================================================
-
-# List of model names to ensure they're hidden
-HIDE_MODELS = [
-    'TranslationCache',
-    'CropProfile',
-    'Plant', 
-    'AppAlert',
-    'WeatherData',
-    'FarmerInsight',
-    'GrowthJournalEntry',
-    'TaskResult',           # Celery Results
-    'PeriodicTask',         # Celery Beat Periodic Tasks
-    'CrontabSchedule',      # Celery Beat Crontab
-    'IntervalSchedule',     # Celery Beat Interval
-    'SolarSchedule',        # Celery Beat Solar
-    'ClockedSchedule',      # Celery Beat Clocked
-    'Site',                 # Django Sites
-    'Token',                # Auth Token
-    'AIModel',              # AI Models
-]
-
-from django.apps import apps
-for model_name in HIDE_MODELS:
-    try:
-        model = apps.get_model('api', model_name)
-        if model and model in admin.site._registry:
-            del admin.site._registry[model]
-            print(f"✓ Force removed {model_name} from admin registry")
-    except (LookupError, KeyError):
-        pass
-
-# Also check django_celery_results app
-try:
-    from django_celery_results.models import TaskResult
-    if TaskResult and TaskResult in admin.site._registry:
-        del admin.site._registry[TaskResult]
-        print("✓ Force removed TaskResult from admin registry")
-except (ImportError, LookupError, KeyError):
-    pass
-
-# Also check django_celery_beat app
-try:
-    from django_celery_beat.models import PeriodicTask, CrontabSchedule, IntervalSchedule, SolarSchedule, ClockedSchedule
-    for model in [PeriodicTask, CrontabSchedule, IntervalSchedule, SolarSchedule, ClockedSchedule]:
-        if model and model in admin.site._registry:
-            del admin.site._registry[model]
-            print(f"✓ Force removed {model.__name__} from admin registry")
-except (ImportError, LookupError, KeyError):
-    pass
-
-# Also check django.contrib.sites app
-try:
-    from django.contrib.sites.models import Site
-    if Site and Site in admin.site._registry:
-        del admin.site._registry[Site]
-        print("✓ Force removed Site from admin registry")
-except (ImportError, LookupError, KeyError):
-    pass
-
-# Also check rest_framework.authtoken app
-try:
-    from rest_framework.authtoken.models import Token
-    if Token and Token in admin.site._registry:
-        del admin.site._registry[Token]
-        print("✓ Force removed Token from admin registry")
-except (ImportError, LookupError, KeyError):
-    pass
-
-# Also check AIModel from api app
-try:
-    from .models import AIModel
-    if AIModel and AIModel in admin.site._registry:
-        del admin.site._registry[AIModel]
-        print("✓ Force removed AIModel from admin registry")
-except (ImportError, LookupError, KeyError):
-    pass
-
-
-# ============================================================
-# --- HIDE LOG OUT BUTTON (Alternative method) ---
-# ============================================================
-
-# Custom template filter to hide the logout link
-from django.template import Library
-register = Library()
-
-@register.simple_tag
-def hide_logout():
-    return ''
-
-# Add a custom template to override admin/base.html
-# Create a file at: templates/admin/base.html with:
-"""
-{% extends "admin/base.html" %}
-{% block userlinks %}
-    {% if user.is_active and user.is_staff %}
-        <a href="{% url 'admin:password_change' %}">Change password</a> /
-    {% endif %}
-    <a href="{% url 'admin:logout' %}">Log out</a>
-{% endblock %}
-"""
+@admin.register(TranslationCache)
+class TranslationCacheAdmin(ReadOnlyAdmin):
+    list_display = ('key', 'language', 'last_accessed')
+    search_fields = ('key',)
+    list_filter = ('language',)
+    list_per_page = 25
+    
+    def has_add_permission(self, request):
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        return False
